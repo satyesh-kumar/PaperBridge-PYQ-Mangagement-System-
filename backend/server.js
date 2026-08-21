@@ -18,18 +18,39 @@ const port = process.env.PORT || 5000;
 // ── CORS ─────────────────────────────────────────────────────────────────────
 const allowedOrigins = process.env.ALLOWED_ORIGIN
   ? process.env.ALLOWED_ORIGIN.split(",").map((o) => o.trim())
-  : null; // null = allow all origins (used when env var is not set on host)
+  : null;
 
 app.use(
   cors({
-    origin: allowedOrigins
-      ? (origin, callback) => {
-          if (!origin) return callback(null, true);
-          if (allowedOrigins.includes(origin)) return callback(null, true);
-          return callback(new Error(`CORS blocked for origin: ${origin}`));
-        }
-      : true, // true = allow every origin
+    origin: (origin, callback) => {
+      // Allow requests with no origin (like mobile apps, curl)
+      if (!origin) return callback(null, true);
+
+      // Allow all localhost origins on any port
+      if (/^https?:\/\/localhost(:\d+)?$/.test(origin) || /^https?:\/\/127\.0\.0\.1(:\d+)?$/.test(origin)) {
+        return callback(null, true);
+      }
+
+      // Allow all Vercel preview & production deployments (*.vercel.app)
+      if (/^https:\/\/([a-zA-Z0-9_-]+\.)?vercel\.app$/.test(origin) || /^https:\/\/.*\.vercel\.app$/.test(origin)) {
+        return callback(null, true);
+      }
+
+      // Check explicit ALLOWED_ORIGIN list if set
+      if (allowedOrigins && allowedOrigins.includes(origin)) {
+        return callback(null, true);
+      }
+
+      // If no strict ALLOWED_ORIGIN is set, allow all
+      if (!allowedOrigins) {
+        return callback(null, true);
+      }
+
+      return callback(new Error(`CORS blocked for origin: ${origin}`));
+    },
     credentials: true,
+    methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Authorization"],
   })
 );
 
