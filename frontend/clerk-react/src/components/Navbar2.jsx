@@ -4,7 +4,7 @@ import {
   SignInButton,
   SignUpButton,
   UserButton,
-  Show
+  Show,
 } from "@clerk/react";
 
 function Navbar() {
@@ -20,38 +20,36 @@ function Navbar() {
 
         {/* Navigation Links */}
         <div className="hidden md:flex items-center gap-6 text-gray-600 font-medium">
-
           <Link to="/" className="hover:text-indigo-600 transition">
             Home
           </Link>
-
           <Link to="/browse" className="hover:text-indigo-600 transition">
             Browse Papers
           </Link>
-
           <Link to="/upload" className="hover:text-indigo-600 transition">
             Upload PYQ
           </Link>
-
+          <Show when="signed-in">
+            <Link to="/dashboard" className="hover:text-indigo-600 transition">
+              Dashboard
+            </Link>
+          </Show>
         </div>
 
         {/* Auth Section */}
         <div className="flex items-center gap-3">
 
           <Show when="signed-out">
-
             <SignInButton mode="modal">
-              <button className="px-4 py-2 rounded-lg border border-gray-300 hover:bg-gray-100 transition text-sm font-medium">
+              <button id="navbar-signin-btn" className="px-4 py-2 rounded-lg border border-gray-300 hover:bg-gray-100 transition text-sm font-medium">
                 Sign In
               </button>
             </SignInButton>
-
             <SignUpButton mode="modal">
-              <button className="px-4 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white transition text-sm font-medium shadow">
+              <button id="navbar-signup-btn" className="px-4 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white transition text-sm font-medium shadow">
                 Sign Up
               </button>
             </SignUpButton>
-
           </Show>
 
           <Show when="signed-in">
@@ -59,7 +57,6 @@ function Navbar() {
           </Show>
 
         </div>
-
       </div>
 
     </nav>
