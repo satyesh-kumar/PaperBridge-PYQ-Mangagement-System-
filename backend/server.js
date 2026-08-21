@@ -18,15 +18,17 @@ const port = process.env.PORT || 5000;
 // ── CORS ─────────────────────────────────────────────────────────────────────
 const allowedOrigins = process.env.ALLOWED_ORIGIN
   ? process.env.ALLOWED_ORIGIN.split(",").map((o) => o.trim())
-  : ["http://localhost:5173", "http://localhost:3000"];
+  : null; // null = allow all origins (used when env var is not set on host)
 
 app.use(
   cors({
-    origin: (origin, callback) => {
-      if (!origin) return callback(null, true);
-      if (allowedOrigins.includes(origin)) return callback(null, true);
-      return callback(new Error(`CORS blocked for origin: ${origin}`));
-    },
+    origin: allowedOrigins
+      ? (origin, callback) => {
+          if (!origin) return callback(null, true);
+          if (allowedOrigins.includes(origin)) return callback(null, true);
+          return callback(new Error(`CORS blocked for origin: ${origin}`));
+        }
+      : true, // true = allow every origin
     credentials: true,
   })
 );
