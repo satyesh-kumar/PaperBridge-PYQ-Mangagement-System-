@@ -19,43 +19,6 @@ function BrowsePYQ() {
     const [examFilter, setExamFilter] = useState("");
     const [yearFilter, setYearFilter] = useState("");
     const [debouncedSearch, setDebouncedSearch] = useState("");
-    const [suggestions, setSuggestions] = useState([]);
-    const [activeIndex, setActiveIndex] = useState(0);
-    const [aiLoading, setAiLoading] = useState(false);
-
-    const handleKeyDown = (e) => {
-        if (e.key === "ArrowDown") {
-            setActiveIndex((prev) => (prev + 1) % suggestions.length);
-        } else if (e.key === "ArrowUp") {
-            setActiveIndex((prev) =>
-                prev === 0 ? suggestions.length - 1 : prev - 1
-            );
-        } else if (e.key === "Enter") {
-            if (suggestions[activeIndex]) {
-                setSearch(suggestions[activeIndex].title);
-                setSuggestions([]);
-            } else {
-                handleAISearch();
-            }
-        }
-    };
-
-    // Autocomplete suggestions
-    useEffect(() => {
-        if (!search.trim()) {
-            setSuggestions([]);
-            return;
-        }
-        const lower = search.toLowerCase();
-        const results = papers
-            .filter((p) =>
-                `${p.title} ${p.course} ${p.examType} ${p.year}`
-                    .toLowerCase()
-                    .includes(lower)
-            )
-            .slice(0, 6);
-        setSuggestions(results);
-    }, [search, papers]);
 
     // Fetch all papers
     useEffect(() => {
@@ -72,22 +35,6 @@ function BrowsePYQ() {
         };
         fetchPapers();
     }, []);
-
-    // AI search — sends to backend
-    const handleAISearch = async () => {
-        if (!search.trim()) return;
-        try {
-            setAiLoading(true);
-            const res = await axios.post(`${API_URL}/api/ai-search`, { query: search });
-            if (res.data.course) setCourseFilter(res.data.course);
-            if (res.data.examType) setExamFilter(res.data.examType);
-            if (res.data.year) setYearFilter(res.data.year);
-        } catch (err) {
-            console.error("AI search failed:", err);
-        } finally {
-            setAiLoading(false);
-        }
-    };
 
     // Debounce search input
     useEffect(() => {
@@ -120,7 +67,6 @@ function BrowsePYQ() {
         setExamFilter("");
         setYearFilter("");
         setDebouncedSearch("");
-        setSuggestions([]);
     };
 
     return (
@@ -147,44 +93,18 @@ function BrowsePYQ() {
                             <div className="flex flex-col md:flex-row gap-4 md:items-center md:justify-between">
 
                                 {/* Search */}
-                                <div className="w-full max-w-xl mx-auto relative">
+                                <div className="w-full max-w-xl mx-auto">
                                     <div className="flex items-center bg-white shadow-md rounded-2xl px-4 py-3 border border-gray-200 focus-within:ring-2 focus-within:ring-indigo-500 transition">
                                         <span className="text-gray-400 mr-2 text-lg">🔍</span>
                                         <input
                                             type="text"
                                             id="paper-search-input"
-                                            placeholder="Search by subject, year, or course... (press Enter for AI)"
+                                            placeholder="Search by subject, year, or course..."
                                             value={search}
                                             onChange={(e) => setSearch(e.target.value)}
-                                            onKeyDown={handleKeyDown}
                                             className="w-full outline-none text-gray-700 text-sm"
                                         />
-                                        {aiLoading && (
-                                            <span className="ml-2 text-xs text-purple-500 animate-pulse">AI…</span>
-                                        )}
                                     </div>
-                                    <span className="ml-2 mt-1 inline-block text-xs bg-purple-500 text-white px-2 py-1 rounded-full">
-                                        AI Search (press Enter)
-                                    </span>
-
-                                    {/* Suggestions dropdown */}
-                                    {suggestions.length > 0 && (
-                                        <ul className="absolute top-full left-0 w-full bg-white border border-gray-200 rounded-xl shadow-lg mt-1 z-30">
-                                            {suggestions.map((s, i) => (
-                                                <li
-                                                    key={s._id}
-                                                    className={`px-4 py-2 cursor-pointer text-sm hover:bg-indigo-50 ${i === activeIndex ? "bg-indigo-50" : ""}`}
-                                                    onClick={() => {
-                                                        setSearch(s.title);
-                                                        setSuggestions([]);
-                                                    }}
-                                                >
-                                                    <span className="font-medium text-gray-800">{s.title}</span>
-                                                    <span className="text-gray-400 ml-2 text-xs">{s.course} • {s.year}</span>
-                                                </li>
-                                            ))}
-                                        </ul>
-                                    )}
                                 </div>
 
                                 {/* Clear Button */}

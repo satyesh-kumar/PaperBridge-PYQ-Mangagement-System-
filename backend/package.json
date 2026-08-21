@@ -22,7 +22,6 @@
     "mongoose": "^9.2.3",
     "multer": "^2.1.1",
     "nodemon": "^3.1.14",
-    "openai": "^6.33.0",
     "streamifier": "^0.1.1"
   }
 }

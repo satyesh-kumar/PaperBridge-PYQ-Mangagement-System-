@@ -5,7 +5,6 @@ import cors from "cors";
 import dotenv from "dotenv";
 import fs from "fs";
 import streamifier from "streamifier";
-import OpenAI from "openai";
 import User from "./models/User.js";
 import upload from "./middleware/upload.js";
 import cloudinary from "./config/cloudinary.js";
@@ -53,11 +52,6 @@ app.use(clerkMiddleware());
 mongoose.connect(process.env.MONGO_URL)
   .then(() => console.log("MongoDB Connected"))
   .catch(err => console.log("MongoDB connection error:", err));
-
-// ── OpenAI ────────────────────────────────────────────────────────────────────
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-});
 
 // ── ROUTES ────────────────────────────────────────────────────────────────────
 
@@ -134,48 +128,6 @@ app.get("/api/my-pyqs", requireAuth(), async (req, res) => {
   } catch (err) {
     console.error("My PYQs error:", err);
     res.status(500).json({ error: "Failed to fetch your papers" });
-  }
-});
-
-// AI search — convert natural-language query into structured filters
-app.post("/api/ai-search", async (req, res) => {
-  try {
-    const { query } = req.body;
-
-    if (!query || !query.trim()) {
-      return res.status(400).json({ error: "Query is required" });
-    }
-
-    if (!process.env.OPENAI_API_KEY || process.env.OPENAI_API_KEY === "your_openai_api_key_here") {
-      return res.status(503).json({ error: "AI search is not configured" });
-    }
-
-    const prompt = `
-You are a filter extractor for a university question paper search system.
-Convert the following user query into structured JSON filters.
-
-User query: "${query}"
-
-Return ONLY valid JSON with these fields (leave empty string "" if not mentioned):
-{
-  "course": "",
-  "examType": "",
-  "year": "",
-  "semester": "",
-  "branch": ""
-}`;
-
-    const response = await openai.chat.completions.create({
-      model: "gpt-4.1-mini",
-      messages: [{ role: "user", content: prompt }],
-      response_format: { type: "json_object" },
-    });
-
-    const filters = JSON.parse(response.choices[0].message.content);
-    res.json(filters);
-  } catch (error) {
-    console.error("AI search error:", error);
-    res.status(500).json({ error: "AI search failed" });
   }
 });
 
