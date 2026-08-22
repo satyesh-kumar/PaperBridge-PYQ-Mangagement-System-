@@ -398,9 +398,9 @@ function UploadPYQ() {
                                     ✓
                                 </div>
                             </div>
-                            <h2 className="text-2xl sm:text-3xl font-extrabold text-center text-slate-900 dark:text-white">Upload Successful!</h2>
+                            <h2 className="text-2xl sm:text-3xl font-extrabold text-center text-slate-900 dark:text-white">Submitted for Review! 🎉</h2>
                             <p className="text-slate-500 dark:text-slate-400 text-xs sm:text-sm text-center mt-2 mb-6">
-                                Your question paper has been added to the University repository.
+                                Your question paper has been submitted to the admin moderation queue. It will be verified and made publicly available shortly.
                             </p>
                             <div className="bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 mb-6">
                                 <p className="font-bold text-slate-900 dark:text-white truncate text-sm">{uploadedPaper.title}</p>

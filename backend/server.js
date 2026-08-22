@@ -96,9 +96,13 @@ app.post("/api/users", requireAuth(), async (req, res) => {
   }
 });
 
-// Upload PDF → Cloudinary → save PYQ metadata
+// Upload PDF → Cloudinary → save PYQ metadata (Status: "pending" by default)
 app.post("/api/upload", requireAuth(), upload.single("file"), async (req, res) => {
   try {
+    if (!req.file) {
+      return res.status(400).json({ error: "No PDF file attached" });
+    }
+
     const streamUpload = () => {
       return new Promise((resolve, reject) => {
         const stream = cloudinary.uploader.upload_stream(
@@ -116,13 +120,14 @@ app.post("/api/upload", requireAuth(), upload.single("file"), async (req, res) =
 
     const pyq = await PYQ.create({
       title: req.body.title,
-      course: req.body.course,
-      semester: req.body.semester,
-      examType: req.body.examType,
-      year: req.body.year,
-      branch: req.body.branch,
+      course: req.body.course || "General",
+      semester: req.body.semester ? Number(req.body.semester) : 1,
+      examType: req.body.examType || "semester",
+      year: req.body.year ? Number(req.body.year) : new Date().getFullYear(),
+      branch: req.body.branch || "",
       fileUrl: result.secure_url,
       uploadedBy: req.auth.userId,
+      status: "pending", // Requires admin approval before appearing publicly
     });
 
     res.json(pyq);
@@ -132,17 +137,42 @@ app.post("/api/upload", requireAuth(), upload.single("file"), async (req, res) =
   }
 });
 
-// Get all PYQs (newest first)
+// Get Public Approved PYQs (Home & Browse: only approved or legacy without status)
 app.get("/api/pyqs", async (req, res) => {
   try {
-    const pyqs = await PYQ.find().sort({ createdAt: -1, _id: -1 });
+    const pyqs = await PYQ.find({
+      $or: [
+        { status: "approved" },
+        { status: { $exists: false } },
+        { status: null }
+      ]
+    }).sort({ createdAt: -1, _id: -1 });
+
     res.json(pyqs);
   } catch (err) {
+    console.error("Public PYQs error:", err);
     res.status(500).json({ error: "Failed to fetch papers" });
   }
 });
 
-// Get papers uploaded by the authenticated user
+// Get ALL PYQs for Admin (Approved, Pending, and Rejected)
+app.get("/api/admin/pyqs", requireAuth(), async (req, res) => {
+  try {
+    const { status } = req.query;
+    const filter = {};
+    if (status && status !== "all") {
+      filter.status = status;
+    }
+
+    const pyqs = await PYQ.find(filter).sort({ createdAt: -1, _id: -1 });
+    res.json(pyqs);
+  } catch (err) {
+    console.error("Admin PYQs error:", err);
+    res.status(500).json({ error: "Failed to fetch admin papers" });
+  }
+});
+
+// Get papers uploaded by the authenticated user (with status)
 app.get("/api/my-pyqs", requireAuth(), async (req, res) => {
   try {
     const clerkId = req.auth.userId;
@@ -154,24 +184,99 @@ app.get("/api/my-pyqs", requireAuth(), async (req, res) => {
   }
 });
 
-// Update paper metadata (Admin & Uploader)
-app.put("/api/pyqs/:id", requireAuth(), async (req, res) => {
+// Admin Approve / Reject single paper status
+app.patch("/api/admin/pyqs/:id/status", requireAuth(), async (req, res) => {
   try {
     const { id } = req.params;
-    const { title, course, semester, examType, year, branch } = req.body;
+    const { status, rejectionReason } = req.body;
+
+    if (!["approved", "rejected", "pending"].includes(status)) {
+      return res.status(400).json({ error: "Invalid status value. Must be 'approved', 'rejected', or 'pending'" });
+    }
 
     const updated = await PYQ.findByIdAndUpdate(
       id,
       {
         $set: {
-          ...(title && { title }),
-          ...(course && { course }),
-          ...(semester && { semester: Number(semester) }),
-          ...(examType && { examType }),
-          ...(year && { year: Number(year) }),
-          ...(branch !== undefined && { branch }),
+          status,
+          rejectionReason: rejectionReason || "",
+          reviewedBy: req.auth.userId,
+          reviewedAt: new Date(),
         },
       },
+      { new: true }
+    );
+
+    if (!updated) {
+      return res.status(404).json({ error: "Question paper not found" });
+    }
+
+    res.json({
+      success: true,
+      message: `Paper status changed to '${status}' successfully`,
+      paper: updated,
+    });
+  } catch (err) {
+    console.error("Change status error:", err);
+    res.status(500).json({ error: "Failed to update paper status" });
+  }
+});
+
+// Admin Bulk Approve / Reject
+app.post("/api/admin/pyqs/bulk-status", requireAuth(), async (req, res) => {
+  try {
+    const { ids, status, rejectionReason } = req.body;
+
+    if (!Array.isArray(ids) || ids.length === 0) {
+      return res.status(400).json({ error: "No paper IDs provided" });
+    }
+
+    if (!["approved", "rejected", "pending"].includes(status)) {
+      return res.status(400).json({ error: "Invalid status value" });
+    }
+
+    const result = await PYQ.updateMany(
+      { _id: { $in: ids } },
+      {
+        $set: {
+          status,
+          rejectionReason: rejectionReason || "",
+          reviewedBy: req.auth.userId,
+          reviewedAt: new Date(),
+        },
+      }
+    );
+
+    res.json({
+      success: true,
+      modifiedCount: result.modifiedCount,
+      message: `Successfully set ${result.modifiedCount} papers to '${status}'`,
+    });
+  } catch (err) {
+    console.error("Bulk status error:", err);
+    res.status(500).json({ error: "Failed to update bulk paper status" });
+  }
+});
+
+// Update paper metadata (Admin & Uploader)
+app.put("/api/pyqs/:id", requireAuth(), async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { title, course, semester, examType, year, branch, status } = req.body;
+
+    const updateFields = {
+      ...(title && { title }),
+      ...(course && { course }),
+      ...(semester && { semester: Number(semester) }),
+      ...(examType && { examType }),
+      ...(year && { year: Number(year) }),
+      ...(branch !== undefined && { branch }),
+      ...(status && { status }),
+    };
+
+    const updated = await PYQ.findByIdAndUpdate(
+      id,
+      { $set: updateFields },
       { new: true }
     );
 
@@ -227,6 +332,11 @@ app.post("/api/admin/pyqs/bulk-delete", requireAuth(), async (req, res) => {
 app.get("/api/admin/stats", requireAuth(), async (req, res) => {
   try {
     const totalPapers = await PYQ.countDocuments();
+    const pendingCount = await PYQ.countDocuments({ status: "pending" });
+    const approvedCount = await PYQ.countDocuments({
+      $or: [{ status: "approved" }, { status: { $exists: false } }, { status: null }]
+    });
+    const rejectedCount = await PYQ.countDocuments({ status: "rejected" });
     const totalUsers = await User.countDocuments();
 
     // Course breakdown
@@ -246,6 +356,9 @@ app.get("/api/admin/stats", requireAuth(), async (req, res) => {
 
     res.json({
       totalPapers,
+      pendingCount,
+      approvedCount,
+      rejectedCount,
       totalUsers,
       courseDistribution: courseAggregation,
       examDistribution: examAggregation,
