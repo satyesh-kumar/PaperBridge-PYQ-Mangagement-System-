@@ -9,6 +9,8 @@ import BrowsePYQ from "./pages/BrowsePYQ";
 import BrowseNotes from "./pages/BrowseNotes";
 import AdminPanel from "./pages/AdminPanel.jsx";
 import AdminRoute from "./components/AdminRoute.jsx";
+import ScrollToTop from "./components/ScrollToTop.jsx";
+import CommandPalette from "./components/CommandPalette.jsx";
 
 /** Redirect signed-out users to home, otherwise render the child */
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
@@ -21,6 +23,8 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
 function App() {
   return (
     <>
+      <ScrollToTop />
+      <CommandPalette />
       <Toaster position="top-right" />
 
       <Routes>

@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { FaDownload, FaExternalLinkAlt, FaTimes, FaFilePdf, FaSyncAlt } from "react-icons/fa";
 import { downloadPDF } from "../utils/downloadHelper";
+import { PaperAirplaneIcon } from "./PaperBridgeLogo";
 
 function PDFViewer({ fileUrl, title = "Document Preview", onClose }) {
     // Mode: 'native' (direct PDF) | 'google' (Google Docs viewer)
@@ -32,20 +33,20 @@ function PDFViewer({ fileUrl, title = "Document Preview", onClose }) {
             onClick={onClose}
         >
             <div
-                className="bg-white dark:bg-slate-900 w-full max-w-5xl h-[90vh] rounded-2xl shadow-2xl flex flex-col overflow-hidden border border-slate-200 dark:border-slate-800"
+                className="bg-[#FAF8F5] dark:bg-[#161412] w-full max-w-5xl h-[90vh] rounded-3xl shadow-2xl flex flex-col overflow-hidden border border-[#EAE2D8] dark:border-[#2E2822]"
                 onClick={(e) => e.stopPropagation()}
             >
                 {/* Modal Header */}
-                <div className="flex items-center justify-between px-5 py-3.5 bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 text-white border-b border-slate-800 shadow-xs">
+                <div className="flex items-center justify-between px-6 py-4 bg-[#2B1B10] dark:bg-[#1A1614] text-white border-b border-[#4A2E1B] dark:border-[#2E2822] shadow-sm">
                     <div className="flex items-center gap-3 min-w-0">
-                        <div className="w-8 h-8 rounded-lg bg-red-500/20 text-red-400 flex items-center justify-center shrink-0">
-                            <FaFilePdf className="text-base" />
+                        <div className="w-10 h-10 rounded-2xl bg-white/10 flex items-center justify-center shrink-0 border border-white/10 p-1">
+                            <PaperAirplaneIcon className="w-7 h-7" />
                         </div>
                         <div className="min-w-0">
-                            <h3 className="text-sm font-bold text-white truncate max-w-xs sm:max-w-md md:max-w-lg">
+                            <h3 className="text-sm font-serif font-bold text-white truncate max-w-xs sm:max-w-md md:max-w-lg">
                                 {title}
                             </h3>
-                            <p className="text-[11px] text-slate-400">PDF Reader • {viewerMode === "native" ? "Native View" : "Google Cloud Reader"}</p>
+                            <p className="text-[11px] text-[#A8957E]">PaperBridge Reader • {viewerMode === "native" ? "Native View" : "Google Cloud Reader"}</p>
                         </div>
                     </div>
 
@@ -56,7 +57,7 @@ function PDFViewer({ fileUrl, title = "Document Preview", onClose }) {
                                 setLoading(true);
                                 setViewerMode(viewerMode === "native" ? "google" : "native");
                             }}
-                            className="hidden sm:inline-flex items-center gap-1.5 px-2.5 py-1.5 bg-white/10 hover:bg-white/20 text-white text-xs font-semibold rounded-lg transition"
+                            className="hidden sm:inline-flex items-center gap-1.5 px-3 py-1.5 bg-white/10 hover:bg-white/20 text-white text-xs font-semibold rounded-full transition cursor-pointer border border-white/10"
                             title="Switch PDF rendering mode if blank"
                         >
                             <FaSyncAlt className="text-[10px]" />
@@ -66,7 +67,7 @@ function PDFViewer({ fileUrl, title = "Document Preview", onClose }) {
                         <button
                             onClick={handleDownload}
                             title="Download PDF"
-                            className="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold rounded-lg transition shadow-xs cursor-pointer"
+                            className="flex items-center gap-1.5 px-4 py-1.5 bg-[#C5A059] hover:bg-[#E5C378] text-[#0F0E0D] text-xs font-bold rounded-full transition shadow-xs cursor-pointer"
                         >
                             <FaDownload className="text-xs" />
                             <span className="hidden sm:inline">Download</span>
@@ -77,7 +78,7 @@ function PDFViewer({ fileUrl, title = "Document Preview", onClose }) {
                             target="_blank"
                             rel="noopener noreferrer"
                             title="Open in new window"
-                            className="flex items-center gap-1.5 px-2.5 py-1.5 bg-white/10 hover:bg-white/20 text-white text-xs font-semibold rounded-lg transition cursor-pointer"
+                            className="flex items-center gap-1.5 px-3 py-1.5 bg-white/10 hover:bg-white/20 text-white text-xs font-semibold rounded-full transition cursor-pointer border border-white/10"
                         >
                             <FaExternalLinkAlt className="text-xs" />
                             <span className="hidden sm:inline">Open</span>
@@ -86,7 +87,7 @@ function PDFViewer({ fileUrl, title = "Document Preview", onClose }) {
                         <button
                             onClick={onClose}
                             title="Close Preview (Esc)"
-                            className="w-8 h-8 rounded-lg bg-white/10 hover:bg-red-600 hover:text-white text-slate-300 flex items-center justify-center transition text-sm ml-1 cursor-pointer"
+                            className="w-8 h-8 rounded-full bg-white/10 hover:bg-rose-600 hover:text-white text-stone-300 flex items-center justify-center transition text-sm ml-1 cursor-pointer"
                         >
                             <FaTimes />
                         </button>
@@ -94,12 +95,12 @@ function PDFViewer({ fileUrl, title = "Document Preview", onClose }) {
                 </div>
 
                 {/* PDF Frame */}
-                <div className="flex-1 bg-slate-100 dark:bg-slate-950 relative overflow-hidden">
+                <div className="flex-1 bg-[#FAF8F5] dark:bg-[#0F0E0D] relative overflow-hidden">
                     {loading && (
-                        <div className="absolute inset-0 flex items-center justify-center bg-slate-100 dark:bg-slate-950 text-slate-500 z-10">
+                        <div className="absolute inset-0 flex items-center justify-center bg-[#FAF8F5] dark:bg-[#0F0E0D] text-[#8C7862] z-10">
                             <div className="text-center">
-                                <div className="w-8 h-8 border-2 border-indigo-600 border-t-transparent rounded-full animate-spin mx-auto mb-2" />
-                                <p className="text-xs font-medium">Loading document…</p>
+                                <div className="w-8 h-8 border-2 border-[#8C6239] dark:border-[#C5A059] border-t-transparent rounded-full animate-spin mx-auto mb-2" />
+                                <p className="text-xs font-medium font-serif">Loading document…</p>
                             </div>
                         </div>
                     )}

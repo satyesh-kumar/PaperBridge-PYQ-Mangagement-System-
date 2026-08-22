@@ -23,7 +23,9 @@ import {
 } from "react-icons/fa";
 import toast from "react-hot-toast";
 import Navbar2 from "../components/Navbar2";
+import Footer from "../components/Footer";
 import PDFViewer from "../components/PDFViewer";
+import GooglePagination from "../components/GooglePagination";
 import { downloadPDF } from "../utils/downloadHelper";
 
 const API_URL = import.meta.env.VITE_API_URL || "http://localhost:5000";
@@ -43,6 +45,22 @@ const UNITS = [
 const SEMESTERS = [
     { label: "All Semesters", value: "" },
     ...[1, 2, 3, 4, 5, 6, 7, 8].map((s) => ({ label: `Semester ${s}`, value: String(s) })),
+];
+
+const FALLBACK_UNIVERSITIES = [
+    { _id: "uni_uu", name: "United University", code: "UU", location: "Prayagraj, UP" },
+    { _id: "uni_au", name: "University of Allahabad", code: "AU", location: "Prayagraj, UP" },
+    { _id: "uni_aktu", name: "Dr. A.P.J. Abdul Kalam Technical University", code: "AKTU", location: "Lucknow, UP" },
+    { _id: "uni_du", name: "University of Delhi", code: "DU", location: "New Delhi" },
+];
+
+const FALLBACK_COURSES = [
+    { _id: "course_btech", name: "B.Tech", code: "B.Tech", numberOfSemesters: 8 },
+    { _id: "course_bca", name: "BCA", code: "BCA", numberOfSemesters: 6 },
+    { _id: "course_mca", name: "MCA", code: "MCA", numberOfSemesters: 4 },
+    { _id: "course_mba", name: "MBA", code: "MBA", numberOfSemesters: 4 },
+    { _id: "course_bba", name: "BBA", code: "BBA", numberOfSemesters: 6 },
+    { _id: "course_diploma", name: "Diploma", code: "Diploma", numberOfSemesters: 6 },
 ];
 
 function BrowseNotes() {
@@ -95,6 +113,49 @@ function BrowseNotes() {
         return () => clearTimeout(timer);
     }, [search]);
 
+    // Academic entities for dynamic filters
+    const [universities, setUniversities] = useState(FALLBACK_UNIVERSITIES);
+    const [courses, setCourses] = useState(FALLBACK_COURSES);
+    const [semesters, setSemesters] = useState([]);
+
+    // Load universities & courses
+    useEffect(() => {
+        const loadEntities = async () => {
+            try {
+                const [uniRes, courseRes] = await Promise.all([
+                    axios.get(`${API_URL}/api/universities`, { timeout: 8000 }).catch(() => ({ data: [] })),
+                    axios.get(`${API_URL}/api/courses`, { timeout: 8000 }).catch(() => ({ data: [] })),
+                ]);
+                if (Array.isArray(uniRes.data) && uniRes.data.length > 0) {
+                    setUniversities(uniRes.data);
+                }
+                if (Array.isArray(courseRes.data) && courseRes.data.length > 0) {
+                    setCourses(courseRes.data);
+                }
+            } catch {
+                // keep fallback
+            }
+        };
+        loadEntities();
+    }, []);
+
+    // When course changes, load its configured semesters
+    useEffect(() => {
+        if (courseFilter === "All") {
+            setSemesters([]);
+            return;
+        }
+        const matched = courses.find((c) => c.name?.toLowerCase() === courseFilter.toLowerCase());
+        if (matched) {
+            axios
+                .get(`${API_URL}/api/semesters?courseId=${matched._id}`)
+                .then((res) => setSemesters(res.data || []))
+                .catch(() => setSemesters([]));
+        } else {
+            setSemesters([]);
+        }
+    }, [courseFilter, courses]);
+
     // Fetch notes from backend
     const fetchNotes = async () => {
         setLoading(true);
@@ -120,14 +181,26 @@ function BrowseNotes() {
 
     // Dynamic Filter Lists
     const availableCourses = useMemo(() => {
-        const courses = new Set(notes.map((n) => n.course).filter(Boolean));
-        return ["All", ...Array.from(courses)];
-    }, [notes]);
+        const list = ["All"];
+        courses.forEach((c) => {
+            if (!list.includes(c.name)) list.push(c.name);
+        });
+        notes.forEach((n) => {
+            if (n.course && !list.includes(n.course)) list.push(n.course);
+        });
+        return list;
+    }, [courses, notes]);
 
     const availableUniversities = useMemo(() => {
-        const unis = new Set(notes.map((n) => n.university).filter(Boolean));
-        return ["All", ...Array.from(unis)];
-    }, [notes]);
+        const list = ["All"];
+        universities.forEach((u) => {
+            if (!list.includes(u.name)) list.push(u.name);
+        });
+        notes.forEach((n) => {
+            if (n.university && !list.includes(n.university)) list.push(n.university);
+        });
+        return list;
+    }, [universities, notes]);
 
     // Filter and Sort Notes
     const filteredNotes = useMemo(() => {
@@ -137,35 +210,37 @@ function BrowseNotes() {
             const query = debouncedSearch.toLowerCase().trim();
             result = result.filter((n) => {
                 const title = (n.title || "").toLowerCase();
-                const subject = (n.subject || "").toLowerCase();
-                const course = (n.course || "").toLowerCase();
-                const unit = (n.unit || "").toLowerCase();
-                const university = (n.university || "").toLowerCase();
+                const subject = (n.subjectId?.name || n.subject || "").toLowerCase();
                 const author = (n.author || "").toLowerCase();
-                const branch = (n.branch || "").toLowerCase();
+                const course = (n.courseId?.name || n.course || "").toLowerCase();
+                const uni = (n.universityId?.name || n.university || "").toLowerCase();
                 return (
                     title.includes(query) ||
                     subject.includes(query) ||
-                    course.includes(query) ||
-                    unit.includes(query) ||
-                    university.includes(query) ||
                     author.includes(query) ||
-                    branch.includes(query)
+                    course.includes(query) ||
+                    uni.includes(query)
                 );
             });
         }
 
+        if (universityFilter !== "All") {
+            result = result.filter((n) => {
+                const uni = (n.universityId?.name || n.university || "").toLowerCase();
+                return uni.includes(universityFilter.toLowerCase());
+            });
+        }
         if (courseFilter !== "All") {
-            result = result.filter((n) => n.course === courseFilter);
+            result = result.filter((n) => {
+                const c = (n.courseId?.name || n.course || "").toLowerCase();
+                return c.includes(courseFilter.toLowerCase());
+            });
         }
         if (unitFilter !== "All") {
-            result = result.filter((n) => n.unit === unitFilter);
+            result = result.filter((n) => (n.unit || "").toLowerCase() === unitFilter.toLowerCase());
         }
         if (semesterFilter) {
             result = result.filter((n) => String(n.semester) === String(semesterFilter));
-        }
-        if (universityFilter !== "All") {
-            result = result.filter((n) => n.university === universityFilter);
         }
 
         // Sorting
@@ -243,46 +318,46 @@ function BrowseNotes() {
     };
 
     return (
-        <div className="min-h-screen bg-slate-50/60 dark:bg-slate-950 text-slate-900 dark:text-slate-100 flex flex-col font-sans transition-colors duration-300">
+        <div className="min-h-screen bg-[#FAF8F5] dark:bg-[#0F0E0D] text-[#1A1614] dark:text-[#F5F2EC] flex flex-col font-sans transition-colors duration-300">
             <Navbar2 />
 
             {/* HEADER HERO */}
-            <header className="bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 py-10 px-4 sm:px-6 lg:px-8">
+            <header className="bg-white dark:bg-[#161412] border-b border-[#EAE2D8] dark:border-[#2E2822] py-10 px-4 sm:px-6 lg:px-8">
                 <div className="max-w-7xl mx-auto flex flex-col md:flex-row md:items-center md:justify-between gap-6">
                     <div>
-                        <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-200 dark:border-emerald-800 text-emerald-700 dark:text-emerald-300 text-xs font-semibold mb-2">
-                            <FaStickyNote className="text-emerald-600" />
+                        <div className="inline-flex items-center gap-2 px-3.5 py-1 rounded-full bg-[#F4EFEA] dark:bg-[#24201C] border border-[#DDD2C4] dark:border-[#2E2822] text-[#8C6239] dark:text-[#E5C378] text-xs font-semibold mb-2 shadow-2xs">
+                            <FaStickyNote className="text-[#8C6239] dark:text-[#E5C378]" />
                             Academic Notes & Study Vault
                         </div>
-                        <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 dark:text-white tracking-tight">
+                        <h1 className="text-3xl sm:text-4xl font-serif font-medium text-[#1A1614] dark:text-[#FAF8F5] tracking-tight">
                             Browse Study Notes & Materials
                         </h1>
-                        <p className="text-slate-500 dark:text-slate-400 text-xs sm:text-sm mt-1 max-w-2xl">
-                            Find unit-wise handwritten summaries, professor lecture slides, and formula cheat sheets across university courses.
+                        <p className="text-[#8C7862] dark:text-[#A8957E] text-xs sm:text-sm mt-1 max-w-2xl">
+                            Find unit-wise handwritten summaries, professor lecture slides, and formula cheat sheets across United University courses.
                         </p>
                     </div>
 
                     {/* Stats Banner */}
                     <div className="flex items-center gap-3 shrink-0">
-                        <div className="bg-slate-50 dark:bg-slate-950 rounded-2xl border border-slate-200 dark:border-slate-800 px-4 py-2.5 text-center">
-                            <span className="block text-xl font-bold text-emerald-600 dark:text-emerald-400 leading-none">
+                        <div className="bg-[#FAF8F5] dark:bg-[#1C1916] rounded-2xl border border-[#EAE2D8] dark:border-[#2E2822] px-4 py-2.5 text-center">
+                            <span className="block text-xl font-serif font-bold text-[#8C6239] dark:text-[#E5C378] leading-none">
                                 {notes.length}
                             </span>
-                            <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider">
+                            <span className="text-[10px] font-semibold text-[#8C7862] dark:text-[#A8957E] uppercase tracking-wider">
                                 Total Notes
                             </span>
                         </div>
-                        <div className="bg-slate-50 dark:bg-slate-950 rounded-2xl border border-slate-200 dark:border-slate-800 px-4 py-2.5 text-center">
-                            <span className="block text-xl font-bold text-indigo-600 dark:text-indigo-400 leading-none">
+                        <div className="bg-[#FAF8F5] dark:bg-[#1C1916] rounded-2xl border border-[#EAE2D8] dark:border-[#2E2822] px-4 py-2.5 text-center">
+                            <span className="block text-xl font-serif font-bold text-[#4A2E1B] dark:text-[#C5A059] leading-none">
                                 {availableCourses.length > 1 ? availableCourses.length - 1 : 0}
                             </span>
-                            <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider">
+                            <span className="text-[10px] font-semibold text-[#8C7862] dark:text-[#A8957E] uppercase tracking-wider">
                                 Courses
                             </span>
                         </div>
                         <Link
                             to="/upload"
-                            className="hidden sm:inline-flex items-center gap-1.5 bg-gradient-to-r from-emerald-600 to-indigo-600 hover:from-emerald-700 hover:to-indigo-700 text-white px-4 py-2.5 rounded-xl text-xs font-bold shadow-xs transition"
+                            className="hidden sm:inline-flex items-center gap-1.5 bg-[#4A2E1B] hover:bg-[#331F12] dark:bg-[#C5A059] dark:hover:bg-[#E5C378] text-white dark:text-[#0F0E0D] px-5 py-2.5 rounded-full text-xs font-bold shadow-xs transition"
                         >
                             + Upload Notes
                         </Link>
@@ -293,25 +368,25 @@ function BrowseNotes() {
             {/* MAIN CONTENT AREA */}
             <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 w-full flex-1">
                 {/* SEARCH & FILTERS CARD */}
-                <div className="bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 rounded-2xl p-5 shadow-xs mb-8">
+                <div className="bg-white dark:bg-[#161412] border border-[#EAE2D8] dark:border-[#2E2822] rounded-3xl p-6 shadow-sm mb-8">
                     {/* Top Row: Search Input + Sort + View Mode */}
                     <div className="flex flex-col lg:flex-row gap-3 items-stretch lg:items-center justify-between">
                         {/* Search Bar */}
                         <div className="relative flex-1">
-                            <div className="flex items-center bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-3.5 py-2.5 focus-within:border-emerald-500 transition">
-                                <FaSearch className="text-slate-400 mr-2.5 text-xs shrink-0" />
+                            <div className="flex items-center bg-[#FAF8F5] dark:bg-[#1C1916] border border-[#EAE2D8] dark:border-[#2E2822] rounded-full px-4 py-2.5 focus-within:border-[#8C6239] dark:focus-within:border-[#C5A059] transition">
+                                <FaSearch className="text-[#A8957E] mr-2.5 text-xs shrink-0" />
                                 <input
                                     ref={searchInputRef}
                                     type="text"
                                     placeholder="Search notes by subject, unit, university, author (press '/' to focus)..."
                                     value={search}
                                     onChange={(e) => setSearch(e.target.value)}
-                                    className="w-full bg-transparent outline-none text-slate-800 dark:text-white text-xs placeholder:text-slate-400 font-medium"
+                                    className="w-full bg-transparent outline-none text-[#1A1614] dark:text-[#FAF8F5] text-xs placeholder:text-[#A8957E] font-medium"
                                 />
                                 {search && (
                                     <button
                                         onClick={() => setSearch("")}
-                                        className="text-slate-400 hover:text-slate-700 dark:hover:text-white p-1 transition"
+                                        className="text-[#A8957E] hover:text-[#4A2E1B] dark:hover:text-white p-1 transition cursor-pointer"
                                         title="Clear search"
                                     >
                                         <FaTimes className="text-xs" />
@@ -322,28 +397,28 @@ function BrowseNotes() {
 
                         {/* Controls */}
                         <div className="flex items-center gap-2.5 shrink-0 flex-wrap">
-                            <div className="flex items-center gap-1.5 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-2 text-xs font-semibold text-slate-700 dark:text-slate-200">
-                                <FaSortAmountDown className="text-emerald-600 dark:text-emerald-400" />
-                                <span className="text-slate-400 hidden sm:inline">Sort:</span>
+                            <div className="flex items-center gap-1.5 bg-[#FAF8F5] dark:bg-[#1C1916] border border-[#EAE2D8] dark:border-[#2E2822] rounded-full px-4 py-2 text-xs font-semibold text-[#4A3E31] dark:text-[#EAE2D8]">
+                                <FaSortAmountDown className="text-[#8C6239] dark:text-[#E5C378]" />
+                                <span className="text-[#8C7862] dark:text-[#A8957E] hidden sm:inline">Sort:</span>
                                 <select
                                     value={sortBy}
                                     onChange={(e) => setSortBy(e.target.value)}
-                                    className="bg-transparent outline-none cursor-pointer font-semibold text-slate-700 dark:text-slate-200"
+                                    className="bg-transparent outline-none cursor-pointer font-semibold text-[#4A3E31] dark:text-[#EAE2D8]"
                                 >
-                                    <option value="newest" className="dark:bg-slate-900">Newest Added</option>
-                                    <option value="oldest" className="dark:bg-slate-900">Oldest Added</option>
-                                    <option value="subject-az" className="dark:bg-slate-900">Subject (A to Z)</option>
-                                    <option value="title-az" className="dark:bg-slate-900">Title (A to Z)</option>
+                                    <option value="newest" className="dark:bg-[#161412]">Newest Added</option>
+                                    <option value="oldest" className="dark:bg-[#161412]">Oldest Added</option>
+                                    <option value="subject-az" className="dark:bg-[#161412]">Subject (A to Z)</option>
+                                    <option value="title-az" className="dark:bg-[#161412]">Title (A to Z)</option>
                                 </select>
                             </div>
 
-                            <div className="flex items-center bg-slate-100 dark:bg-slate-950 p-1 rounded-xl border border-slate-200 dark:border-slate-800">
+                            <div className="flex items-center bg-[#F4EFEA] dark:bg-[#1C1916] p-1 rounded-full border border-[#EAE2D8] dark:border-[#2E2822]">
                                 <button
                                     onClick={() => setViewMode("grid")}
-                                    className={`p-1.5 rounded-lg transition cursor-pointer ${
+                                    className={`p-2 rounded-full transition cursor-pointer ${
                                         viewMode === "grid"
-                                            ? "bg-white dark:bg-slate-800 text-emerald-600 dark:text-emerald-400 shadow-2xs font-bold"
-                                            : "text-slate-400 hover:text-slate-700 dark:hover:text-white"
+                                            ? "bg-white dark:bg-[#24201C] text-[#4A2E1B] dark:text-[#E5C378] shadow-2xs font-bold"
+                                            : "text-[#8C7862] hover:text-[#2B231B] dark:hover:text-white"
                                     }`}
                                     title="Grid View"
                                 >
@@ -351,10 +426,10 @@ function BrowseNotes() {
                                 </button>
                                 <button
                                     onClick={() => setViewMode("list")}
-                                    className={`p-1.5 rounded-lg transition cursor-pointer ${
+                                    className={`p-2 rounded-full transition cursor-pointer ${
                                         viewMode === "list"
-                                            ? "bg-white dark:bg-slate-800 text-emerald-600 dark:text-emerald-400 shadow-2xs font-bold"
-                                            : "text-slate-400 hover:text-slate-700 dark:hover:text-white"
+                                            ? "bg-white dark:bg-[#24201C] text-[#4A2E1B] dark:text-[#E5C378] shadow-2xs font-bold"
+                                            : "text-[#8C7862] hover:text-[#2B231B] dark:hover:text-white"
                                     }`}
                                     title="List View"
                                 >
@@ -365,7 +440,7 @@ function BrowseNotes() {
                             {activeFiltersCount > 0 && (
                                 <button
                                     onClick={clearAllFilters}
-                                    className="px-3 py-2 bg-rose-50 dark:bg-rose-950/60 hover:bg-rose-100 text-rose-600 dark:text-rose-300 rounded-xl text-xs font-semibold transition flex items-center gap-1 cursor-pointer border border-rose-200 dark:border-rose-800"
+                                    className="px-4 py-2 bg-rose-50 dark:bg-rose-950/60 hover:bg-rose-100 text-rose-700 dark:text-rose-300 rounded-full text-xs font-semibold transition flex items-center gap-1 cursor-pointer border border-rose-200 dark:border-rose-800"
                                 >
                                     <FaTimes className="text-[10px]" /> Clear ({activeFiltersCount})
                                 </button>
@@ -374,8 +449,8 @@ function BrowseNotes() {
                     </div>
 
                     {/* Course Filter Tabs */}
-                    <div className="mt-4 pt-3.5 border-t border-slate-100 dark:border-slate-800 flex items-center gap-1.5 overflow-x-auto no-scrollbar pb-1">
-                        <span className="text-xs font-bold text-slate-400 mr-2 flex items-center gap-1 shrink-0">
+                    <div className="mt-4 pt-4 border-t border-[#EAE2D8] dark:border-[#2E2822] flex items-center gap-2 overflow-x-auto no-scrollbar pb-1">
+                        <span className="text-xs font-bold text-[#8C7862] dark:text-[#A8957E] mr-2 flex items-center gap-1 shrink-0">
                             Course:
                         </span>
                         {availableCourses.map((item) => {
@@ -387,10 +462,10 @@ function BrowseNotes() {
                                         setCourseFilter(item);
                                         setCurrentPage(1);
                                     }}
-                                    className={`px-3.5 py-1.5 rounded-full text-xs font-semibold transition shrink-0 cursor-pointer ${
+                                    className={`px-4 py-1.5 rounded-full text-xs font-semibold transition shrink-0 cursor-pointer ${
                                         active
-                                            ? "bg-emerald-600 text-white shadow-xs"
-                                            : "bg-slate-100 dark:bg-slate-800 hover:bg-emerald-50 text-slate-600 dark:text-slate-300 hover:text-emerald-600"
+                                            ? "bg-[#4A2E1B] text-white dark:bg-[#C5A059] dark:text-[#0F0E0D] shadow-xs"
+                                            : "bg-[#FAF8F5] dark:bg-[#1C1916] text-[#6B5B49] dark:text-[#C2B3A0] hover:bg-[#F4EFEA] dark:hover:bg-[#24201C]"
                                     }`}
                                 >
                                     {item}
@@ -400,9 +475,9 @@ function BrowseNotes() {
                     </div>
 
                     {/* Secondary Filters */}
-                    <div className="mt-3.5 pt-3 border-t border-slate-100 dark:border-slate-800 grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    <div className="mt-4 pt-4 border-t border-[#EAE2D8] dark:border-[#2E2822] grid grid-cols-1 sm:grid-cols-3 gap-3">
                         <div>
-                            <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">
+                            <label className="block text-[10px] font-bold text-[#8C7862] dark:text-[#A8957E] uppercase tracking-wider mb-1">
                                 Unit / Module
                             </label>
                             <select
@@ -411,10 +486,10 @@ function BrowseNotes() {
                                     setUnitFilter(e.target.value);
                                     setCurrentPage(1);
                                 }}
-                                className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-2.5 py-1.5 text-xs text-slate-700 dark:text-slate-200 outline-none focus:ring-2 focus:ring-emerald-500/30"
+                                className="w-full bg-[#FAF8F5] dark:bg-[#1C1916] border border-[#EAE2D8] dark:border-[#2E2822] rounded-xl px-3 py-2 text-xs text-[#4A3E31] dark:text-[#FAF8F5] outline-none"
                             >
                                 {UNITS.map((u) => (
-                                    <option key={u.value} value={u.value} className="dark:bg-slate-900">
+                                    <option key={u.value} value={u.value} className="dark:bg-[#161412]">
                                         {u.label}
                                     </option>
                                 ))}
@@ -422,7 +497,7 @@ function BrowseNotes() {
                         </div>
 
                         <div>
-                            <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">
+                            <label className="block text-[10px] font-bold text-[#8C7862] dark:text-[#A8957E] uppercase tracking-wider mb-1">
                                 Semester
                             </label>
                             <select
@@ -431,10 +506,10 @@ function BrowseNotes() {
                                     setSemesterFilter(e.target.value);
                                     setCurrentPage(1);
                                 }}
-                                className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-2.5 py-1.5 text-xs text-slate-700 dark:text-slate-200 outline-none focus:ring-2 focus:ring-emerald-500/30"
+                                className="w-full bg-[#FAF8F5] dark:bg-[#1C1916] border border-[#EAE2D8] dark:border-[#2E2822] rounded-xl px-3 py-2 text-xs text-[#4A3E31] dark:text-[#FAF8F5] outline-none"
                             >
                                 {SEMESTERS.map((s) => (
-                                    <option key={s.value} value={s.value} className="dark:bg-slate-900">
+                                    <option key={s.value} value={s.value} className="dark:bg-[#161412]">
                                         {s.label}
                                     </option>
                                 ))}
@@ -442,7 +517,7 @@ function BrowseNotes() {
                         </div>
 
                         <div>
-                            <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">
+                            <label className="block text-[10px] font-bold text-[#8C7862] dark:text-[#A8957E] uppercase tracking-wider mb-1">
                                 University / Institute
                             </label>
                             <select
@@ -451,10 +526,10 @@ function BrowseNotes() {
                                     setUniversityFilter(e.target.value);
                                     setCurrentPage(1);
                                 }}
-                                className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-2.5 py-1.5 text-xs text-slate-700 dark:text-slate-200 outline-none focus:ring-2 focus:ring-emerald-500/30"
+                                className="w-full bg-[#FAF8F5] dark:bg-[#1C1916] border border-[#EAE2D8] dark:border-[#2E2822] rounded-xl px-3 py-2 text-xs text-[#4A3E31] dark:text-[#FAF8F5] outline-none"
                             >
                                 {availableUniversities.map((uni) => (
-                                    <option key={uni} value={uni} className="dark:bg-slate-900">
+                                    <option key={uni} value={uni} className="dark:bg-[#161412]">
                                         {uni === "All" ? "All Universities" : uni}
                                     </option>
                                 ))}
@@ -465,25 +540,25 @@ function BrowseNotes() {
 
                 {/* GUEST ACCESS BANNER */}
                 {!isSignedIn && (
-                    <div className="mb-8 p-4 rounded-2xl bg-gradient-to-r from-slate-900 via-emerald-950 to-slate-900 text-white flex flex-col sm:flex-row items-center justify-between gap-4 shadow-sm border border-emerald-900">
-                        <div className="flex items-center gap-3">
-                            <div className="w-9 h-9 rounded-xl bg-emerald-500/20 text-emerald-300 flex items-center justify-center text-sm shrink-0 border border-emerald-400/20">
+                    <div className="mb-8 p-5 rounded-3xl bg-gradient-to-r from-[#2B1B10] via-[#4A2E1B] to-[#2B1B10] text-white flex flex-col sm:flex-row items-center justify-between gap-4 shadow-lg border border-[#8C6239]/40">
+                        <div className="flex items-center gap-4">
+                            <div className="w-10 h-10 rounded-2xl bg-white/10 text-[#E5C378] flex items-center justify-center text-base shrink-0 border border-white/10">
                                 <FaLock />
                             </div>
                             <div>
-                                <h4 className="text-xs font-bold text-white">
+                                <h4 className="text-sm font-bold text-white">
                                     Sign in required to view & download study notes
                                 </h4>
-                                <p className="text-xs text-slate-300 mt-0.5">
+                                <p className="text-xs text-stone-300 mt-0.5">
                                     Create a free student account or sign in to unlock instant PDF previews and direct downloads.
                                 </p>
                             </div>
                         </div>
                         <button
                             onClick={() => openSignIn?.()}
-                            className="shrink-0 px-4 py-2 bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-600 hover:to-teal-600 text-white font-bold rounded-xl text-xs transition cursor-pointer shadow-xs"
+                            className="shrink-0 px-5 py-2.5 bg-[#C5A059] hover:bg-[#E5C378] text-[#0F0E0D] font-bold rounded-full text-xs transition cursor-pointer shadow-md"
                         >
-                            Sign In / Register Now →
+                            Sign In / Register Now ↗
                         </button>
                     </div>
                 )}
@@ -491,17 +566,17 @@ function BrowseNotes() {
                 {/* RESULTS HEADER */}
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6 px-1">
                     <div className="flex items-center gap-2">
-                        <span className="text-sm font-bold text-slate-900 dark:text-white">
+                        <span className="text-sm font-serif font-bold text-[#1A1614] dark:text-[#FAF8F5]">
                             {filteredNotes.length} Study Note{filteredNotes.length === 1 ? "" : "s"} Found
                         </span>
                         {debouncedSearch && (
-                            <span className="text-xs text-slate-500">
-                                for &ldquo;<span className="font-semibold text-emerald-600 dark:text-emerald-400">{debouncedSearch}</span>&rdquo;
+                            <span className="text-xs text-[#8C7862] dark:text-[#A8957E]">
+                                for &ldquo;<span className="font-semibold text-[#8C6239] dark:text-[#E5C378]">{debouncedSearch}</span>&rdquo;
                             </span>
                         )}
                     </div>
 
-                    <div className="flex items-center gap-1.5 text-xs text-slate-500 font-medium">
+                    <div className="flex items-center gap-1.5 text-xs text-[#8C7862] dark:text-[#A8957E] font-medium">
                         <span>Show:</span>
                         {[12, 24, 48].map((size) => (
                             <button
@@ -510,10 +585,10 @@ function BrowseNotes() {
                                     setPageSize(size);
                                     setCurrentPage(1);
                                 }}
-                                className={`px-2.5 py-1 rounded-lg transition cursor-pointer ${
+                                className={`px-3 py-1 rounded-full transition cursor-pointer ${
                                     pageSize === size
-                                        ? "bg-emerald-600 text-white font-bold"
-                                        : "bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-50"
+                                        ? "bg-[#4A2E1B] text-white dark:bg-[#C5A059] dark:text-[#0F0E0D] font-bold"
+                                        : "bg-white dark:bg-[#161412] border border-[#EAE2D8] dark:border-[#2E2822] text-[#4A3E31] dark:text-[#FAF8F5] hover:bg-[#FAF8F5]"
                                 }`}
                             >
                                 {size}
@@ -524,26 +599,26 @@ function BrowseNotes() {
 
                 {/* EMPTY RESULTS */}
                 {!loading && !error && filteredNotes.length === 0 && (
-                    <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-12 text-center shadow-xs max-w-md mx-auto my-8">
-                        <div className="w-12 h-12 bg-emerald-50 dark:bg-emerald-950/60 text-emerald-600 rounded-2xl flex items-center justify-center mx-auto text-xl mb-3">
+                    <div className="bg-white dark:bg-[#161412] border border-[#EAE2D8] dark:border-[#2E2822] rounded-3xl p-12 text-center shadow-xs max-w-md mx-auto my-8">
+                        <div className="w-12 h-12 bg-[#F4EFEA] dark:bg-[#24201C] text-[#8C6239] dark:text-[#E5C378] rounded-2xl flex items-center justify-center mx-auto text-xl mb-3">
                             <FaStickyNote />
                         </div>
-                        <h3 className="text-base font-bold text-slate-900 dark:text-white mb-1">No Study Notes Found</h3>
-                        <p className="text-xs text-slate-500 dark:text-slate-400 mb-5">
+                        <h3 className="text-base font-serif font-bold text-[#1A1614] dark:text-[#FAF8F5] mb-1">No Study Notes Found</h3>
+                        <p className="text-xs text-[#8C7862] dark:text-[#A8957E] mb-5">
                             No study notes match your criteria. Try adjusting your filters or upload the first note.
                         </p>
                         <div className="flex items-center justify-center gap-2.5">
                             <button
                                 onClick={clearAllFilters}
-                                className="px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-semibold transition cursor-pointer"
+                                className="px-4 py-2 bg-[#F4EFEA] hover:bg-[#EAE2D8] dark:bg-[#24201C] dark:hover:bg-[#2E2822] text-[#4A3E31] dark:text-[#FAF8F5] rounded-full text-xs font-semibold transition cursor-pointer"
                             >
                                 Clear Filters
                             </button>
                             <Link
                                 to="/upload"
-                                className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold shadow-xs transition"
+                                className="px-5 py-2 bg-[#4A2E1B] dark:bg-[#C5A059] dark:text-[#0F0E0D] text-white rounded-full text-xs font-bold shadow-xs transition"
                             >
-                                Upload Notes →
+                                Upload Notes ↗
                             </Link>
                         </div>
                     </div>
@@ -555,16 +630,16 @@ function BrowseNotes() {
                         {paginatedNotes.map((note) => (
                             <div
                                 key={note._id}
-                                className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/90 dark:border-slate-800 hover:border-emerald-300 dark:hover:border-emerald-700 p-4 shadow-xs hover:shadow-md transition flex flex-col justify-between"
+                                className="bg-white dark:bg-[#161412] rounded-3xl border border-[#EAE2D8] dark:border-[#2E2822] hover:border-[#8C6239] dark:hover:border-[#C5A059] p-5 shadow-sm hover:shadow-lg transition-all duration-200 flex flex-col justify-between group"
                             >
                                 <div>
                                     {/* Badges */}
-                                    <div className="flex items-center justify-between gap-2 mb-2.5">
-                                        <span className="px-2 py-0.5 rounded-md text-[11px] font-semibold bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800">
+                                    <div className="flex items-center justify-between gap-2 mb-3">
+                                        <span className="px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-[#F4EFEA] dark:bg-[#24201C] text-[#8C6239] dark:text-[#E5C378] border border-[#DDD2C4] dark:border-[#332E28]">
                                             {note.unit || "Notes"}
                                         </span>
 
-                                        <span className="px-2 py-0.5 rounded-md text-[11px] font-medium bg-slate-50 dark:bg-slate-800/60 text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-slate-700">
+                                        <span className="px-2.5 py-0.5 rounded-full text-[11px] font-medium bg-[#FAF8F5] dark:bg-[#1C1916] text-[#6B5B49] dark:text-[#C2B3A0] border border-[#EAE2D8] dark:border-[#2E2822]">
                                             {note.course || "General"}
                                         </span>
                                     </div>
@@ -572,27 +647,27 @@ function BrowseNotes() {
                                     {/* Title & Subject */}
                                     <h3
                                         onClick={(e) => handlePreview(note, e)}
-                                        className="text-sm font-bold text-slate-900 dark:text-white hover:text-emerald-600 dark:hover:text-emerald-400 transition line-clamp-2 leading-snug mb-1 cursor-pointer"
+                                        className="text-sm font-serif font-bold text-[#1A1614] dark:text-[#FAF8F5] group-hover:text-[#8C6239] dark:group-hover:text-[#E5C378] transition line-clamp-2 leading-snug mb-1 cursor-pointer"
                                         title={note.title}
                                     >
                                         {note.title}
                                     </h3>
 
-                                    <p className="text-xs font-semibold text-indigo-600 dark:text-indigo-400 mb-2">
+                                    <p className="text-xs font-semibold text-[#8C6239] dark:text-[#E5C378] mb-3">
                                         {note.subject}
                                     </p>
 
                                     {/* University & Professor */}
-                                    <div className="space-y-1 mb-3 text-xs text-slate-500 dark:text-slate-400 font-medium">
+                                    <div className="space-y-1 mb-4 text-xs text-[#8C7862] dark:text-[#A8957E] font-medium">
                                         {note.university && (
                                             <p className="flex items-center gap-1.5 truncate">
-                                                <FaUniversity className="text-slate-400 shrink-0 text-[10px]" />
+                                                <FaUniversity className="text-[#8C6239] shrink-0 text-[10px]" />
                                                 <span className="truncate">{note.university}</span>
                                             </p>
                                         )}
                                         {note.author && (
-                                            <p className="flex items-center gap-1.5 truncate text-slate-600 dark:text-slate-300">
-                                                <FaUserGraduate className="text-slate-400 shrink-0 text-[10px]" />
+                                            <p className="flex items-center gap-1.5 truncate text-[#4A3E31] dark:text-[#FAF8F5]">
+                                                <FaUserGraduate className="text-[#8C6239] shrink-0 text-[10px]" />
                                                 <span className="truncate">By {note.author}</span>
                                             </p>
                                         )}
@@ -601,29 +676,29 @@ function BrowseNotes() {
                                     {/* Thumbnail Preview Box */}
                                     <div
                                         onClick={(e) => handlePreview(note, e)}
-                                        className="rounded-xl border border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 p-3 mb-3 cursor-pointer hover:bg-emerald-50/50 dark:hover:bg-emerald-950/30 transition flex items-center justify-center gap-2"
+                                        className="rounded-2xl border border-[#EAE2D8] dark:border-[#2E2822] bg-[#FAF8F5] dark:bg-[#1C1916] p-3.5 mb-4 cursor-pointer hover:bg-[#F4EFEA] dark:hover:bg-[#24201C] transition flex items-center justify-center gap-2"
                                     >
                                         <FaFilePdf className="text-red-500 text-base" />
-                                        <span className="text-xs font-semibold text-slate-600 dark:text-slate-300">
+                                        <span className="text-xs font-semibold text-[#6B5B49] dark:text-[#C2B3A0]">
                                             {!isSignedIn ? "Sign in to preview" : "Click to preview"}
                                         </span>
                                     </div>
                                 </div>
 
                                 {/* Action Buttons */}
-                                <div className="flex items-center gap-2 pt-2 border-t border-slate-100 dark:border-slate-800">
+                                <div className="flex items-center gap-2 pt-3 border-t border-[#EAE2D8] dark:border-[#2E2822]">
                                     <button
                                         onClick={(e) => handlePreview(note, e)}
-                                        className="flex-1 flex items-center justify-center gap-1.5 py-2 px-3 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-bold transition cursor-pointer shadow-2xs"
+                                        className="flex-1 flex items-center justify-center gap-1.5 py-2 px-3 bg-white dark:bg-[#1C1916] hover:bg-[#FAF8F5] dark:hover:bg-[#24201C] text-[#4A3E31] dark:text-[#FAF8F5] border border-[#DDD2C4] dark:border-[#2E2822] rounded-full text-xs font-bold transition cursor-pointer shadow-2xs"
                                     >
-                                        {!isSignedIn ? <FaLock className="text-[10px]" /> : <FaEye className="text-xs text-emerald-600" />}
-                                        {isSignedIn ? "Preview" : "Sign In"}
+                                        {!isSignedIn ? <FaLock className="text-[10px]" /> : <FaEye className="text-xs text-[#8C6239] dark:text-[#E5C378]" />}
+                                        <span>{isSignedIn ? "Preview" : "Sign In"}</span>
                                     </button>
 
                                     <button
                                         onClick={(e) => handleDownload(note, e)}
                                         disabled={downloadingId === note._id}
-                                        className="flex-1 flex items-center justify-center gap-1.5 py-2 px-3 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white rounded-xl text-xs font-bold transition disabled:opacity-60 cursor-pointer shadow-xs"
+                                        className="flex-1 flex items-center justify-center gap-1.5 py-2 px-3 bg-[#4A2E1B] hover:bg-[#331F12] dark:bg-[#C5A059] dark:hover:bg-[#E5C378] text-white dark:text-[#0F0E0D] rounded-full text-xs font-bold transition disabled:opacity-60 cursor-pointer shadow-xs"
                                     >
                                         {downloadingId === note._id ? (
                                             <FaSpinner className="animate-spin text-xs" />
@@ -638,7 +713,7 @@ function BrowseNotes() {
                                     <button
                                         onClick={(e) => handleShare(note, e)}
                                         title="Share Study Notes"
-                                        className="p-2 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 rounded-xl text-xs transition cursor-pointer"
+                                        className="p-2.5 bg-[#FAF8F5] dark:bg-[#1C1916] hover:bg-[#F4EFEA] text-[#8C7862] border border-[#EAE2D8] dark:border-[#2E2822] rounded-full text-xs transition cursor-pointer"
                                     >
                                         {copiedId === note._id ? (
                                             <FaCheck className="text-emerald-600 text-xs" />
@@ -654,58 +729,58 @@ function BrowseNotes() {
 
                 {/* LIST VIEW */}
                 {!loading && !error && filteredNotes.length > 0 && viewMode === "list" && (
-                    <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/90 dark:border-slate-800 shadow-xs overflow-hidden">
+                    <div className="bg-white dark:bg-[#161412] rounded-3xl border border-[#EAE2D8] dark:border-[#2E2822] shadow-xs overflow-hidden">
                         <div className="overflow-x-auto">
                             <table className="w-full text-left text-xs">
-                                <thead className="bg-slate-50 dark:bg-slate-950/80 border-b border-slate-200 dark:border-slate-800 text-slate-500 uppercase tracking-wider font-bold">
+                                <thead className="bg-[#FAF8F5] dark:bg-[#1C1916] border-b border-[#EAE2D8] dark:border-[#2E2822] text-[#8C7862] dark:text-[#A8957E] uppercase tracking-wider font-bold">
                                     <tr>
-                                        <th className="py-3.5 px-4">Title & Subject</th>
-                                        <th className="py-3.5 px-4">Unit / Module</th>
-                                        <th className="py-3.5 px-4">Course & Sem</th>
-                                        <th className="py-3.5 px-4">University</th>
-                                        <th className="py-3.5 px-4">Author</th>
-                                        <th className="py-3.5 px-4 text-right">Actions</th>
+                                        <th className="py-4 px-5">Title & Subject</th>
+                                        <th className="py-4 px-5">Unit / Module</th>
+                                        <th className="py-4 px-5">Course & Sem</th>
+                                        <th className="py-4 px-5">University</th>
+                                        <th className="py-4 px-5">Author</th>
+                                        <th className="py-4 px-5 text-right">Actions</th>
                                     </tr>
                                 </thead>
-                                <tbody className="divide-y divide-slate-100 dark:divide-slate-800 font-medium text-slate-700 dark:text-slate-300">
+                                <tbody className="divide-y divide-[#EAE2D8] dark:divide-[#2E2822] font-medium text-[#4A3E31] dark:text-[#EAE2D8]">
                                     {paginatedNotes.map((note) => (
-                                        <tr key={note._id} className="hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-colors">
-                                            <td className="py-3.5 px-4">
-                                                <div className="flex items-center gap-2.5">
-                                                    <FaStickyNote className="text-emerald-600 shrink-0" />
+                                        <tr key={note._id} className="hover:bg-[#FAF8F5] dark:hover:bg-[#1C1916] transition-colors">
+                                            <td className="py-4 px-5">
+                                                <div className="flex items-center gap-3">
+                                                    <FaStickyNote className="text-[#8C6239] dark:text-[#E5C378] shrink-0" />
                                                     <div>
                                                         <span
-                                                            className="font-bold text-slate-900 dark:text-white hover:text-emerald-600 cursor-pointer line-clamp-1 max-w-xs block"
+                                                            className="font-serif font-bold text-[#1A1614] dark:text-[#FAF8F5] hover:text-[#8C6239] dark:hover:text-[#E5C378] cursor-pointer line-clamp-1 max-w-xs block"
                                                             onClick={(e) => handlePreview(note, e)}
                                                         >
                                                             {note.title}
                                                         </span>
-                                                        <span className="text-[11px] text-indigo-600 dark:text-indigo-400 font-semibold">
+                                                        <span className="text-[11px] text-[#8C6239] dark:text-[#E5C378] font-semibold">
                                                             {note.subject}
                                                         </span>
                                                     </div>
                                                 </div>
                                             </td>
-                                            <td className="py-3.5 px-4 font-semibold text-slate-800 dark:text-slate-200">
+                                            <td className="py-4 px-5 font-semibold text-[#1A1614] dark:text-[#FAF8F5]">
                                                 {note.unit || "-"}
                                             </td>
-                                            <td className="py-3.5 px-4">
+                                            <td className="py-4 px-5">
                                                 <span>{note.course || "-"}</span>
-                                                <span className="text-slate-400 block text-[11px]">
+                                                <span className="text-[#8C7862] dark:text-[#A8957E] block text-[11px]">
                                                     {note.semester ? `Sem ${note.semester}` : "-"}
                                                 </span>
                                             </td>
-                                            <td className="py-3.5 px-4 text-slate-600 dark:text-slate-300">
+                                            <td className="py-4 px-5 text-[#8C7862] dark:text-[#A8957E]">
                                                 {note.university || "-"}
                                             </td>
-                                            <td className="py-3.5 px-4 text-slate-500">
+                                            <td className="py-4 px-5 text-[#8C7862] dark:text-[#A8957E]">
                                                 {note.author || "Student"}
                                             </td>
-                                            <td className="py-3.5 px-4 text-right">
+                                            <td className="py-4 px-5 text-right">
                                                 <div className="flex items-center justify-end gap-1.5">
                                                     <button
                                                         onClick={(e) => handlePreview(note, e)}
-                                                        className="p-2 bg-emerald-50 dark:bg-emerald-950/60 hover:bg-emerald-100 text-emerald-600 dark:text-emerald-400 rounded-lg transition cursor-pointer"
+                                                        className="p-2 bg-[#F4EFEA] dark:bg-[#24201C] hover:bg-[#EAE2D8] text-[#8C6239] dark:text-[#E5C378] rounded-full transition cursor-pointer"
                                                         title="Preview Notes"
                                                     >
                                                         {!isSignedIn ? <FaLock className="text-[10px]" /> : <FaEye className="text-xs" />}
@@ -713,7 +788,7 @@ function BrowseNotes() {
                                                     <button
                                                         onClick={(e) => handleDownload(note, e)}
                                                         disabled={downloadingId === note._id}
-                                                        className="p-2 bg-teal-50 dark:bg-teal-950/60 hover:bg-teal-100 text-teal-600 dark:text-teal-400 rounded-lg transition cursor-pointer"
+                                                        className="p-2 bg-[#4A2E1B] dark:bg-[#C5A059] hover:bg-[#331F12] text-white dark:text-[#0F0E0D] rounded-full transition cursor-pointer"
                                                         title="Download PDF"
                                                     >
                                                         {downloadingId === note._id ? (
@@ -726,7 +801,7 @@ function BrowseNotes() {
                                                     </button>
                                                     <button
                                                         onClick={(e) => handleShare(note, e)}
-                                                        className="p-2 bg-slate-100 dark:bg-slate-800 text-slate-600 rounded-lg transition cursor-pointer"
+                                                        className="p-2 bg-[#FAF8F5] dark:bg-[#1C1916] hover:bg-[#F4EFEA] text-[#8C7862] border border-[#EAE2D8] dark:border-[#2E2822] rounded-full transition cursor-pointer"
                                                         title="Share Link"
                                                     >
                                                         {copiedId === note._id ? (
@@ -745,36 +820,20 @@ function BrowseNotes() {
                     </div>
                 )}
 
-                {/* PAGINATION */}
+                {/* GOOGLE-STYLE LIGHTNING FAST PAGINATION */}
                 {!loading && !error && filteredNotes.length > pageSize && (
-                    <div className="flex flex-col sm:flex-row items-center justify-between gap-4 mt-8 pt-4 border-t border-slate-200 dark:border-slate-800 text-xs">
-                        <span className="text-slate-500 font-medium">
-                            Showing {(currentPage - 1) * pageSize + 1} to{" "}
-                            {Math.min(currentPage * pageSize, filteredNotes.length)} of {filteredNotes.length} notes
-                        </span>
-
-                        <div className="flex items-center gap-1.5">
-                            <button
-                                onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
-                                disabled={currentPage === 1}
-                                className="px-3 py-1.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl font-semibold disabled:opacity-40"
-                            >
-                                <FaChevronLeft className="text-[10px]" /> Prev
-                            </button>
-                            <span className="px-2 font-bold text-slate-900 dark:text-white">
-                                Page {currentPage} of {totalPages}
-                            </span>
-                            <button
-                                onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
-                                disabled={currentPage === totalPages}
-                                className="px-3 py-1.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl font-semibold disabled:opacity-40"
-                            >
-                                Next <FaChevronRight className="text-[10px]" />
-                            </button>
-                        </div>
-                    </div>
+                    <GooglePagination
+                        currentPage={currentPage}
+                        totalPages={totalPages}
+                        onPageChange={(p) => setCurrentPage(p)}
+                        totalItems={filteredNotes.length}
+                        pageSize={pageSize}
+                    />
                 )}
             </main>
+
+            {/* FOOTER */}
+            <Footer />
 
             {/* MODAL PDF VIEWER */}
             {selectedPdf && (

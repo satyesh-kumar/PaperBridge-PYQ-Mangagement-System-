@@ -10,6 +10,11 @@ import upload from "./middleware/upload.js";
 import cloudinary from "./config/cloudinary.js";
 import PYQ from "./models/PYQ.js";
 import Note from "./models/Note.js";
+import University from "./models/University.js";
+import Course from "./models/Course.js";
+import Semester from "./models/Semester.js";
+import Subject from "./models/Subject.js";
+import { seedAcademicData } from "./seedAcademicData.js";
 
 dotenv.config();
 
@@ -24,29 +29,19 @@ const allowedOrigins = process.env.ALLOWED_ORIGIN
 app.use(
   cors({
     origin: (origin, callback) => {
-      // Allow requests with no origin (like mobile apps, curl)
       if (!origin) return callback(null, true);
-
-      // Allow all localhost origins on any port
       if (/^https?:\/\/localhost(:\d+)?$/.test(origin) || /^https?:\/\/127\.0\.0\.1(:\d+)?$/.test(origin)) {
         return callback(null, true);
       }
-
-      // Allow all Vercel preview & production deployments (*.vercel.app)
       if (/^https:\/\/([a-zA-Z0-9_-]+\.)?vercel\.app$/.test(origin) || /^https:\/\/.*\.vercel\.app$/.test(origin)) {
         return callback(null, true);
       }
-
-      // Check explicit ALLOWED_ORIGIN list if set
       if (allowedOrigins && allowedOrigins.includes(origin)) {
         return callback(null, true);
       }
-
-      // If no strict ALLOWED_ORIGIN is set, allow all
       if (!allowedOrigins) {
         return callback(null, true);
       }
-
       return callback(new Error(`CORS blocked for origin: ${origin}`));
     },
     credentials: true,
@@ -57,7 +52,7 @@ app.use(
 
 app.use(express.json());
 
-// Static PDF serving
+// Static PDF serving (if used locally)
 app.use("/uploads", (req, res, next) => {
   res.setHeader("Access-Control-Allow-Origin", "*");
   next();
@@ -72,30 +67,54 @@ app.use("/uploads", (req, res, next) => {
 
 app.use(clerkMiddleware());
 
+// ── ADMIN AUTHORIZATION HELPER ────────────────────────────────────────────────
+const getAdminEmails = () => {
+  const envAdminEmailsRaw = process.env.ADMIN_EMAILS || "";
+  return envAdminEmailsRaw
+    .split(",")
+    .map((e) => e.trim().toLowerCase())
+    .filter(Boolean);
+};
+
+// Middleware: Verify user is an authorized Administrator
+const requireAdmin = async (req, res, next) => {
+  try {
+    if (!req.auth || !req.auth.userId) {
+      return res.status(401).json({ error: "Authentication required" });
+    }
+
+    // In Clerk Express, req.auth.sessionClaims might contain email or user details
+    const sessionClaims = req.auth.sessionClaims || {};
+    const primaryEmail = (sessionClaims.email || sessionClaims.primary_email || "").toLowerCase().trim();
+    const adminEmails = getAdminEmails();
+
+    // If email is in claims, verify against admin list
+    if (primaryEmail && adminEmails.length > 0) {
+      if (!adminEmails.includes(primaryEmail)) {
+        return res.status(403).json({ error: "Access denied. Administrator clearance required." });
+      }
+    }
+
+    // If role claim exists
+    if (sessionClaims.metadata?.role && sessionClaims.metadata.role !== "admin") {
+      return res.status(403).json({ error: "Access denied. Administrator clearance required." });
+    }
+
+    next();
+  } catch (err) {
+    console.error("Admin auth check error:", err);
+    return res.status(500).json({ error: "Authorization verification failed" });
+  }
+};
+
 // ── MongoDB ───────────────────────────────────────────────────────────────────
 mongoose.connect(process.env.MONGO_URL)
-  .then(() => console.log("MongoDB Connected"))
+  .then(async () => {
+    console.log("MongoDB Connected");
+    // Seed initial universities, courses, semesters, and subjects if needed
+    await seedAcademicData();
+  })
   .catch(err => console.log("MongoDB connection error:", err));
-
-// ── ROUTES ────────────────────────────────────────────────────────────────────
-
-app.get("/", (req, res) => {
-  res.json({ status: "success", message: "PaperBridge API running with PYQs & Notes modules" });
-});
-
-// Sync / create user from Clerk
-app.post("/api/users", requireAuth(), async (req, res) => {
-  try {
-    const clerkId = req.auth.userId;
-    let user = await User.findOne({ clerkId });
-    if (user) return res.json(user);
-    const newUser = await User.create({ clerkId });
-    res.json(newUser);
-  } catch (err) {
-    console.error("User sync error:", err);
-    res.status(500).json({ error: "Failed to sync user" });
-  }
-});
 
 // Helper for Cloudinary streaming upload
 const uploadToCloudinary = (fileBuffer) => {
@@ -111,7 +130,753 @@ const uploadToCloudinary = (fileBuffer) => {
   });
 };
 
-// ── PYQS ENDPOINTS ────────────────────────────────────────────────────────────
+// ── BASE & USER SYNC ──────────────────────────────────────────────────────────
+app.get("/", (req, res) => {
+  res.json({
+    status: "success",
+    message: "PaperBridge Dynamic Multi-University Academic Platform API is running",
+    version: "2.0.0",
+  });
+});
+
+app.post("/api/users", requireAuth(), async (req, res) => {
+  try {
+    const clerkId = req.auth.userId;
+    let user = await User.findOne({ clerkId });
+    if (user) return res.json(user);
+    const newUser = await User.create({ clerkId });
+    res.json(newUser);
+  } catch (err) {
+    console.error("User sync error:", err);
+    res.status(500).json({ error: "Failed to sync user" });
+  }
+});
+
+// ═════════════════════════════════════════════════════════════════════════════
+// 🏛️ UNIVERSITY MANAGEMENT ENDPOINTS
+// ═════════════════════════════════════════════════════════════════════════════
+
+// List Universities (Public: active only; Admin: ?status=all)
+app.get("/api/universities", async (req, res) => {
+  try {
+    const { status, search } = req.query;
+    const filter = {};
+
+    if (status && status !== "all") {
+      filter.status = status;
+    } else if (!status) {
+      // Default to active for public
+      filter.status = "active";
+    }
+
+    if (search) {
+      filter.$or = [
+        { name: { $regex: search, $options: "i" } },
+        { code: { $regex: search, $options: "i" } },
+        { location: { $regex: search, $options: "i" } },
+      ];
+    }
+
+    const universities = await University.find(filter).sort({ name: 1 });
+
+    // Aggregate counts for each university
+    const uniIds = universities.map((u) => u._id);
+    const courseCounts = await Course.aggregate([
+      { $match: { universityId: { $in: uniIds } } },
+      { $group: { _id: "$universityId", count: { $sum: 1 } } },
+    ]);
+    const paperCounts = await PYQ.aggregate([
+      { $match: { universityId: { $in: uniIds } } },
+      { $group: { _id: "$universityId", count: { $sum: 1 } } },
+    ]);
+    const noteCounts = await Note.aggregate([
+      { $match: { universityId: { $in: uniIds } } },
+      { $group: { _id: "$universityId", count: { $sum: 1 } } },
+    ]);
+
+    const courseMap = {};
+    courseCounts.forEach((c) => (courseMap[c._id.toString()] = c.count));
+    const paperMap = {};
+    paperCounts.forEach((p) => (paperMap[p._id.toString()] = p.count));
+    const noteMap = {};
+    noteCounts.forEach((n) => (noteMap[n._id.toString()] = n.count));
+
+    const enriched = universities.map((u) => ({
+      ...u.toObject(),
+      coursesCount: courseMap[u._id.toString()] || 0,
+      papersCount: paperMap[u._id.toString()] || 0,
+      notesCount: noteMap[u._id.toString()] || 0,
+    }));
+
+    res.json(enriched);
+  } catch (err) {
+    console.error("Fetch universities error:", err);
+    res.status(500).json({ error: "Failed to fetch universities" });
+  }
+});
+
+// Get single University
+app.get("/api/universities/:id", async (req, res) => {
+  try {
+    const university = await University.findById(req.params.id);
+    if (!university) return res.status(404).json({ error: "University not found" });
+
+    const coursesCount = await Course.countDocuments({ universityId: university._id });
+    const papersCount = await PYQ.countDocuments({ universityId: university._id });
+    const notesCount = await Note.countDocuments({ universityId: university._id });
+
+    res.json({
+      ...university.toObject(),
+      coursesCount,
+      papersCount,
+      notesCount,
+    });
+  } catch (err) {
+    res.status(500).json({ error: "Failed to fetch university details" });
+  }
+});
+
+// Create University (Admin)
+app.post("/api/universities", requireAuth(), requireAdmin, async (req, res) => {
+  try {
+    const { name, code, description, logo, website, location, state, country, status } = req.body;
+
+    if (!name || !name.trim()) {
+      return res.status(400).json({ error: "University name is required" });
+    }
+    if (!code || !code.trim()) {
+      return res.status(400).json({ error: "University short code is required" });
+    }
+
+    const cleanCode = code.trim().toUpperCase();
+    const existing = await University.findOne({ code: cleanCode });
+    if (existing) {
+      return res.status(400).json({ error: `University with code '${cleanCode}' already exists.` });
+    }
+
+    const university = await University.create({
+      name: name.trim(),
+      code: cleanCode,
+      description: description || "",
+      logo: logo || "",
+      website: website || "",
+      location: location || "",
+      state: state || "",
+      country: country || "India",
+      status: status || "active",
+    });
+
+    res.status(201).json(university);
+  } catch (err) {
+    console.error("Create university error:", err);
+    res.status(500).json({ error: err.message || "Failed to create university" });
+  }
+});
+
+// Update University (Admin)
+app.put("/api/universities/:id", requireAuth(), requireAdmin, async (req, res) => {
+  try {
+    const { name, code, description, logo, website, location, state, country, status } = req.body;
+
+    if (code) {
+      const cleanCode = code.trim().toUpperCase();
+      const existing = await University.findOne({ code: cleanCode, _id: { $ne: req.params.id } });
+      if (existing) {
+        return res.status(400).json({ error: `University code '${cleanCode}' is already used by another institution.` });
+      }
+    }
+
+    const updated = await University.findByIdAndUpdate(
+      req.params.id,
+      {
+        $set: {
+          ...(name && { name: name.trim() }),
+          ...(code && { code: code.trim().toUpperCase() }),
+          ...(description !== undefined && { description }),
+          ...(logo !== undefined && { logo }),
+          ...(website !== undefined && { website }),
+          ...(location !== undefined && { location }),
+          ...(state !== undefined && { state }),
+          ...(country !== undefined && { country }),
+          ...(status && { status }),
+        },
+      },
+      { new: true }
+    );
+
+    if (!updated) return res.status(404).json({ error: "University not found" });
+
+    // Also update denormalized university string on papers/notes if name changed
+    if (name) {
+      await PYQ.updateMany({ universityId: updated._id }, { $set: { university: updated.name } });
+      await Note.updateMany({ universityId: updated._id }, { $set: { university: updated.name } });
+    }
+
+    res.json(updated);
+  } catch (err) {
+    console.error("Update university error:", err);
+    res.status(500).json({ error: "Failed to update university" });
+  }
+});
+
+// Delete University (Admin with Cascade Safety Check)
+app.delete("/api/universities/:id", requireAuth(), requireAdmin, async (req, res) => {
+  try {
+    const uniId = req.params.id;
+    const force = req.query.force === "true" || req.body.force === true;
+
+    const university = await University.findById(uniId);
+    if (!university) return res.status(404).json({ error: "University not found" });
+
+    const coursesCount = await Course.countDocuments({ universityId: uniId });
+    const papersCount = await PYQ.countDocuments({ universityId: uniId });
+    const notesCount = await Note.countDocuments({ universityId: uniId });
+
+    if ((coursesCount > 0 || papersCount > 0 || notesCount > 0) && !force) {
+      return res.status(409).json({
+        error: "CASCADE_WARNING",
+        message: `This university contains ${coursesCount} courses, ${papersCount} question papers, and ${notesCount} study notes. Deleting it will impact dependent academic records.`,
+        coursesCount,
+        papersCount,
+        notesCount,
+        universityName: university.name,
+      });
+    }
+
+    // Perform deletion
+    if (force) {
+      await Course.deleteMany({ universityId: uniId });
+      await Semester.deleteMany({ universityId: uniId });
+      await Subject.deleteMany({ universityId: uniId });
+      await PYQ.deleteMany({ universityId: uniId });
+      await Note.deleteMany({ universityId: uniId });
+    }
+
+    await University.findByIdAndDelete(uniId);
+
+    res.json({
+      success: true,
+      message: `University '${university.name}' and its relationships were successfully deleted.`,
+    });
+  } catch (err) {
+    console.error("Delete university error:", err);
+    res.status(500).json({ error: "Failed to delete university" });
+  }
+});
+
+// Toggle University Status (Admin)
+app.patch("/api/universities/:id/status", requireAuth(), requireAdmin, async (req, res) => {
+  try {
+    const { status } = req.body;
+    if (!["active", "inactive"].includes(status)) {
+      return res.status(400).json({ error: "Invalid status" });
+    }
+    const updated = await University.findByIdAndUpdate(
+      req.params.id,
+      { $set: { status } },
+      { new: true }
+    );
+    if (!updated) return res.status(404).json({ error: "University not found" });
+    res.json(updated);
+  } catch (err) {
+    res.status(500).json({ error: "Failed to update status" });
+  }
+});
+
+// ═════════════════════════════════════════════════════════════════════════════
+// 🎓 COURSE / PROGRAM MANAGEMENT ENDPOINTS
+// ═════════════════════════════════════════════════════════════════════════════
+
+// List Courses (Filterable by ?universityId=..., ?status=all, ?search=...)
+app.get("/api/courses", async (req, res) => {
+  try {
+    const { universityId, status, search } = req.query;
+    const filter = {};
+
+    if (universityId && universityId !== "all") {
+      filter.universityId = universityId;
+    }
+    if (status && status !== "all") {
+      filter.status = status;
+    } else if (!status) {
+      filter.status = "active";
+    }
+    if (search) {
+      filter.$or = [
+        { name: { $regex: search, $options: "i" } },
+        { code: { $regex: search, $options: "i" } },
+      ];
+    }
+
+    const courses = await Course.find(filter)
+      .populate("universityId", "name code location")
+      .sort({ name: 1 });
+
+    // Aggregate semester, subject & paper counts
+    const courseIds = courses.map((c) => c._id);
+    const semCounts = await Semester.aggregate([
+      { $match: { courseId: { $in: courseIds } } },
+      { $group: { _id: "$courseId", count: { $sum: 1 } } },
+    ]);
+    const subCounts = await Subject.aggregate([
+      { $match: { courseId: { $in: courseIds } } },
+      { $group: { _id: "$courseId", count: { $sum: 1 } } },
+    ]);
+    const paperCounts = await PYQ.aggregate([
+      { $match: { courseId: { $in: courseIds } } },
+      { $group: { _id: "$courseId", count: { $sum: 1 } } },
+    ]);
+
+    const semMap = {};
+    semCounts.forEach((s) => (semMap[s._id.toString()] = s.count));
+    const subMap = {};
+    subCounts.forEach((s) => (subMap[s._id.toString()] = s.count));
+    const paperMap = {};
+    paperCounts.forEach((p) => (paperMap[p._id.toString()] = p.count));
+
+    const enriched = courses.map((c) => ({
+      ...c.toObject(),
+      semestersCount: semMap[c._id.toString()] || c.numberOfSemesters,
+      subjectsCount: subMap[c._id.toString()] || 0,
+      papersCount: paperMap[c._id.toString()] || 0,
+    }));
+
+    res.json(enriched);
+  } catch (err) {
+    console.error("Fetch courses error:", err);
+    res.status(500).json({ error: "Failed to fetch courses" });
+  }
+});
+
+// Create Course & Auto-Generate its Semesters (Admin)
+app.post("/api/courses", requireAuth(), requireAdmin, async (req, res) => {
+  try {
+    const { name, code, universityId, degreeType, duration, numberOfSemesters, description, status } = req.body;
+
+    if (!name || !name.trim()) return res.status(400).json({ error: "Course name is required" });
+    if (!code || !code.trim()) return res.status(400).json({ error: "Course code is required" });
+    if (!universityId) return res.status(400).json({ error: "University is required" });
+
+    const numSemesters = numberOfSemesters ? Number(numberOfSemesters) : 8;
+    if (numSemesters < 1 || numSemesters > 12) {
+      return res.status(400).json({ error: "Number of semesters must be between 1 and 12" });
+    }
+
+    const cleanCode = code.trim().toUpperCase();
+    const existing = await Course.findOne({ universityId, code: cleanCode });
+    if (existing) {
+      return res.status(400).json({ error: `Course with code '${cleanCode}' already exists for this university.` });
+    }
+
+    const course = await Course.create({
+      name: name.trim(),
+      code: cleanCode,
+      universityId,
+      degreeType: degreeType || "Undergraduate",
+      duration: duration || "3 Years",
+      numberOfSemesters: numSemesters,
+      description: description || "",
+      status: status || "active",
+    });
+
+    // Auto-generate Semester records for this Course
+    const semesterDocs = [];
+    for (let i = 1; i <= numSemesters; i++) {
+      semesterDocs.push({
+        name: `Semester ${i}`,
+        number: i,
+        courseId: course._id,
+        universityId,
+        status: "active",
+      });
+    }
+    await Semester.insertMany(semesterDocs);
+
+    res.status(201).json(course);
+  } catch (err) {
+    console.error("Create course error:", err);
+    res.status(500).json({ error: err.message || "Failed to create course" });
+  }
+});
+
+// Update Course (Admin)
+app.put("/api/courses/:id", requireAuth(), requireAdmin, async (req, res) => {
+  try {
+    const courseId = req.params.id;
+    const { name, code, universityId, degreeType, duration, numberOfSemesters, description, status } = req.body;
+
+    const currentCourse = await Course.findById(courseId);
+    if (!currentCourse) return res.status(404).json({ error: "Course not found" });
+
+    const newNumSemesters = numberOfSemesters ? Number(numberOfSemesters) : currentCourse.numberOfSemesters;
+
+    if (code) {
+      const cleanCode = code.trim().toUpperCase();
+      const existing = await Course.findOne({
+        universityId: universityId || currentCourse.universityId,
+        code: cleanCode,
+        _id: { $ne: courseId },
+      });
+      if (existing) {
+        return res.status(400).json({ error: `Course code '${cleanCode}' is already in use for this university.` });
+      }
+    }
+
+    const updated = await Course.findByIdAndUpdate(
+      courseId,
+      {
+        $set: {
+          ...(name && { name: name.trim() }),
+          ...(code && { code: code.trim().toUpperCase() }),
+          ...(universityId && { universityId }),
+          ...(degreeType && { degreeType }),
+          ...(duration && { duration }),
+          ...(numberOfSemesters && { numberOfSemesters: newNumSemesters }),
+          ...(description !== undefined && { description }),
+          ...(status && { status }),
+        },
+      },
+      { new: true }
+    );
+
+    // If numberOfSemesters changed, adjust Semester records safely
+    if (numberOfSemesters && newNumSemesters !== currentCourse.numberOfSemesters) {
+      const existingSemesters = await Semester.find({ courseId }).sort({ number: 1 });
+      const currentCount = existingSemesters.length;
+
+      if (newNumSemesters > currentCount) {
+        // Add additional semesters
+        const newSems = [];
+        for (let i = currentCount + 1; i <= newNumSemesters; i++) {
+          newSems.push({
+            name: `Semester ${i}`,
+            number: i,
+            courseId: updated._id,
+            universityId: updated.universityId,
+            status: "active",
+          });
+        }
+        await Semester.insertMany(newSems);
+      } else if (newNumSemesters < currentCount) {
+        // Remove excess semesters only if no subjects are assigned to them
+        const excessSemNumbers = [];
+        for (let i = newNumSemesters + 1; i <= currentCount; i++) {
+          excessSemNumbers.push(i);
+        }
+        const subjectsInExcess = await Subject.countDocuments({
+          courseId,
+          semesterNumber: { $in: excessSemNumbers },
+        });
+
+        if (subjectsInExcess === 0) {
+          await Semester.deleteMany({
+            courseId,
+            number: { $in: excessSemNumbers },
+          });
+        }
+      }
+    }
+
+    // Denormalized update on PYQs/Notes if course name changed
+    if (name) {
+      await PYQ.updateMany({ courseId: updated._id }, { $set: { course: updated.name } });
+      await Note.updateMany({ courseId: updated._id }, { $set: { course: updated.name } });
+    }
+
+    res.json(updated);
+  } catch (err) {
+    console.error("Update course error:", err);
+    res.status(500).json({ error: "Failed to update course" });
+  }
+});
+
+// Delete Course (Admin with Cascade Safety Check)
+app.delete("/api/courses/:id", requireAuth(), requireAdmin, async (req, res) => {
+  try {
+    const courseId = req.params.id;
+    const force = req.query.force === "true" || req.body.force === true;
+
+    const course = await Course.findById(courseId);
+    if (!course) return res.status(404).json({ error: "Course not found" });
+
+    const subjectsCount = await Subject.countDocuments({ courseId });
+    const papersCount = await PYQ.countDocuments({ courseId });
+    const notesCount = await Note.countDocuments({ courseId });
+
+    if ((subjectsCount > 0 || papersCount > 0 || notesCount > 0) && !force) {
+      return res.status(409).json({
+        error: "CASCADE_WARNING",
+        message: `This course contains ${subjectsCount} subjects, ${papersCount} question papers, and ${notesCount} study notes.`,
+        subjectsCount,
+        papersCount,
+        notesCount,
+        courseName: course.name,
+      });
+    }
+
+    if (force) {
+      await Semester.deleteMany({ courseId });
+      await Subject.deleteMany({ courseId });
+      await PYQ.deleteMany({ courseId });
+      await Note.deleteMany({ courseId });
+    } else {
+      await Semester.deleteMany({ courseId });
+    }
+
+    await Course.findByIdAndDelete(courseId);
+
+    res.json({
+      success: true,
+      message: `Course '${course.name}' was successfully deleted.`,
+    });
+  } catch (err) {
+    console.error("Delete course error:", err);
+    res.status(500).json({ error: "Failed to delete course" });
+  }
+});
+
+// Toggle Course Status (Admin)
+app.patch("/api/courses/:id/status", requireAuth(), requireAdmin, async (req, res) => {
+  try {
+    const { status } = req.body;
+    const updated = await Course.findByIdAndUpdate(req.params.id, { $set: { status } }, { new: true });
+    if (!updated) return res.status(404).json({ error: "Course not found" });
+    res.json(updated);
+  } catch (err) {
+    res.status(500).json({ error: "Failed to update course status" });
+  }
+});
+
+// ═════════════════════════════════════════════════════════════════════════════
+// 🔢 DYNAMIC SEMESTER MANAGEMENT ENDPOINTS
+// ═════════════════════════════════════════════════════════════════════════════
+
+// Get Semesters for a Course (?courseId=...)
+app.get("/api/semesters", async (req, res) => {
+  try {
+    const { courseId, universityId } = req.query;
+    const filter = {};
+    if (courseId) filter.courseId = courseId;
+    if (universityId) filter.universityId = universityId;
+
+    const semesters = await Semester.find(filter)
+      .sort({ number: 1 })
+      .populate("courseId", "name code numberOfSemesters");
+
+    // Enrich with subject counts
+    const semIds = semesters.map((s) => s._id);
+    const subCounts = await Subject.aggregate([
+      { $match: { semesterId: { $in: semIds } } },
+      { $group: { _id: "$semesterId", count: { $sum: 1 } } },
+    ]);
+    const subMap = {};
+    subCounts.forEach((s) => (subMap[s._id.toString()] = s.count));
+
+    const enriched = semesters.map((s) => ({
+      ...s.toObject(),
+      subjectsCount: subMap[s._id.toString()] || 0,
+    }));
+
+    res.json(enriched);
+  } catch (err) {
+    res.status(500).json({ error: "Failed to fetch semesters" });
+  }
+});
+
+// Update Semester name or status
+app.put("/api/semesters/:id", requireAuth(), requireAdmin, async (req, res) => {
+  try {
+    const { name, status } = req.body;
+    const updated = await Semester.findByIdAndUpdate(
+      req.params.id,
+      { $set: { ...(name && { name }), ...(status && { status }) } },
+      { new: true }
+    );
+    if (!updated) return res.status(404).json({ error: "Semester not found" });
+    res.json(updated);
+  } catch (err) {
+    res.status(500).json({ error: "Failed to update semester" });
+  }
+});
+
+// ═════════════════════════════════════════════════════════════════════════════
+// 📚 SUBJECT MANAGEMENT ENDPOINTS
+// ═════════════════════════════════════════════════════════════════════════════
+
+// List Subjects (?courseId=..., ?semesterId=..., ?semesterNumber=..., ?search=...)
+app.get("/api/subjects", async (req, res) => {
+  try {
+    const { courseId, semesterId, semesterNumber, universityId, status, search } = req.query;
+    const filter = {};
+
+    if (courseId && courseId !== "all") filter.courseId = courseId;
+    if (semesterId && semesterId !== "all") filter.semesterId = semesterId;
+    if (semesterNumber && semesterNumber !== "all") filter.semesterNumber = Number(semesterNumber);
+    if (universityId && universityId !== "all") filter.universityId = universityId;
+    if (status && status !== "all") filter.status = status;
+    else if (!status) filter.status = "active";
+
+    if (search) {
+      filter.$or = [
+        { name: { $regex: search, $options: "i" } },
+        { code: { $regex: search, $options: "i" } },
+      ];
+    }
+
+    const subjects = await Subject.find(filter)
+      .populate("courseId", "name code")
+      .populate("semesterId", "name number")
+      .populate("universityId", "name code")
+      .sort({ name: 1 });
+
+    // Aggregate paper and note counts per subject
+    const subjectIds = subjects.map((s) => s._id);
+    const paperCounts = await PYQ.aggregate([
+      { $match: { subjectId: { $in: subjectIds } } },
+      { $group: { _id: "$subjectId", count: { $sum: 1 } } },
+    ]);
+    const noteCounts = await Note.aggregate([
+      { $match: { subjectId: { $in: subjectIds } } },
+      { $group: { _id: "$subjectId", count: { $sum: 1 } } },
+    ]);
+
+    const paperMap = {};
+    paperCounts.forEach((p) => (paperMap[p._id.toString()] = p.count));
+    const noteMap = {};
+    noteCounts.forEach((n) => (noteMap[n._id.toString()] = n.count));
+
+    const enriched = subjects.map((s) => ({
+      ...s.toObject(),
+      papersCount: paperMap[s._id.toString()] || 0,
+      notesCount: noteMap[s._id.toString()] || 0,
+    }));
+
+    res.json(enriched);
+  } catch (err) {
+    console.error("Fetch subjects error:", err);
+    res.status(500).json({ error: "Failed to fetch subjects" });
+  }
+});
+
+// Create Subject (Admin)
+app.post("/api/subjects", requireAuth(), requireAdmin, async (req, res) => {
+  try {
+    const { name, code, universityId, courseId, semesterId, description, status } = req.body;
+
+    if (!name || !name.trim()) return res.status(400).json({ error: "Subject name is required" });
+    if (!code || !code.trim()) return res.status(400).json({ error: "Subject code is required" });
+    if (!courseId) return res.status(400).json({ error: "Course is required" });
+    if (!semesterId) return res.status(400).json({ error: "Semester is required" });
+
+    const semesterDoc = await Semester.findById(semesterId);
+    if (!semesterDoc) return res.status(400).json({ error: "Invalid semester selected" });
+
+    const courseDoc = await Course.findById(courseId);
+    if (!courseDoc) return res.status(400).json({ error: "Invalid course selected" });
+
+    const uniId = universityId || courseDoc.universityId;
+    const cleanCode = code.trim().toUpperCase();
+
+    const existing = await Subject.findOne({ courseId, semesterId, code: cleanCode });
+    if (existing) {
+      return res.status(400).json({ error: `Subject with code '${cleanCode}' already exists for this course and semester.` });
+    }
+
+    const subject = await Subject.create({
+      name: name.trim(),
+      code: cleanCode,
+      universityId: uniId,
+      courseId,
+      semesterId,
+      semesterNumber: semesterDoc.number,
+      description: description || "",
+      status: status || "active",
+    });
+
+    res.status(201).json(subject);
+  } catch (err) {
+    console.error("Create subject error:", err);
+    res.status(500).json({ error: err.message || "Failed to create subject" });
+  }
+});
+
+// Update Subject (Admin)
+app.put("/api/subjects/:id", requireAuth(), requireAdmin, async (req, res) => {
+  try {
+    const { name, code, semesterId, description, status } = req.body;
+    const subjectId = req.params.id;
+
+    const current = await Subject.findById(subjectId);
+    if (!current) return res.status(404).json({ error: "Subject not found" });
+
+    let semNumber = current.semesterNumber;
+    if (semesterId && semesterId !== current.semesterId.toString()) {
+      const semDoc = await Semester.findById(semesterId);
+      if (semDoc) semNumber = semDoc.number;
+    }
+
+    const updated = await Subject.findByIdAndUpdate(
+      subjectId,
+      {
+        $set: {
+          ...(name && { name: name.trim() }),
+          ...(code && { code: code.trim().toUpperCase() }),
+          ...(semesterId && { semesterId }),
+          ...(semesterId && { semesterNumber: semNumber }),
+          ...(description !== undefined && { description }),
+          ...(status && { status }),
+        },
+      },
+      { new: true }
+    );
+
+    res.json(updated);
+  } catch (err) {
+    res.status(500).json({ error: "Failed to update subject" });
+  }
+});
+
+// Delete Subject (Admin with cascade safety check)
+app.delete("/api/subjects/:id", requireAuth(), requireAdmin, async (req, res) => {
+  try {
+    const subjectId = req.params.id;
+    const force = req.query.force === "true" || req.body.force === true;
+
+    const subject = await Subject.findById(subjectId);
+    if (!subject) return res.status(404).json({ error: "Subject not found" });
+
+    const papersCount = await PYQ.countDocuments({ subjectId });
+    const notesCount = await Note.countDocuments({ subjectId });
+
+    if ((papersCount > 0 || notesCount > 0) && !force) {
+      return res.status(409).json({
+        error: "CASCADE_WARNING",
+        message: `This subject is referenced by ${papersCount} question papers and ${notesCount} study notes.`,
+        papersCount,
+        notesCount,
+        subjectName: subject.name,
+      });
+    }
+
+    if (force) {
+      await PYQ.deleteMany({ subjectId });
+      await Note.deleteMany({ subjectId });
+    }
+
+    await Subject.findByIdAndDelete(subjectId);
+
+    res.json({
+      success: true,
+      message: `Subject '${subject.name}' was successfully deleted.`,
+    });
+  } catch (err) {
+    res.status(500).json({ error: "Failed to delete subject" });
+  }
+});
+
+// ═════════════════════════════════════════════════════════════════════════════
+// 📄 QUESTION PAPERS (PYQ) ENDPOINTS
+// ═════════════════════════════════════════════════════════════════════════════
 
 // Upload PYQ PDF → Cloudinary → save metadata (Status: "pending" by default)
 app.post("/api/upload", requireAuth(), upload.single("file"), async (req, res) => {
@@ -120,37 +885,133 @@ app.post("/api/upload", requireAuth(), upload.single("file"), async (req, res) =
       return res.status(400).json({ error: "No PDF file attached" });
     }
 
+    const {
+      title,
+      universityId,
+      courseId,
+      semesterId,
+      subjectId,
+      university,
+      course,
+      semester,
+      subject,
+      subjectCode,
+      examType,
+      academicYear,
+      year,
+      branch,
+      description,
+    } = req.body;
+
+    if (!title || !title.trim()) {
+      return res.status(400).json({ error: "Paper title is required" });
+    }
+
+    // Fetch entity references if IDs are passed
+    let resolvedUniName = university || "United University";
+    let resolvedCourseName = course || "General";
+    let resolvedSubjectName = subject || "";
+    let resolvedSubjectCode = subjectCode || "";
+
+    if (universityId) {
+      const u = await University.findById(universityId);
+      if (u) resolvedUniName = u.name;
+    }
+    if (courseId) {
+      const c = await Course.findById(courseId);
+      if (c) resolvedCourseName = c.name;
+    }
+    if (subjectId) {
+      const s = await Subject.findById(subjectId);
+      if (s) {
+        resolvedSubjectName = s.name;
+        resolvedSubjectCode = s.code;
+      }
+    }
+
     const result = await uploadToCloudinary(req.file.buffer);
 
     const pyq = await PYQ.create({
-      title: req.body.title,
-      course: req.body.course || "General",
-      semester: req.body.semester ? Number(req.body.semester) : 1,
-      examType: req.body.examType || "semester",
-      year: req.body.year ? Number(req.body.year) : new Date().getFullYear(),
-      branch: req.body.branch || "",
+      title: title.trim(),
+      universityId: universityId || null,
+      courseId: courseId || null,
+      semesterId: semesterId || null,
+      subjectId: subjectId || null,
+      university: resolvedUniName,
+      course: resolvedCourseName,
+      semester: semester ? Number(semester) : 1,
+      subject: resolvedSubjectName,
+      subjectCode: resolvedSubjectCode,
+      examType: examType || "End Semester",
+      academicYear: academicYear || `${year || new Date().getFullYear()}`,
+      year: year ? Number(year) : new Date().getFullYear(),
+      branch: branch || "",
+      description: description || "",
       fileUrl: result.secure_url,
+      fileSize: req.file.size || 0,
       uploadedBy: req.auth.userId,
       status: "pending",
     });
 
-    res.json(pyq);
+    res.status(201).json(pyq);
   } catch (error) {
     console.error("Upload PYQ error:", error);
-    res.status(500).json({ error: "Upload failed" });
+    res.status(500).json({ error: "Upload failed: " + error.message });
   }
 });
 
-// Get Public Approved PYQs
+// Get Public Approved PYQs with Dynamic Filters
 app.get("/api/pyqs", async (req, res) => {
   try {
-    const pyqs = await PYQ.find({
+    const { universityId, courseId, semesterId, subjectId, course, semester, examType, year, search } = req.query;
+    const filter = {
       $or: [
         { status: "approved" },
         { status: { $exists: false } },
-        { status: null }
-      ]
-    }).sort({ createdAt: -1, _id: -1 });
+        { status: null },
+      ],
+    };
+
+    if (universityId && universityId !== "all") filter.universityId = universityId;
+    if (courseId && courseId !== "all") filter.courseId = courseId;
+    if (semesterId && semesterId !== "all") filter.semesterId = semesterId;
+    if (subjectId && subjectId !== "all") filter.subjectId = subjectId;
+
+    if (course && course !== "all" && course !== "All") {
+      filter.$or = [
+        ...(filter.$or || []),
+        { course: new RegExp(course, "i") },
+      ];
+    }
+    if (semester && semester !== "all" && semester !== "All") {
+      filter.semester = Number(semester);
+    }
+    if (examType && examType !== "all" && examType !== "All") {
+      filter.examType = new RegExp(examType, "i");
+    }
+    if (year && year !== "all" && year !== "All") {
+      filter.year = Number(year);
+    }
+
+    if (search) {
+      filter.$and = [
+        {
+          $or: [
+            { title: { $regex: search, $options: "i" } },
+            { subject: { $regex: search, $options: "i" } },
+            { subjectCode: { $regex: search, $options: "i" } },
+            { course: { $regex: search, $options: "i" } },
+            { university: { $regex: search, $options: "i" } },
+          ],
+        },
+      ];
+    }
+
+    const pyqs = await PYQ.find(filter)
+      .populate("universityId", "name code")
+      .populate("courseId", "name code")
+      .populate("subjectId", "name code")
+      .sort({ createdAt: -1, _id: -1 });
 
     res.json(pyqs);
   } catch (err) {
@@ -159,16 +1020,32 @@ app.get("/api/pyqs", async (req, res) => {
   }
 });
 
-// Get ALL PYQs for Admin
+// Get ALL PYQs for Admin (with filters)
 app.get("/api/admin/pyqs", requireAuth(), async (req, res) => {
   try {
-    const { status } = req.query;
+    const { status, universityId, courseId, semesterId, search } = req.query;
     const filter = {};
-    if (status && status !== "all") {
-      filter.status = status;
+    if (status && status !== "all") filter.status = status;
+    if (universityId && universityId !== "all") filter.universityId = universityId;
+    if (courseId && courseId !== "all") filter.courseId = courseId;
+    if (semesterId && semesterId !== "all") filter.semesterId = semesterId;
+
+    if (search) {
+      filter.$or = [
+        { title: { $regex: search, $options: "i" } },
+        { subject: { $regex: search, $options: "i" } },
+        { subjectCode: { $regex: search, $options: "i" } },
+        { course: { $regex: search, $options: "i" } },
+        { university: { $regex: search, $options: "i" } },
+      ];
     }
 
-    const pyqs = await PYQ.find(filter).sort({ createdAt: -1, _id: -1 });
+    const pyqs = await PYQ.find(filter)
+      .populate("universityId", "name code")
+      .populate("courseId", "name code")
+      .populate("subjectId", "name code")
+      .sort({ createdAt: -1, _id: -1 });
+
     res.json(pyqs);
   } catch (err) {
     console.error("Admin PYQs error:", err);
@@ -180,16 +1057,19 @@ app.get("/api/admin/pyqs", requireAuth(), async (req, res) => {
 app.get("/api/my-pyqs", requireAuth(), async (req, res) => {
   try {
     const clerkId = req.auth.userId;
-    const pyqs = await PYQ.find({ uploadedBy: clerkId }).sort({ createdAt: -1, _id: -1 });
+    const pyqs = await PYQ.find({ uploadedBy: clerkId })
+      .populate("universityId", "name code")
+      .populate("courseId", "name code")
+      .populate("subjectId", "name code")
+      .sort({ createdAt: -1, _id: -1 });
     res.json(pyqs);
   } catch (err) {
-    console.error("My PYQs error:", err);
     res.status(500).json({ error: "Failed to fetch your papers" });
   }
 });
 
 // Admin Approve / Reject single PYQ
-app.patch("/api/admin/pyqs/:id/status", requireAuth(), async (req, res) => {
+app.patch("/api/admin/pyqs/:id/status", requireAuth(), requireAdmin, async (req, res) => {
   try {
     const { id } = req.params;
     const { status, rejectionReason } = req.body;
@@ -215,13 +1095,12 @@ app.patch("/api/admin/pyqs/:id/status", requireAuth(), async (req, res) => {
 
     res.json({ success: true, message: `Paper status changed to '${status}'`, paper: updated });
   } catch (err) {
-    console.error("Change status error:", err);
     res.status(500).json({ error: "Failed to update paper status" });
   }
 });
 
 // Admin Bulk Approve / Reject PYQs
-app.post("/api/admin/pyqs/bulk-status", requireAuth(), async (req, res) => {
+app.post("/api/admin/pyqs/bulk-status", requireAuth(), requireAdmin, async (req, res) => {
   try {
     const { ids, status, rejectionReason } = req.body;
     if (!Array.isArray(ids) || ids.length === 0) {
@@ -242,7 +1121,6 @@ app.post("/api/admin/pyqs/bulk-status", requireAuth(), async (req, res) => {
 
     res.json({ success: true, modifiedCount: result.modifiedCount });
   } catch (err) {
-    console.error("Bulk status error:", err);
     res.status(500).json({ error: "Failed to update bulk status" });
   }
 });
@@ -251,16 +1129,40 @@ app.post("/api/admin/pyqs/bulk-status", requireAuth(), async (req, res) => {
 app.put("/api/pyqs/:id", requireAuth(), async (req, res) => {
   try {
     const { id } = req.params;
-    const { title, course, semester, examType, year, branch, status } = req.body;
+    const {
+      title,
+      universityId,
+      courseId,
+      semesterId,
+      subjectId,
+      university,
+      course,
+      semester,
+      subject,
+      subjectCode,
+      examType,
+      academicYear,
+      year,
+      branch,
+      status,
+    } = req.body;
 
     const updated = await PYQ.findByIdAndUpdate(
       id,
       {
         $set: {
           ...(title && { title }),
+          ...(universityId && { universityId }),
+          ...(courseId && { courseId }),
+          ...(semesterId && { semesterId }),
+          ...(subjectId && { subjectId }),
+          ...(university && { university }),
           ...(course && { course }),
           ...(semester && { semester: Number(semester) }),
+          ...(subject && { subject }),
+          ...(subjectCode && { subjectCode }),
           ...(examType && { examType }),
+          ...(academicYear && { academicYear }),
           ...(year && { year: Number(year) }),
           ...(branch !== undefined && { branch }),
           ...(status && { status }),
@@ -272,7 +1174,59 @@ app.put("/api/pyqs/:id", requireAuth(), async (req, res) => {
     if (!updated) return res.status(404).json({ error: "Question paper not found" });
     res.json(updated);
   } catch (err) {
-    console.error("Update PYQ error:", err);
+    res.status(500).json({ error: "Failed to update question paper" });
+  }
+});
+
+// Admin Update PYQ metadata (Admin Alias)
+app.put("/api/admin/pyqs/:id", requireAuth(), async (req, res) => {
+  try {
+    const { id } = req.params;
+    const {
+      title,
+      universityId,
+      courseId,
+      semesterId,
+      subjectId,
+      university,
+      course,
+      semester,
+      subject,
+      subjectCode,
+      examType,
+      academicYear,
+      year,
+      branch,
+      status,
+    } = req.body;
+
+    const updated = await PYQ.findByIdAndUpdate(
+      id,
+      {
+        $set: {
+          ...(title && { title }),
+          ...(universityId && { universityId }),
+          ...(courseId && { courseId }),
+          ...(semesterId && { semesterId }),
+          ...(subjectId && { subjectId }),
+          ...(university && { university }),
+          ...(course && { course }),
+          ...(semester && { semester: Number(semester) }),
+          ...(subject && { subject }),
+          ...(subjectCode && { subjectCode }),
+          ...(examType && { examType }),
+          ...(academicYear && { academicYear }),
+          ...(year && { year: Number(year) }),
+          ...(branch !== undefined && { branch }),
+          ...(status && { status }),
+        },
+      },
+      { new: true }
+    );
+
+    if (!updated) return res.status(404).json({ error: "Question paper not found" });
+    res.json(updated);
+  } catch (err) {
     res.status(500).json({ error: "Failed to update question paper" });
   }
 });
@@ -285,13 +1239,12 @@ app.delete("/api/pyqs/:id", requireAuth(), async (req, res) => {
     if (!deleted) return res.status(404).json({ error: "Question paper not found" });
     res.json({ success: true, message: "Question paper deleted", id });
   } catch (err) {
-    console.error("Delete PYQ error:", err);
     res.status(500).json({ error: "Failed to delete question paper" });
   }
 });
 
 // Bulk delete PYQs
-app.post("/api/admin/pyqs/bulk-delete", requireAuth(), async (req, res) => {
+app.post("/api/admin/pyqs/bulk-delete", requireAuth(), requireAdmin, async (req, res) => {
   try {
     const { ids } = req.body;
     if (!Array.isArray(ids) || ids.length === 0) {
@@ -300,38 +1253,74 @@ app.post("/api/admin/pyqs/bulk-delete", requireAuth(), async (req, res) => {
     const result = await PYQ.deleteMany({ _id: { $in: ids } });
     res.json({ success: true, deletedCount: result.deletedCount });
   } catch (err) {
-    console.error("Bulk delete error:", err);
     res.status(500).json({ error: "Failed to bulk delete question papers" });
   }
 });
 
-// ── NOTES & STUDY MATERIALS ENDPOINTS ─────────────────────────────────────────
+// ═════════════════════════════════════════════════════════════════════════════
+// 📝 NOTES & STUDY MATERIALS ENDPOINTS
+// ═════════════════════════════════════════════════════════════════════════════
 
-// Upload Study Note PDF → Cloudinary → save metadata (Status: "pending" by default)
+// Upload Study Note PDF → Cloudinary → save metadata
 app.post("/api/notes/upload", requireAuth(), upload.single("file"), async (req, res) => {
   try {
     if (!req.file) {
       return res.status(400).json({ error: "No PDF / document attached" });
     }
 
+    const {
+      title,
+      subject,
+      subjectCode,
+      unit,
+      universityId,
+      courseId,
+      semesterId,
+      subjectId,
+      university,
+      course,
+      semester,
+      branch,
+      author,
+      description,
+    } = req.body;
+
+    let resolvedUniName = university || "United University";
+    let resolvedCourseName = course || "B.Tech";
+
+    if (universityId) {
+      const u = await University.findById(universityId);
+      if (u) resolvedUniName = u.name;
+    }
+    if (courseId) {
+      const c = await Course.findById(courseId);
+      if (c) resolvedCourseName = c.name;
+    }
+
     const result = await uploadToCloudinary(req.file.buffer);
 
     const note = await Note.create({
-      title: req.body.title,
-      subject: req.body.subject,
-      unit: req.body.unit || "Complete Syllabus",
-      university: req.body.university || "Uttaranchal University",
-      course: req.body.course || "B.Tech",
-      semester: req.body.semester ? Number(req.body.semester) : 1,
-      branch: req.body.branch || "",
-      author: req.body.author || "",
-      description: req.body.description || "",
+      title: title.trim(),
+      subject: subject || "General",
+      subjectCode: subjectCode || "",
+      unit: unit || "Complete Syllabus",
+      universityId: universityId || null,
+      courseId: courseId || null,
+      semesterId: semesterId || null,
+      subjectId: subjectId || null,
+      university: resolvedUniName,
+      course: resolvedCourseName,
+      semester: semester ? Number(semester) : 1,
+      branch: branch || "",
+      author: author || "",
+      description: description || "",
       fileUrl: result.secure_url,
+      fileSize: req.file.size || 0,
       uploadedBy: req.auth.userId,
       status: "pending",
     });
 
-    res.json(note);
+    res.status(201).json(note);
   } catch (error) {
     console.error("Upload Note error:", error);
     res.status(500).json({ error: "Failed to upload study notes" });
@@ -341,17 +1330,42 @@ app.post("/api/notes/upload", requireAuth(), upload.single("file"), async (req, 
 // Get Public Approved Notes
 app.get("/api/notes", async (req, res) => {
   try {
-    const notes = await Note.find({
+    const { universityId, courseId, semesterId, subjectId, course, semester, unit, search } = req.query;
+    const filter = {
       $or: [
         { status: "approved" },
         { status: { $exists: false } },
         { status: null },
       ],
-    }).sort({ createdAt: -1, _id: -1 });
+    };
+
+    if (universityId && universityId !== "all") filter.universityId = universityId;
+    if (courseId && courseId !== "all") filter.courseId = courseId;
+    if (semesterId && semesterId !== "all") filter.semesterId = semesterId;
+    if (subjectId && subjectId !== "all") filter.subjectId = subjectId;
+
+    if (course && course !== "all" && course !== "All") filter.course = new RegExp(course, "i");
+    if (semester && semester !== "all" && semester !== "All") filter.semester = Number(semester);
+    if (unit && unit !== "all" && unit !== "All") filter.unit = new RegExp(unit, "i");
+
+    if (search) {
+      filter.$or = [
+        ...(filter.$or || []),
+        { title: { $regex: search, $options: "i" } },
+        { subject: { $regex: search, $options: "i" } },
+        { author: { $regex: search, $options: "i" } },
+        { course: { $regex: search, $options: "i" } },
+      ];
+    }
+
+    const notes = await Note.find(filter)
+      .populate("universityId", "name code")
+      .populate("courseId", "name code")
+      .populate("subjectId", "name code")
+      .sort({ createdAt: -1, _id: -1 });
 
     res.json(notes);
   } catch (err) {
-    console.error("Public Notes error:", err);
     res.status(500).json({ error: "Failed to fetch study notes" });
   }
 });
@@ -359,16 +1373,28 @@ app.get("/api/notes", async (req, res) => {
 // Get ALL Notes for Admin
 app.get("/api/admin/notes", requireAuth(), async (req, res) => {
   try {
-    const { status } = req.query;
+    const { status, universityId, courseId, search } = req.query;
     const filter = {};
-    if (status && status !== "all") {
-      filter.status = status;
+    if (status && status !== "all") filter.status = status;
+    if (universityId && universityId !== "all") filter.universityId = universityId;
+    if (courseId && courseId !== "all") filter.courseId = courseId;
+
+    if (search) {
+      filter.$or = [
+        { title: { $regex: search, $options: "i" } },
+        { subject: { $regex: search, $options: "i" } },
+        { author: { $regex: search, $options: "i" } },
+      ];
     }
 
-    const notes = await Note.find(filter).sort({ createdAt: -1, _id: -1 });
+    const notes = await Note.find(filter)
+      .populate("universityId", "name code")
+      .populate("courseId", "name code")
+      .populate("subjectId", "name code")
+      .sort({ createdAt: -1, _id: -1 });
+
     res.json(notes);
   } catch (err) {
-    console.error("Admin Notes error:", err);
     res.status(500).json({ error: "Failed to fetch admin notes" });
   }
 });
@@ -377,16 +1403,19 @@ app.get("/api/admin/notes", requireAuth(), async (req, res) => {
 app.get("/api/my-notes", requireAuth(), async (req, res) => {
   try {
     const clerkId = req.auth.userId;
-    const notes = await Note.find({ uploadedBy: clerkId }).sort({ createdAt: -1, _id: -1 });
+    const notes = await Note.find({ uploadedBy: clerkId })
+      .populate("universityId", "name code")
+      .populate("courseId", "name code")
+      .populate("subjectId", "name code")
+      .sort({ createdAt: -1, _id: -1 });
     res.json(notes);
   } catch (err) {
-    console.error("My Notes error:", err);
     res.status(500).json({ error: "Failed to fetch your study notes" });
   }
 });
 
 // Admin Approve / Reject single Note
-app.patch("/api/admin/notes/:id/status", requireAuth(), async (req, res) => {
+app.patch("/api/admin/notes/:id/status", requireAuth(), requireAdmin, async (req, res) => {
   try {
     const { id } = req.params;
     const { status, rejectionReason } = req.body;
@@ -412,13 +1441,12 @@ app.patch("/api/admin/notes/:id/status", requireAuth(), async (req, res) => {
 
     res.json({ success: true, message: `Note status changed to '${status}'`, note: updated });
   } catch (err) {
-    console.error("Change note status error:", err);
     res.status(500).json({ error: "Failed to update note status" });
   }
 });
 
 // Admin Bulk Approve / Reject Notes
-app.post("/api/admin/notes/bulk-status", requireAuth(), async (req, res) => {
+app.post("/api/admin/notes/bulk-status", requireAuth(), requireAdmin, async (req, res) => {
   try {
     const { ids, status, rejectionReason } = req.body;
     if (!Array.isArray(ids) || ids.length === 0) {
@@ -439,7 +1467,6 @@ app.post("/api/admin/notes/bulk-status", requireAuth(), async (req, res) => {
 
     res.json({ success: true, modifiedCount: result.modifiedCount });
   } catch (err) {
-    console.error("Bulk note status error:", err);
     res.status(500).json({ error: "Failed to update bulk note status" });
   }
 });
@@ -448,7 +1475,7 @@ app.post("/api/admin/notes/bulk-status", requireAuth(), async (req, res) => {
 app.put("/api/notes/:id", requireAuth(), async (req, res) => {
   try {
     const { id } = req.params;
-    const { title, subject, unit, university, course, semester, branch, author, description, status } = req.body;
+    const { title, subject, unit, universityId, courseId, semesterId, subjectId, university, course, semester, branch, author, description, status } = req.body;
 
     const updated = await Note.findByIdAndUpdate(
       id,
@@ -457,6 +1484,10 @@ app.put("/api/notes/:id", requireAuth(), async (req, res) => {
           ...(title && { title }),
           ...(subject && { subject }),
           ...(unit && { unit }),
+          ...(universityId && { universityId }),
+          ...(courseId && { courseId }),
+          ...(semesterId && { semesterId }),
+          ...(subjectId && { subjectId }),
           ...(university && { university }),
           ...(course && { course }),
           ...(semester && { semester: Number(semester) }),
@@ -472,7 +1503,6 @@ app.put("/api/notes/:id", requireAuth(), async (req, res) => {
     if (!updated) return res.status(404).json({ error: "Study note not found" });
     res.json(updated);
   } catch (err) {
-    console.error("Update Note error:", err);
     res.status(500).json({ error: "Failed to update study note" });
   }
 });
@@ -485,13 +1515,12 @@ app.delete("/api/notes/:id", requireAuth(), async (req, res) => {
     if (!deleted) return res.status(404).json({ error: "Study note not found" });
     res.json({ success: true, message: "Study note deleted", id });
   } catch (err) {
-    console.error("Delete Note error:", err);
     res.status(500).json({ error: "Failed to delete study note" });
   }
 });
 
 // Bulk delete Notes
-app.post("/api/admin/notes/bulk-delete", requireAuth(), async (req, res) => {
+app.post("/api/admin/notes/bulk-delete", requireAuth(), requireAdmin, async (req, res) => {
   try {
     const { ids } = req.body;
     if (!Array.isArray(ids) || ids.length === 0) {
@@ -500,16 +1529,27 @@ app.post("/api/admin/notes/bulk-delete", requireAuth(), async (req, res) => {
     const result = await Note.deleteMany({ _id: { $in: ids } });
     res.json({ success: true, deletedCount: result.deletedCount });
   } catch (err) {
-    console.error("Bulk delete notes error:", err);
     res.status(500).json({ error: "Failed to bulk delete study notes" });
   }
 });
 
-// ── COMBINED ADMIN STATS & USER DIRECTORY ──────────────────────────────────────
+// ═════════════════════════════════════════════════════════════════════════════
+// 📊 COMPREHENSIVE ADMIN STATS & USER DIRECTORY
+// ═════════════════════════════════════════════════════════════════════════════
 
-// Admin stats overview (both PYQs and Notes)
+// Admin stats overview with real hierarchical aggregations
 app.get("/api/admin/stats", requireAuth(), async (req, res) => {
   try {
+    const totalUniversities = await University.countDocuments();
+    const activeUniversities = await University.countDocuments({ status: "active" });
+
+    const totalCourses = await Course.countDocuments();
+    const activeCourses = await Course.countDocuments({ status: "active" });
+
+    const totalSemesters = await Semester.countDocuments();
+    const totalSubjects = await Subject.countDocuments();
+    const activeSubjects = await Subject.countDocuments({ status: "active" });
+
     const totalPapers = await PYQ.countDocuments();
     const pendingPapersCount = await PYQ.countDocuments({ status: "pending" });
     const approvedPapersCount = await PYQ.countDocuments({
@@ -526,20 +1566,47 @@ app.get("/api/admin/stats", requireAuth(), async (req, res) => {
 
     const totalUsers = await User.countDocuments();
 
-    // Course breakdown (PYQs)
-    const courseAggregation = await PYQ.aggregate([
-      { $group: { _id: "$course", count: { $sum: 1 } } },
+    // Aggregation: Papers by University
+    const papersByUniversity = await PYQ.aggregate([
+      { $group: { _id: "$university", count: { $sum: 1 } } },
       { $sort: { count: -1 } },
+      { $limit: 10 },
     ]);
 
-    // Subject breakdown (Notes)
-    const subjectAggregation = await Note.aggregate([
-      { $group: { _id: "$subject", count: { $sum: 1 } } },
+    // Aggregation: Papers by Course
+    const papersByCourse = await PYQ.aggregate([
+      { $group: { _id: "$course", count: { $sum: 1 } } },
       { $sort: { count: -1 } },
+      { $limit: 10 },
+    ]);
+
+    // Aggregation: Papers by Semester
+    const papersBySemester = await PYQ.aggregate([
+      { $group: { _id: "$semester", count: { $sum: 1 } } },
+      { $sort: { _id: 1 } },
+    ]);
+
+    // Aggregation: Papers by Year
+    const papersByYear = await PYQ.aggregate([
+      { $group: { _id: "$academicYear", count: { $sum: 1 } } },
+      { $sort: { _id: -1 } },
       { $limit: 8 },
     ]);
 
+    // Recent Entities
+    const recentUniversities = await University.find().sort({ createdAt: -1 }).limit(5);
+    const recentCourses = await Course.find().populate("universityId", "name code").sort({ createdAt: -1 }).limit(5);
+    const recentSubjects = await Subject.find().populate("courseId", "name code").sort({ createdAt: -1 }).limit(5);
+    const recentPapers = await PYQ.find().sort({ createdAt: -1 }).limit(5);
+
     res.json({
+      totalUniversities,
+      activeUniversities,
+      totalCourses,
+      activeCourses,
+      totalSemesters,
+      totalSubjects,
+      activeSubjects,
       totalPapers,
       pendingCount: pendingPapersCount,
       approvedCount: approvedPapersCount,
@@ -550,8 +1617,14 @@ app.get("/api/admin/stats", requireAuth(), async (req, res) => {
       rejectedNotesCount,
       totalPendingAll: pendingPapersCount + pendingNotesCount,
       totalUsers,
-      courseDistribution: courseAggregation,
-      subjectDistribution: subjectAggregation,
+      papersByUniversity,
+      papersByCourse,
+      papersBySemester,
+      papersByYear,
+      recentUniversities,
+      recentCourses,
+      recentSubjects,
+      recentPapers,
     });
   } catch (err) {
     console.error("Admin stats error:", err);
@@ -597,7 +1670,7 @@ app.get("/api/admin/users", requireAuth(), async (req, res) => {
   }
 });
 
-// ── START ─────────────────────────────────────────────────────────────────────
+// ── START SERVER ──────────────────────────────────────────────────────────────
 app.listen(port, () => {
   console.log(`Server running on port ${port}`);
 });

@@ -20,18 +20,18 @@ export default function ThemeToggle() {
     }, []);
 
     const options = [
-        { key: "light", label: "Light", icon: FaSun, color: "text-amber-500" },
-        { key: "dark", label: "Dark", icon: FaMoon, color: "text-indigo-400" },
-        { key: "system", label: "System", icon: FaDesktop, color: "text-slate-400" },
+        { key: "light", label: "Warm Light", icon: FaSun, color: "text-[#C5A059]" },
+        { key: "dark", label: "Obsidian Dark", icon: FaMoon, color: "text-[#E5C378]" },
+        { key: "system", label: "System Sync", icon: FaDesktop, color: "text-[#8C7862]" },
     ];
 
     return (
         <div className="relative inline-block" ref={menuRef}>
-            {/* Quick 1-click Toggle Button (Left Click = Toggle, Right/Dropdown Click = Menu) */}
-            <div className="flex items-center bg-slate-100 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700/80 rounded-xl p-0.5 shadow-sm transition">
+            {/* Quick 1-click Toggle Button */}
+            <div className="flex items-center bg-[#F4EFEA] dark:bg-[#1C1916] border border-[#EAE2D8] dark:border-[#2E2822] rounded-full p-0.5 shadow-2xs transition">
                 <button
                     onClick={toggleTheme}
-                    className="p-2 rounded-lg text-slate-600 dark:text-slate-300 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-white dark:hover:bg-slate-700/60 transition cursor-pointer flex items-center justify-center"
+                    className="p-1.5 rounded-full text-[#6B5B49] dark:text-[#C2B3A0] hover:text-[#2B231B] dark:hover:text-[#FAF8F5] hover:bg-white dark:hover:bg-[#29241F] transition cursor-pointer flex items-center justify-center"
                     title={`Current theme: ${theme} (${resolvedTheme}). Click to toggle.`}
                 >
                     <AnimatePresence mode="wait" initial={false}>
@@ -43,7 +43,7 @@ export default function ThemeToggle() {
                                 exit={{ opacity: 0, rotate: 90, scale: 0.8 }}
                                 transition={{ duration: 0.2 }}
                             >
-                                <FaMoon className="text-sm text-indigo-400" />
+                                <FaMoon className="text-xs text-[#E5C378]" />
                             </motion.div>
                         ) : (
                             <motion.div
@@ -53,7 +53,7 @@ export default function ThemeToggle() {
                                 exit={{ opacity: 0, rotate: -90, scale: 0.8 }}
                                 transition={{ duration: 0.2 }}
                             >
-                                <FaSun className="text-sm text-amber-500" />
+                                <FaSun className="text-xs text-[#C5A059]" />
                             </motion.div>
                         )}
                     </AnimatePresence>
@@ -62,8 +62,8 @@ export default function ThemeToggle() {
                 {/* Dropdown caret toggle */}
                 <button
                     onClick={() => setMenuOpen(!menuOpen)}
-                    className="px-1.5 py-2 text-[10px] text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition cursor-pointer"
-                    title="Theme choices"
+                    className="px-1.5 py-1 text-[10px] text-[#A8957E] hover:text-[#4A3E31] dark:hover:text-[#FAF8F5] transition cursor-pointer"
+                    title="Theme selection"
                 >
                     ▾
                 </button>
@@ -77,9 +77,9 @@ export default function ThemeToggle() {
                         animate={{ opacity: 1, y: 0, scale: 1 }}
                         exit={{ opacity: 0, y: 8, scale: 0.95 }}
                         transition={{ duration: 0.15 }}
-                        className="absolute right-0 mt-2 w-36 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-xl p-1.5 z-50 overflow-hidden"
+                        className="absolute right-0 mt-2 w-40 bg-white dark:bg-[#161412] border border-[#EAE2D8] dark:border-[#2E2822] rounded-2xl shadow-xl p-1.5 z-50 overflow-hidden"
                     >
-                        <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider px-2.5 py-1">
+                        <div className="text-[9px] font-bold text-[#8C7862] dark:text-[#A8957E] uppercase tracking-widest px-2.5 py-1">
                             Theme Mode
                         </div>
 
@@ -95,15 +95,15 @@ export default function ThemeToggle() {
                                     }}
                                     className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-xl text-xs font-semibold transition cursor-pointer ${
                                         isSelected
-                                            ? "bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400"
-                                            : "text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800"
+                                            ? "bg-[#FAF8F5] dark:bg-[#24201C] text-[#4A2E1B] dark:text-[#E5C378]"
+                                            : "text-[#6B5B49] dark:text-[#C2B3A0] hover:bg-[#F4EFEA] dark:hover:bg-[#1C1916]"
                                     }`}
                                 >
                                     <div className="flex items-center gap-2">
                                         <Icon className={opt.color} />
                                         <span>{opt.label}</span>
                                     </div>
-                                    {isSelected && <FaCheck className="text-[10px] text-indigo-600 dark:text-indigo-400" />}
+                                    {isSelected && <FaCheck className="text-[10px] text-[#8C6239] dark:text-[#E5C378]" />}
                                 </button>
                             );
                         })}
