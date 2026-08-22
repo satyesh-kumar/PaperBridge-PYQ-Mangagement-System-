@@ -378,11 +378,11 @@ function AdminPanel() {
     };
 
     return (
-        <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col font-sans selection:bg-indigo-500 selection:text-white">
+        <div className="min-h-screen bg-slate-50 dark:bg-slate-950 text-slate-800 dark:text-slate-100 flex flex-col font-sans selection:bg-indigo-500 selection:text-white transition-colors duration-300">
             <Navbar2 />
 
             {/* TOP ADMIN EXECUTIVE BAR */}
-            <div className="bg-slate-900/90 border-b border-slate-800/80 backdrop-blur-xl px-4 sm:px-6 lg:px-8 py-5 sticky top-16 z-30">
+            <div className="bg-white/80 dark:bg-slate-900/90 border-b border-slate-200/80 dark:border-slate-800/80 backdrop-blur-xl px-4 sm:px-6 lg:px-8 py-5 sticky top-16 z-30">
                 <div className="max-w-7xl mx-auto flex flex-col md:flex-row md:items-center justify-between gap-4">
                     {/* Title & Badge */}
                     <div className="flex items-center gap-3">
@@ -391,15 +391,15 @@ function AdminPanel() {
                         </div>
                         <div>
                             <div className="flex items-center gap-2">
-                                <h1 className="text-xl font-bold text-white tracking-tight">
+                                <h1 className="text-xl font-bold text-slate-900 dark:text-white tracking-tight">
                                     PaperBridge Admin Console
                                 </h1>
-                                <span className="px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 text-[10px] font-bold uppercase tracking-wider">
+                                <span className="px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 text-[10px] font-bold uppercase tracking-wider">
                                     Active Root
                                 </span>
                             </div>
-                            <p className="text-xs text-slate-400">
-                                Logged in as: <span className="text-indigo-400 font-semibold">{userEmail}</span>
+                            <p className="text-xs text-slate-500 dark:text-slate-400">
+                                Logged in as: <span className="text-indigo-600 dark:text-indigo-400 font-semibold">{userEmail}</span>
                             </p>
                         </div>
                     </div>
@@ -408,9 +408,9 @@ function AdminPanel() {
                     <div className="flex items-center gap-2.5 flex-wrap">
                         <button
                             onClick={handleExportCSV}
-                            className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold rounded-xl border border-slate-700 transition cursor-pointer"
+                            className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 text-xs font-semibold rounded-xl border border-slate-200 dark:border-slate-700 transition cursor-pointer"
                         >
-                            <FaFileCsv className="text-emerald-400" /> Export CSV
+                            <FaFileCsv className="text-emerald-600 dark:text-emerald-400" /> Export CSV
                         </button>
 
                         <button
@@ -419,9 +419,9 @@ function AdminPanel() {
                                 fetchStats();
                                 toast.success("Repository refreshed!");
                             }}
-                            className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold rounded-xl border border-slate-700 transition cursor-pointer"
+                            className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 text-xs font-semibold rounded-xl border border-slate-200 dark:border-slate-700 transition cursor-pointer"
                         >
-                            <FaSyncAlt className="text-indigo-400" /> Refresh
+                            <FaSyncAlt className="text-indigo-600 dark:text-indigo-400" /> Refresh
                         </button>
 
                         <Link
@@ -439,66 +439,66 @@ function AdminPanel() {
                 {/* EXECUTIVE METRICS GRID */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5 mb-8">
                     {/* Metric 1: Total Papers */}
-                    <div className="bg-slate-900/80 border border-slate-800/80 rounded-2xl p-5 relative overflow-hidden group hover:border-indigo-500/50 transition shadow-lg">
+                    <div className="bg-white dark:bg-slate-900/80 border border-slate-200/80 dark:border-slate-800/80 rounded-2xl p-5 relative overflow-hidden group hover:border-indigo-500/50 transition shadow-sm">
                         <div className="flex items-center justify-between mb-3">
                             <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">
                                 Total PYQ Vault
                             </span>
-                            <div className="w-8 h-8 rounded-xl bg-indigo-500/10 text-indigo-400 flex items-center justify-center text-sm">
+                            <div className="w-8 h-8 rounded-xl bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 flex items-center justify-center text-sm">
                                 <FaFilePdf />
                             </div>
                         </div>
-                        <div className="text-3xl font-black text-white tracking-tight">
+                        <div className="text-3xl font-black text-slate-900 dark:text-white tracking-tight">
                             {papers.length}
                         </div>
                         <p className="text-xs text-slate-500 mt-1">Total exam papers stored in database</p>
                     </div>
 
                     {/* Metric 2: Contributors */}
-                    <div className="bg-slate-900/80 border border-slate-800/80 rounded-2xl p-5 relative overflow-hidden group hover:border-purple-500/50 transition shadow-lg">
+                    <div className="bg-white dark:bg-slate-900/80 border border-slate-200/80 dark:border-slate-800/80 rounded-2xl p-5 relative overflow-hidden group hover:border-purple-500/50 transition shadow-sm">
                         <div className="flex items-center justify-between mb-3">
                             <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">
                                 Registered Users
                             </span>
-                            <div className="w-8 h-8 rounded-xl bg-purple-500/10 text-purple-400 flex items-center justify-center text-sm">
+                            <div className="w-8 h-8 rounded-xl bg-purple-500/10 text-purple-600 dark:text-purple-400 flex items-center justify-center text-sm">
                                 <FaUsers />
                             </div>
                         </div>
-                        <div className="text-3xl font-black text-white tracking-tight">
+                        <div className="text-3xl font-black text-slate-900 dark:text-white tracking-tight">
                             {stats?.totalUsers ?? (statsLoading ? "..." : 1)}
                         </div>
                         <p className="text-xs text-slate-500 mt-1">Clerk synced student accounts</p>
                     </div>
 
                     {/* Metric 3: Active Courses */}
-                    <div className="bg-slate-900/80 border border-slate-800/80 rounded-2xl p-5 relative overflow-hidden group hover:border-emerald-500/50 transition shadow-lg">
+                    <div className="bg-white dark:bg-slate-900/80 border border-slate-200/80 dark:border-slate-800/80 rounded-2xl p-5 relative overflow-hidden group hover:border-emerald-500/50 transition shadow-sm">
                         <div className="flex items-center justify-between mb-3">
                             <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">
                                 Active Courses
                             </span>
-                            <div className="w-8 h-8 rounded-xl bg-emerald-500/10 text-emerald-400 flex items-center justify-center text-sm">
+                            <div className="w-8 h-8 rounded-xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 flex items-center justify-center text-sm">
                                 <FaGraduationCap />
                             </div>
                         </div>
-                        <div className="text-3xl font-black text-white tracking-tight">
+                        <div className="text-3xl font-black text-slate-900 dark:text-white tracking-tight">
                             {new Set(papers.map((p) => p.course).filter(Boolean)).size}
                         </div>
                         <p className="text-xs text-slate-500 mt-1">Programs across Engineering & Mgmt</p>
                     </div>
 
                     {/* Metric 4: Cloud Status */}
-                    <div className="bg-slate-900/80 border border-slate-800/80 rounded-2xl p-5 relative overflow-hidden group hover:border-amber-500/50 transition shadow-lg">
+                    <div className="bg-white dark:bg-slate-900/80 border border-slate-200/80 dark:border-slate-800/80 rounded-2xl p-5 relative overflow-hidden group hover:border-amber-500/50 transition shadow-sm">
                         <div className="flex items-center justify-between mb-3">
                             <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">
                                 Storage & Cloud
                             </span>
-                            <div className="w-8 h-8 rounded-xl bg-amber-500/10 text-amber-400 flex items-center justify-center text-sm">
+                            <div className="w-8 h-8 rounded-xl bg-amber-500/10 text-amber-600 dark:text-amber-400 flex items-center justify-center text-sm">
                                 <FaDatabase />
                             </div>
                         </div>
                         <div className="flex items-center gap-2">
-                            <span className="h-2.5 w-2.5 rounded-full bg-emerald-400 animate-ping" />
-                            <span className="text-lg font-bold text-emerald-400">Cloudinary Live</span>
+                            <span className="h-2.5 w-2.5 rounded-full bg-emerald-500 dark:bg-emerald-400 animate-ping" />
+                            <span className="text-lg font-bold text-emerald-600 dark:text-emerald-400">Cloudinary Live</span>
                         </div>
                         <p className="text-xs text-slate-500 mt-1">Raw PDF Delivery Network</p>
                     </div>

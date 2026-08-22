@@ -4,7 +4,6 @@ import { Link } from "react-router-dom";
 import axios from "axios";
 import { motion } from "framer-motion";
 import { FaFilePdf, FaUpload, FaSearch, FaEye } from "react-icons/fa";
-import { MdOutlineDashboard } from "react-icons/md";
 import Navbar2 from "../components/Navbar2";
 
 const API_URL = import.meta.env.VITE_API_URL || "http://localhost:5000";
@@ -12,22 +11,21 @@ const API_URL = import.meta.env.VITE_API_URL || "http://localhost:5000";
 function StatCard({ icon, label, value, color }) {
     return (
         <motion.div
-            whileHover={{ scale: 1.03 }}
-            className={`bg-white rounded-2xl border border-gray-100 shadow-sm p-6 flex items-center gap-4`}
+            whileHover={{ scale: 1.02 }}
+            className="bg-white dark:bg-slate-900/90 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-sm p-6 flex items-center gap-4 transition-colors"
         >
             <div className={`w-12 h-12 rounded-xl flex items-center justify-center text-xl ${color}`}>
                 {icon}
             </div>
             <div>
-                <p className="text-2xl font-bold text-gray-800">{value}</p>
-                <p className="text-sm text-gray-500">{label}</p>
+                <p className="text-2xl font-bold text-slate-800 dark:text-white">{value}</p>
+                <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">{label}</p>
             </div>
         </motion.div>
     );
 }
 
 function Dashboard() {
-
     const { getToken, isSignedIn } = useAuth();
     const { user } = useUser();
 
@@ -72,12 +70,12 @@ function Dashboard() {
         return (
             <>
                 <Navbar2 />
-                <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-gray-50 via-indigo-50 to-purple-50 p-6">
-                    <div className="bg-white rounded-2xl p-10 text-center shadow-md">
+                <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-50 via-indigo-50/40 to-purple-50 dark:from-slate-950 dark:via-slate-900 dark:to-indigo-950 p-6 text-slate-800 dark:text-slate-100">
+                    <div className="bg-white dark:bg-slate-900 rounded-3xl p-10 text-center shadow-xl border border-slate-200 dark:border-slate-800 max-w-sm w-full">
                         <div className="text-5xl mb-4">🔒</div>
-                        <h2 className="text-xl font-bold text-gray-800 mb-2">Sign in Required</h2>
-                        <p className="text-gray-500 text-sm mb-6">Please sign in to view your dashboard.</p>
-                        <Link to="/" className="text-indigo-600 hover:underline text-sm">← Back to Home</Link>
+                        <h2 className="text-xl font-bold text-slate-800 dark:text-white mb-2">Sign in Required</h2>
+                        <p className="text-slate-500 dark:text-slate-400 text-sm mb-6">Please sign in to view your student dashboard.</p>
+                        <Link to="/" className="text-indigo-600 dark:text-indigo-400 font-semibold hover:underline text-sm">← Back to Home</Link>
                     </div>
                 </div>
             </>
@@ -90,33 +88,33 @@ function Dashboard() {
     return (
         <>
             <Navbar2 />
-            <div className="min-h-screen bg-gradient-to-br from-gray-50 via-indigo-50 to-purple-50 p-6">
+            <div className="min-h-screen bg-gradient-to-br from-slate-50 via-indigo-50/40 to-purple-50 dark:from-slate-950 dark:via-slate-900 dark:to-indigo-950 p-4 sm:p-6 lg:p-8 text-slate-800 dark:text-slate-100 transition-colors duration-300">
                 <div className="max-w-6xl mx-auto">
 
                     {/* Welcome header */}
                     <motion.div
                         initial={{ opacity: 0, y: -20 }}
                         animate={{ opacity: 1, y: 0 }}
-                        className="bg-white rounded-3xl border border-gray-100 shadow-sm p-8 mb-8 flex flex-col sm:flex-row items-start sm:items-center gap-6"
+                        className="bg-white dark:bg-slate-900/90 rounded-3xl border border-slate-200/80 dark:border-slate-800 shadow-sm p-6 sm:p-8 mb-8 flex flex-col sm:flex-row items-start sm:items-center gap-6"
                     >
                         {avatarUrl && (
                             <img
                                 src={avatarUrl}
                                 alt="avatar"
-                                className="w-16 h-16 rounded-full ring-4 ring-indigo-100 object-cover"
+                                className="w-16 h-16 rounded-full ring-4 ring-indigo-100 dark:ring-indigo-900/60 object-cover shadow-md"
                             />
                         )}
                         <div className="flex-1">
-                            <h1 className="text-2xl md:text-3xl font-bold text-gray-800">
+                            <h1 className="text-2xl md:text-3xl font-bold text-slate-900 dark:text-white tracking-tight">
                                 Welcome back, {firstName} 👋
                             </h1>
-                            <p className="text-gray-500 mt-1 text-sm">
-                                Manage your uploaded papers and explore the platform.
+                            <p className="text-slate-500 dark:text-slate-400 mt-1 text-sm">
+                                Manage your uploaded question papers and explore university archives.
                             </p>
                         </div>
                         <Link
                             to="/upload"
-                            className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-2.5 rounded-xl text-sm font-medium transition shadow-md"
+                            className="flex items-center gap-2 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white px-5 py-2.5 rounded-xl text-xs font-bold transition shadow-md hover:shadow-indigo-500/20"
                         >
                             <FaUpload /> Upload Paper
                         </Link>
@@ -128,19 +126,19 @@ function Dashboard() {
                             icon="📄"
                             label="Papers You Uploaded"
                             value={loading ? "…" : myPapers.length}
-                            color="bg-indigo-100 text-indigo-600"
+                            color="bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 border border-indigo-200/60 dark:border-indigo-800/60"
                         />
                         <StatCard
                             icon="📚"
-                            label="Total Papers on Platform"
+                            label="Total Repository PYQs"
                             value={loading ? "…" : allCount}
-                            color="bg-purple-100 text-purple-600"
+                            color="bg-purple-50 dark:bg-purple-950/60 text-purple-600 dark:text-purple-400 border border-purple-200/60 dark:border-purple-800/60"
                         />
                         <StatCard
                             icon="🎓"
-                            label="Role"
+                            label="Account Role"
                             value="Student"
-                            color="bg-green-100 text-green-600"
+                            color="bg-emerald-50 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400 border border-emerald-200/60 dark:border-emerald-800/60"
                         />
                     </div>
 
@@ -154,7 +152,7 @@ function Dashboard() {
                             <Link
                                 key={i}
                                 to={item.to}
-                                className={`flex items-center gap-3 bg-gradient-to-r ${item.color} text-white rounded-2xl p-5 hover:opacity-90 transition shadow-md font-medium`}
+                                className={`flex items-center gap-3 bg-gradient-to-r ${item.color} text-white rounded-2xl p-5 hover:opacity-90 transition shadow-md font-semibold text-sm hover:-translate-y-0.5`}
                             >
                                 <span className="text-xl">{item.icon}</span>
                                 {item.label}
@@ -165,19 +163,19 @@ function Dashboard() {
                     {/* My Uploaded Papers */}
                     <div>
                         <div className="flex items-center justify-between mb-4">
-                            <h2 className="text-xl font-bold text-gray-800">📂 My Uploaded Papers</h2>
+                            <h2 className="text-xl font-bold text-slate-900 dark:text-white">📂 My Uploaded Papers</h2>
                             {myPapers.length > 0 && (
-                                <span className="text-sm text-gray-400">{myPapers.length} paper{myPapers.length !== 1 ? "s" : ""}</span>
+                                <span className="text-xs font-semibold text-slate-400 dark:text-slate-500">{myPapers.length} paper{myPapers.length !== 1 ? "s" : ""}</span>
                             )}
                         </div>
 
                         {loading ? (
                             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
                                 {[...Array(3)].map((_, i) => (
-                                    <div key={i} className="bg-white rounded-2xl p-5 animate-pulse border border-gray-100">
-                                        <div className="h-5 bg-gray-200 rounded w-3/4 mb-3" />
-                                        <div className="h-4 bg-gray-200 rounded w-1/2 mb-2" />
-                                        <div className="h-8 bg-gray-200 rounded-lg mt-4" />
+                                    <div key={i} className="bg-white dark:bg-slate-900 rounded-2xl p-5 animate-pulse border border-slate-100 dark:border-slate-800">
+                                        <div className="h-5 bg-slate-200 dark:bg-slate-800 rounded w-3/4 mb-3" />
+                                        <div className="h-4 bg-slate-200 dark:bg-slate-800 rounded w-1/2 mb-2" />
+                                        <div className="h-8 bg-slate-200 dark:bg-slate-800 rounded-lg mt-4" />
                                     </div>
                                 ))}
                             </div>
@@ -185,17 +183,17 @@ function Dashboard() {
                             <motion.div
                                 initial={{ opacity: 0 }}
                                 animate={{ opacity: 1 }}
-                                className="bg-white rounded-2xl border border-dashed border-gray-200 p-12 text-center"
+                                className="bg-white dark:bg-slate-900 rounded-3xl border border-dashed border-slate-300 dark:border-slate-800 p-12 text-center"
                             >
                                 <div className="text-5xl mb-4">📭</div>
-                                <h3 className="text-lg font-semibold text-gray-700 mb-2">No papers yet</h3>
-                                <p className="text-gray-500 text-sm mb-6">
-                                    You haven't uploaded any papers yet. Be the first to contribute!
+                                <h3 className="text-lg font-semibold text-slate-800 dark:text-white mb-2">No papers yet</h3>
+                                <p className="text-slate-500 dark:text-slate-400 text-sm mb-6">
+                                    You haven&rsquo;t uploaded any papers yet. Be the first to contribute!
                                 </p>
                                 <Link
                                     to="/upload"
                                     id="dashboard-upload-cta"
-                                    className="inline-flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-2.5 rounded-xl text-sm font-medium transition shadow"
+                                    className="inline-flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-2.5 rounded-xl text-xs font-bold transition shadow"
                                 >
                                     <FaUpload /> Upload Your First Paper
                                 </Link>
@@ -206,36 +204,38 @@ function Dashboard() {
                                     <motion.div
                                         key={paper._id}
                                         whileHover={{ scale: 1.02 }}
-                                        className="bg-white border border-gray-100 rounded-2xl p-5 shadow-sm hover:shadow-md transition-all duration-300"
+                                        className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl p-5 shadow-sm hover:shadow-md transition-all duration-300 flex flex-col justify-between"
                                     >
-                                        <div className="flex items-start gap-3 mb-3">
-                                            <div className="w-10 h-10 rounded-xl bg-red-100 flex items-center justify-center text-red-500 flex-shrink-0">
-                                                <FaFilePdf />
+                                        <div>
+                                            <div className="flex items-start gap-3 mb-3">
+                                                <div className="w-10 h-10 rounded-xl bg-red-50 dark:bg-red-950/50 text-red-500 flex items-center justify-center flex-shrink-0">
+                                                    <FaFilePdf />
+                                                </div>
+                                                <div className="min-w-0">
+                                                    <h3 className="font-bold text-slate-900 dark:text-white text-sm line-clamp-2">{paper.title}</h3>
+                                                    <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5 font-medium">
+                                                        {paper.course}{paper.semester ? ` • Sem ${paper.semester}` : ""}
+                                                    </p>
+                                                </div>
                                             </div>
-                                            <div className="min-w-0">
-                                                <h3 className="font-semibold text-gray-800 text-sm line-clamp-2">{paper.title}</h3>
-                                                <p className="text-xs text-gray-500 mt-0.5">
-                                                    {paper.course}{paper.semester ? ` • Sem ${paper.semester}` : ""}
-                                                </p>
+                                            <div className="flex flex-wrap gap-1.5 mb-4">
+                                                {paper.examType && (
+                                                    <span className="text-[11px] font-semibold bg-purple-50 dark:bg-purple-950/50 text-purple-700 dark:text-purple-300 border border-purple-200 dark:border-purple-800/60 px-2 py-0.5 rounded-md capitalize">{paper.examType}</span>
+                                                )}
+                                                {paper.year && (
+                                                    <span className="text-[11px] font-semibold bg-emerald-50 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800/60 px-2 py-0.5 rounded-md">{paper.year}</span>
+                                                )}
+                                                {paper.branch && (
+                                                    <span className="text-[11px] font-semibold bg-blue-50 dark:bg-blue-950/50 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800/60 px-2 py-0.5 rounded-md">{paper.branch}</span>
+                                                )}
                                             </div>
-                                        </div>
-                                        <div className="flex flex-wrap gap-2 mb-4">
-                                            {paper.examType && (
-                                                <span className="text-xs bg-purple-100 text-purple-700 px-2 py-0.5 rounded-full capitalize">{paper.examType}</span>
-                                            )}
-                                            {paper.year && (
-                                                <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full">{paper.year}</span>
-                                            )}
-                                            {paper.branch && (
-                                                <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full">{paper.branch}</span>
-                                            )}
                                         </div>
                                         <a
                                             href={paper.fileUrl}
                                             target="_blank"
                                             rel="noreferrer"
                                             id={`my-paper-view-${paper._id}`}
-                                            className="flex items-center justify-center gap-2 w-full bg-indigo-600 hover:bg-indigo-700 text-white py-2 rounded-xl text-sm font-medium transition"
+                                            className="flex items-center justify-center gap-2 w-full bg-indigo-600 hover:bg-indigo-700 text-white py-2 px-3 rounded-xl text-xs font-bold transition shadow-sm"
                                         >
                                             <FaEye /> View Paper
                                         </a>

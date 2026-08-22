@@ -8,34 +8,39 @@ import {
 } from "@clerk/react";
 import { FaShieldAlt } from "react-icons/fa";
 import { useIsAdmin } from "../hooks/useIsAdmin";
+import ThemeToggle from "./ThemeToggle";
 
 function Navbar() {
   const { isAdmin } = useIsAdmin();
 
   return (
-    <nav className="w-full sticky top-0 z-50 backdrop-blur-xl bg-white/70 border-b border-gray-200 shadow-sm">
+    <nav className="w-full sticky top-0 z-50 backdrop-blur-xl bg-white/75 dark:bg-slate-950/80 border-b border-slate-200/80 dark:border-slate-800/80 shadow-xs transition-colors">
 
-      <div className="max-w-7xl mx-auto flex items-center justify-between px-6 py-3">
+      <div className="max-w-7xl mx-auto flex items-center justify-between px-4 sm:px-6 py-3">
 
         {/* Logo */}
-        <Link to="/" className="text-xl font-semibold text-indigo-600 tracking-tight flex items-center gap-2">
-          <span className="w-7 h-7 rounded-lg bg-indigo-600 text-white flex items-center justify-center font-black text-xs">P</span>
-          <span>PaperBridge</span>
+        <Link to="/" className="text-xl font-bold text-indigo-600 dark:text-indigo-400 tracking-tight flex items-center gap-2.5">
+          <span className="w-8 h-8 rounded-xl bg-gradient-to-tr from-indigo-600 to-purple-600 text-white flex items-center justify-center font-black text-sm shadow-md shadow-indigo-500/20">
+            P
+          </span>
+          <span className="bg-gradient-to-r from-indigo-600 to-purple-600 dark:from-indigo-400 dark:to-purple-400 bg-clip-text text-transparent">
+            PaperBridge
+          </span>
         </Link>
 
         {/* Navigation Links */}
-        <div className="hidden md:flex items-center gap-6 text-gray-600 font-medium text-sm">
-          <Link to="/" className="hover:text-indigo-600 transition">
+        <div className="hidden md:flex items-center gap-6 text-slate-600 dark:text-slate-300 font-medium text-sm">
+          <Link to="/" className="hover:text-indigo-600 dark:hover:text-indigo-400 transition">
             Home
           </Link>
-          <Link to="/browse" className="hover:text-indigo-600 transition">
+          <Link to="/browse" className="hover:text-indigo-600 dark:hover:text-indigo-400 transition">
             Browse Papers
           </Link>
-          <Link to="/upload" className="hover:text-indigo-600 transition">
+          <Link to="/upload" className="hover:text-indigo-600 dark:hover:text-indigo-400 transition">
             Upload PYQ
           </Link>
           <Show when="signed-in">
-            <Link to="/dashboard" className="hover:text-indigo-600 transition">
+            <Link to="/dashboard" className="hover:text-indigo-600 dark:hover:text-indigo-400 transition">
               Dashboard
             </Link>
             {isAdmin && (
@@ -49,24 +54,34 @@ function Navbar() {
           </Show>
         </div>
 
-        {/* Auth Section */}
+        {/* Action Controls & Auth Section */}
         <div className="flex items-center gap-3">
+          {/* Theme Mode Switcher */}
+          <ThemeToggle />
 
           <Show when="signed-out">
             <SignInButton mode="modal">
-              <button id="navbar-signin-btn" className="px-4 py-2 rounded-lg border border-gray-300 hover:bg-gray-100 transition text-sm font-medium">
+              <button
+                id="navbar-signin-btn"
+                className="px-3.5 py-1.5 sm:px-4 sm:py-2 rounded-xl border border-slate-300 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200 transition text-xs sm:text-sm font-semibold cursor-pointer"
+              >
                 Sign In
               </button>
             </SignInButton>
             <SignUpButton mode="modal">
-              <button id="navbar-signup-btn" className="px-4 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white transition text-sm font-medium shadow">
+              <button
+                id="navbar-signup-btn"
+                className="px-3.5 py-1.5 sm:px-4 sm:py-2 rounded-xl bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white transition text-xs sm:text-sm font-semibold shadow-md shadow-indigo-600/20 cursor-pointer"
+              >
                 Sign Up
               </button>
             </SignUpButton>
           </Show>
 
           <Show when="signed-in">
-            <UserButton afterSignOutUrl="/" />
+            <div className="flex items-center">
+              <UserButton afterSignOutUrl="/" />
+            </div>
           </Show>
 
         </div>

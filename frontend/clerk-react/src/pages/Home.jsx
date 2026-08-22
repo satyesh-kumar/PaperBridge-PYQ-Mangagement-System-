@@ -27,32 +27,32 @@ const COURSE_TABS = ["All", "B.Tech", "MCA", "MBA", "BCA", "BBA"];
 const getExamBadgeStyle = (examType = "") => {
     const lower = examType.toLowerCase();
     if (lower.includes("mid")) {
-        return "bg-amber-100/90 text-amber-700 border-amber-200";
+        return "bg-amber-100/90 dark:bg-amber-950/50 text-amber-700 dark:text-amber-300 border-amber-200 dark:border-amber-800/60";
     }
     if (lower.includes("sem") || lower.includes("final")) {
-        return "bg-purple-100/90 text-purple-700 border-purple-200";
+        return "bg-purple-100/90 dark:bg-purple-950/50 text-purple-700 dark:text-purple-300 border-purple-200 dark:border-purple-800/60";
     }
     if (lower.includes("make") || lower.includes("sup")) {
-        return "bg-emerald-100/90 text-emerald-700 border-emerald-200";
+        return "bg-emerald-100/90 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800/60";
     }
-    return "bg-indigo-100/90 text-indigo-700 border-indigo-200";
+    return "bg-indigo-100/90 dark:bg-indigo-950/50 text-indigo-700 dark:text-indigo-300 border-indigo-200 dark:border-indigo-800/60";
 };
 
 const getCourseBadgeStyle = (course = "") => {
     const lower = course.toLowerCase();
     if (lower.includes("b.tech") || lower.includes("btech")) {
-        return "bg-blue-50 text-blue-700 border-blue-200";
+        return "bg-blue-50 dark:bg-blue-950/50 text-blue-700 dark:text-blue-300 border-blue-200 dark:border-blue-800/60";
     }
     if (lower.includes("mca")) {
-        return "bg-purple-50 text-purple-700 border-purple-200";
+        return "bg-purple-50 dark:bg-purple-950/50 text-purple-700 dark:text-purple-300 border-purple-200 dark:border-purple-800/60";
     }
     if (lower.includes("mba")) {
-        return "bg-rose-50 text-rose-700 border-rose-200";
+        return "bg-rose-50 dark:bg-rose-950/50 text-rose-700 dark:text-rose-300 border-rose-200 dark:border-rose-800/60";
     }
     if (lower.includes("bca")) {
-        return "bg-teal-50 text-teal-700 border-teal-200";
+        return "bg-teal-50 dark:bg-teal-950/50 text-teal-700 dark:text-teal-300 border-teal-200 dark:border-teal-800/60";
     }
-    return "bg-slate-50 text-slate-700 border-slate-200";
+    return "bg-slate-50 dark:bg-slate-800/60 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700";
 };
 
 function Home() {
@@ -149,23 +149,23 @@ function Home() {
         .slice(0, 8);
 
     return (
-        <div className="min-h-screen bg-gradient-to-br from-slate-50 via-indigo-50/40 to-purple-50 text-slate-800 flex flex-col font-sans">
+        <div className="min-h-screen bg-gradient-to-br from-slate-50 via-indigo-50/40 to-purple-50 dark:from-slate-950 dark:via-slate-900 dark:to-indigo-950 text-slate-800 dark:text-slate-100 flex flex-col font-sans transition-colors duration-300">
             <Navbar2 />
 
             {/* HERO */}
             <section className="relative px-6 py-20 md:py-24 text-center overflow-hidden">
                 {/* Ambient Glows */}
-                <div className="absolute w-[520px] h-[520px] bg-indigo-400/20 blur-[130px] rounded-full top-[-140px] left-[-120px] pointer-events-none" />
-                <div className="absolute w-[440px] h-[440px] bg-purple-400/20 blur-[130px] rounded-full bottom-[-140px] right-[-120px] pointer-events-none" />
-                <div className="absolute inset-0 opacity-[0.03] bg-[radial-gradient(circle_at_1px_1px,#6366f1_1px,transparent_0)] [background-size:32px_32px] pointer-events-none" />
+                <div className="absolute w-[520px] h-[520px] bg-indigo-400/20 dark:bg-indigo-600/15 blur-[130px] rounded-full top-[-140px] left-[-120px] pointer-events-none" />
+                <div className="absolute w-[440px] h-[440px] bg-purple-400/20 dark:bg-purple-600/15 blur-[130px] rounded-full bottom-[-140px] right-[-120px] pointer-events-none" />
+                <div className="absolute inset-0 opacity-[0.03] dark:opacity-[0.05] bg-[radial-gradient(circle_at_1px_1px,#6366f1_1px,transparent_0)] [background-size:32px_32px] pointer-events-none" />
 
                 <div className="relative z-10 max-w-3xl mx-auto flex flex-col items-center">
                     <motion.div
                         initial={{ opacity: 0, y: -10 }}
                         animate={{ opacity: 1, y: 0 }}
-                        className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-indigo-50 border border-indigo-200/80 text-indigo-700 text-xs font-semibold shadow-sm mb-6"
+                        className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-indigo-50 dark:bg-indigo-950/60 border border-indigo-200/80 dark:border-indigo-800/80 text-indigo-700 dark:text-indigo-300 text-xs font-semibold shadow-sm mb-6"
                     >
-                        <span className="flex h-2 w-2 rounded-full bg-indigo-600 animate-ping" />
+                        <span className="flex h-2 w-2 rounded-full bg-indigo-600 dark:bg-indigo-400 animate-ping" />
                         Smart Academic Repository
                     </motion.div>
 
@@ -173,10 +173,10 @@ function Home() {
                         initial={{ opacity: 0, y: 15 }}
                         animate={{ opacity: 1, y: 0 }}
                         transition={{ delay: 0.1 }}
-                        className="text-4xl sm:text-5xl md:text-6xl font-extrabold leading-tight text-slate-900 tracking-tight"
+                        className="text-4xl sm:text-5xl md:text-6xl font-extrabold leading-tight text-slate-900 dark:text-white tracking-tight"
                     >
                         All Your Previous Year Papers{" "}
-                        <span className="bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600 bg-clip-text text-transparent block mt-1">
+                        <span className="bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600 dark:from-indigo-400 dark:via-purple-400 dark:to-pink-400 bg-clip-text text-transparent block mt-1">
                             In One Place
                         </span>
                     </motion.h1>
@@ -185,7 +185,7 @@ function Home() {
                         initial={{ opacity: 0, y: 15 }}
                         animate={{ opacity: 1, y: 0 }}
                         transition={{ delay: 0.2 }}
-                        className="text-slate-600 mt-6 text-base sm:text-lg max-w-xl leading-relaxed"
+                        className="text-slate-600 dark:text-slate-300 mt-6 text-base sm:text-lg max-w-xl leading-relaxed"
                     >
                         Access, preview, and download authentic university examination question papers organized by course, semester, and year.
                     </motion.p>
@@ -198,13 +198,13 @@ function Home() {
                     >
                         <Link
                             to="/browse"
-                            className="w-full sm:w-auto flex items-center justify-center gap-2 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white px-7 py-3.5 rounded-xl shadow-md hover:shadow-indigo-500/25 transition-all text-sm font-semibold hover:-translate-y-0.5"
+                            className="w-full sm:w-auto flex items-center justify-center gap-2 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white px-7 py-3.5 rounded-xl shadow-md hover:shadow-indigo-500/25 transition-all text-sm font-semibold hover:-translate-y-0.5 cursor-pointer"
                         >
                             Browse All Papers <FaArrowRight className="text-xs" />
                         </Link>
                         <Link
                             to="/upload"
-                            className="w-full sm:w-auto flex items-center justify-center gap-2 bg-white/90 backdrop-blur-sm border border-slate-200/90 text-slate-700 px-7 py-3.5 rounded-xl hover:bg-slate-50 hover:border-slate-300 shadow-sm transition-all text-sm font-semibold hover:-translate-y-0.5"
+                            className="w-full sm:w-auto flex items-center justify-center gap-2 bg-white/90 dark:bg-slate-900/90 backdrop-blur-sm border border-slate-200/90 dark:border-slate-800 text-slate-700 dark:text-slate-200 px-7 py-3.5 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-800 hover:border-slate-300 dark:hover:border-slate-700 shadow-sm transition-all text-sm font-semibold hover:-translate-y-0.5 cursor-pointer"
                         >
                             Upload PYQ
                         </Link>
@@ -214,7 +214,7 @@ function Home() {
                         initial={{ opacity: 0 }}
                         animate={{ opacity: 1 }}
                         transition={{ delay: 0.4 }}
-                        className="text-xs text-slate-400 mt-6 flex items-center gap-2"
+                        className="text-xs text-slate-400 dark:text-slate-500 mt-6 flex items-center gap-2"
                     >
                         <span>⚡ Instant PDF previews</span>
                         <span>•</span>
@@ -228,17 +228,17 @@ function Home() {
             {/* RECENTLY ADDED SECTION */}
             <section id="recently-added" className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-2 mb-20 w-full">
                 {/* Section Header */}
-                <div className="bg-white/80 backdrop-blur-md rounded-3xl p-6 sm:p-8 border border-white/70 shadow-lg shadow-indigo-950/5 mb-8">
-                    <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 pb-6 border-b border-slate-100">
+                <div className="bg-white/80 dark:bg-slate-900/80 backdrop-blur-md rounded-3xl p-6 sm:p-8 border border-white/70 dark:border-slate-800/80 shadow-lg shadow-indigo-950/5 dark:shadow-none mb-8">
+                    <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 pb-6 border-b border-slate-100 dark:border-slate-800/80">
                         <div>
-                            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-lg bg-indigo-50 text-indigo-600 text-xs font-semibold uppercase tracking-wider mb-2">
+                            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-lg bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 text-xs font-semibold uppercase tracking-wider mb-2">
                                 <FaClock className="text-indigo-500" />
                                 <span>Freshly Uploaded</span>
                             </div>
-                            <h2 className="text-2xl sm:text-3xl font-bold text-slate-900 tracking-tight">
+                            <h2 className="text-2xl sm:text-3xl font-bold text-slate-900 dark:text-white tracking-tight">
                                 Recently Added Question Papers
                             </h2>
-                            <p className="text-slate-500 text-sm mt-1 max-w-2xl">
+                            <p className="text-slate-500 dark:text-slate-400 text-sm mt-1 max-w-2xl">
                                 Explore the latest question papers uploaded by peers and professors across all subjects.
                             </p>
                         </div>
@@ -246,7 +246,7 @@ function Home() {
                         <div className="flex items-center gap-3 shrink-0">
                             <Link
                                 to="/browse"
-                                className="inline-flex items-center gap-2 text-sm font-semibold text-indigo-600 hover:text-indigo-700 bg-indigo-50/80 hover:bg-indigo-100/80 px-4 py-2 rounded-xl transition"
+                                className="inline-flex items-center gap-2 text-sm font-semibold text-indigo-600 dark:text-indigo-400 hover:text-indigo-700 bg-indigo-50/80 dark:bg-indigo-950/50 hover:bg-indigo-100/80 dark:hover:bg-indigo-900/60 px-4 py-2 rounded-xl transition"
                             >
                                 <span>View all papers ({papers.length})</span>
                                 <FaArrowRight className="text-xs" />
@@ -256,7 +256,7 @@ function Home() {
 
                     {/* Course Filter Tabs */}
                     <div className="flex items-center gap-2 overflow-x-auto pt-5 pb-1 no-scrollbar">
-                        <span className="text-xs font-semibold text-slate-400 mr-2 flex items-center gap-1 shrink-0">
+                        <span className="text-xs font-semibold text-slate-400 dark:text-slate-500 mr-2 flex items-center gap-1 shrink-0">
                             <FaLayerGroup /> Filter:
                         </span>
                         {COURSE_TABS.map((tab) => {
@@ -267,8 +267,8 @@ function Home() {
                                     onClick={() => setSelectedCourse(tab)}
                                     className={`px-4 py-1.5 rounded-full text-xs font-medium transition-all shrink-0 cursor-pointer ${
                                         active
-                                            ? "bg-indigo-600 text-white shadow-sm shadow-indigo-300 scale-105"
-                                            : "bg-slate-100/80 text-slate-600 hover:bg-indigo-50 hover:text-indigo-600"
+                                            ? "bg-indigo-600 text-white shadow-sm shadow-indigo-300 dark:shadow-none scale-105"
+                                            : "bg-slate-100/80 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-indigo-50 dark:hover:bg-slate-700 hover:text-indigo-600 dark:hover:text-white"
                                     }`}
                                 >
                                     {tab}
@@ -283,10 +283,10 @@ function Home() {
                     <motion.div
                         initial={{ opacity: 0, y: 10 }}
                         animate={{ opacity: 1, y: 0 }}
-                        className="mb-8 p-4 sm:p-5 rounded-2xl bg-gradient-to-r from-slate-900 via-indigo-950 to-purple-950 text-white flex flex-col sm:flex-row items-center justify-between gap-4 shadow-xl border border-indigo-500/30"
+                        className="mb-8 p-4 sm:p-5 rounded-3xl bg-gradient-to-r from-slate-900 via-indigo-950 to-purple-950 text-white flex flex-col sm:flex-row items-center justify-between gap-4 shadow-xl border border-indigo-500/30"
                     >
                         <div className="flex items-center gap-3.5">
-                            <div className="w-10 h-10 rounded-xl bg-indigo-500/20 border border-indigo-400/30 flex items-center justify-center text-lg shrink-0 text-indigo-300">
+                            <div className="w-10 h-10 rounded-2xl bg-indigo-500/20 border border-indigo-400/30 flex items-center justify-center text-lg shrink-0 text-indigo-300">
                                 <FaLock />
                             </div>
                             <div>
@@ -316,20 +316,20 @@ function Home() {
                         {[...Array(8)].map((_, i) => (
                             <div
                                 key={i}
-                                className="bg-white rounded-2xl p-5 border border-slate-100 shadow-sm animate-pulse flex flex-col justify-between h-80"
+                                className="bg-white dark:bg-slate-900/80 rounded-2xl p-5 border border-slate-100 dark:border-slate-800 shadow-sm animate-pulse flex flex-col justify-between h-80"
                             >
                                 <div>
                                     <div className="flex justify-between items-center mb-4">
-                                        <div className="h-5 bg-slate-200 rounded-md w-1/3" />
-                                        <div className="h-5 bg-slate-200 rounded-md w-1/4" />
+                                        <div className="h-5 bg-slate-200 dark:bg-slate-800 rounded-md w-1/3" />
+                                        <div className="h-5 bg-slate-200 dark:bg-slate-800 rounded-md w-1/4" />
                                     </div>
-                                    <div className="h-4 bg-slate-200 rounded w-3/4 mb-2" />
-                                    <div className="h-4 bg-slate-200 rounded w-1/2 mb-4" />
-                                    <div className="h-28 bg-slate-100 rounded-xl mb-4" />
+                                    <div className="h-4 bg-slate-200 dark:bg-slate-800 rounded w-3/4 mb-2" />
+                                    <div className="h-4 bg-slate-200 dark:bg-slate-800 rounded w-1/2 mb-4" />
+                                    <div className="h-28 bg-slate-100 dark:bg-slate-800/60 rounded-xl mb-4" />
                                 </div>
                                 <div className="flex gap-2">
-                                    <div className="h-9 bg-slate-200 rounded-xl flex-1" />
-                                    <div className="h-9 bg-slate-200 rounded-xl flex-1" />
+                                    <div className="h-9 bg-slate-200 dark:bg-slate-800 rounded-xl flex-1" />
+                                    <div className="h-9 bg-slate-200 dark:bg-slate-800 rounded-xl flex-1" />
                                 </div>
                             </div>
                         ))}
@@ -338,15 +338,15 @@ function Home() {
 
                 {/* State: Error with Retry */}
                 {!loading && error && (
-                    <div className="bg-white/90 border border-red-100 rounded-3xl p-10 text-center shadow-sm max-w-xl mx-auto">
-                        <div className="w-14 h-14 bg-red-50 text-red-500 rounded-2xl flex items-center justify-center mx-auto text-2xl mb-4">
+                    <div className="bg-white/90 dark:bg-slate-900/90 border border-red-100 dark:border-red-900/30 rounded-3xl p-10 text-center shadow-sm max-w-xl mx-auto">
+                        <div className="w-14 h-14 bg-red-50 dark:bg-red-950/50 text-red-500 rounded-2xl flex items-center justify-center mx-auto text-2xl mb-4">
                             ⚠️
                         </div>
-                        <h3 className="text-lg font-bold text-slate-800 mb-2">Could Not Load Recent Papers</h3>
-                        <p className="text-sm text-slate-500 mb-6">{error}</p>
+                        <h3 className="text-lg font-bold text-slate-800 dark:text-white mb-2">Could Not Load Recent Papers</h3>
+                        <p className="text-sm text-slate-500 dark:text-slate-400 mb-6">{error}</p>
                         <button
                             onClick={fetchPapers}
-                            className="inline-flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-2.5 rounded-xl text-sm font-semibold shadow-sm transition"
+                            className="inline-flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-2.5 rounded-xl text-sm font-semibold shadow-sm transition cursor-pointer"
                         >
                             <FaRedo className="text-xs" /> Try Again
                         </button>
@@ -355,14 +355,14 @@ function Home() {
 
                 {/* State: Empty */}
                 {!loading && !error && filteredPapers.length === 0 && (
-                    <div className="bg-white/90 border border-slate-200/80 rounded-3xl p-12 text-center shadow-sm max-w-lg mx-auto">
-                        <div className="w-16 h-16 bg-indigo-50 text-indigo-600 rounded-3xl flex items-center justify-center mx-auto text-3xl mb-4 shadow-inner">
+                    <div className="bg-white/90 dark:bg-slate-900/90 border border-slate-200/80 dark:border-slate-800 rounded-3xl p-12 text-center shadow-sm max-w-lg mx-auto">
+                        <div className="w-16 h-16 bg-indigo-50 dark:bg-indigo-950/50 text-indigo-600 dark:text-indigo-400 rounded-3xl flex items-center justify-center mx-auto text-3xl mb-4 shadow-inner">
                             📄
                         </div>
-                        <h3 className="text-xl font-bold text-slate-800 mb-2">
+                        <h3 className="text-xl font-bold text-slate-800 dark:text-white mb-2">
                             {selectedCourse === "All" ? "No Papers Found Yet" : `No ${selectedCourse} Papers Found`}
                         </h3>
-                        <p className="text-sm text-slate-500 mb-6 leading-relaxed">
+                        <p className="text-sm text-slate-500 dark:text-slate-400 mb-6 leading-relaxed">
                             {selectedCourse === "All"
                                 ? "Be the first contributor to share previous year papers with fellow students."
                                 : `No papers uploaded under ${selectedCourse} yet. Check other courses or upload one.`}
@@ -371,7 +371,7 @@ function Home() {
                             {selectedCourse !== "All" && (
                                 <button
                                     onClick={() => setSelectedCourse("All")}
-                                    className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-semibold transition"
+                                    className="px-4 py-2 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-xl text-xs font-semibold transition cursor-pointer"
                                 >
                                     Show All
                                 </button>
@@ -400,7 +400,7 @@ function Home() {
                                     animate={{ opacity: 1, y: 0 }}
                                     exit={{ opacity: 0, scale: 0.95 }}
                                     transition={{ duration: 0.3, delay: index * 0.04 }}
-                                    className="group bg-white rounded-2xl border border-slate-200/90 hover:border-indigo-300 p-5 shadow-sm hover:shadow-xl transition-all duration-300 flex flex-col justify-between relative overflow-hidden"
+                                    className="group bg-white dark:bg-slate-900/90 rounded-2xl border border-slate-200/90 dark:border-slate-800/90 hover:border-indigo-300 dark:hover:border-indigo-500/50 p-5 shadow-sm hover:shadow-xl dark:shadow-indigo-950/20 transition-all duration-300 flex flex-col justify-between relative overflow-hidden"
                                 >
                                     {/* Top Accent Gradient Bar */}
                                     <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
@@ -428,7 +428,7 @@ function Home() {
                                                     </span>
                                                 )}
                                                 {paper.year && (
-                                                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-medium bg-slate-100 text-slate-600 border border-slate-200">
+                                                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-medium bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700">
                                                         <FaCalendarAlt className="text-[10px] text-slate-400" />
                                                         {paper.year}
                                                     </span>
@@ -439,18 +439,19 @@ function Home() {
                                         {/* Paper Title */}
                                         <h3
                                             title={paper.title}
-                                            className="text-base font-bold text-slate-800 group-hover:text-indigo-600 transition-colors line-clamp-2 leading-snug mb-2"
+                                            onClick={(e) => handlePreview(paper, e)}
+                                            className="text-base font-bold text-slate-800 dark:text-white group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors line-clamp-2 leading-snug mb-2 cursor-pointer"
                                         >
                                             {paper.title || "Untitled Question Paper"}
                                         </h3>
 
                                         {/* Metadata details */}
-                                        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-500 mb-4 font-medium">
+                                        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-500 dark:text-slate-400 mb-4 font-medium">
                                             <span>Sem: {paper.semester ? `Semester ${paper.semester}` : "N/A"}</span>
                                             {paper.branch && (
                                                 <>
                                                     <span>•</span>
-                                                    <span className="text-slate-600">{paper.branch}</span>
+                                                    <span className="text-slate-600 dark:text-slate-300">{paper.branch}</span>
                                                 </>
                                             )}
                                         </div>
@@ -458,23 +459,23 @@ function Home() {
                                         {/* Interactive Preview Mockup Box */}
                                         <div
                                             onClick={(e) => handlePreview(paper, e)}
-                                            className="relative rounded-xl border border-slate-200/80 bg-gradient-to-b from-slate-50 to-slate-100/60 p-4 mb-4 cursor-pointer group/preview hover:bg-indigo-50/40 hover:border-indigo-200 transition-all flex flex-col items-center justify-center text-center overflow-hidden"
+                                            className="relative rounded-xl border border-slate-200/80 dark:border-slate-800 bg-gradient-to-b from-slate-50 to-slate-100/60 dark:from-slate-950 dark:to-slate-900/60 p-4 mb-4 cursor-pointer group/preview hover:bg-indigo-50/40 dark:hover:bg-indigo-950/30 hover:border-indigo-200 dark:hover:border-indigo-800 transition-all flex flex-col items-center justify-center text-center overflow-hidden"
                                         >
-                                            <div className="w-12 h-14 rounded-lg bg-white border border-slate-200 shadow-sm flex flex-col items-center justify-center relative transition-transform duration-200 group-hover/preview:scale-105">
+                                            <div className="w-12 h-14 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col items-center justify-center relative transition-transform duration-200 group-hover/preview:scale-105">
                                                 <FaFilePdf className="text-red-500 text-xl mb-1" />
-                                                <span className="text-[9px] font-bold text-slate-400 uppercase tracking-tighter">
+                                                <span className="text-[9px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-tighter">
                                                     PDF
                                                 </span>
-                                                <div className="absolute top-0 right-0 w-2.5 h-2.5 bg-slate-200 rounded-bl" />
+                                                <div className="absolute top-0 right-0 w-2.5 h-2.5 bg-slate-200 dark:bg-slate-800 rounded-bl" />
                                             </div>
 
-                                            <span className="text-xs font-semibold text-slate-600 mt-2 flex items-center gap-1">
+                                            <span className="text-xs font-semibold text-slate-600 dark:text-slate-300 mt-2 flex items-center gap-1">
                                                 {!isSignedIn && <FaLock className="text-[10px] text-amber-500" />}
                                                 {isSignedIn ? "Click to preview document" : "Sign in to preview"}
                                             </span>
 
                                             {/* Hover Overlay */}
-                                            <div className="absolute inset-0 bg-indigo-600/90 backdrop-blur-[2px] opacity-0 group-hover/preview:opacity-100 transition-opacity flex items-center justify-center gap-2 text-white text-xs font-semibold">
+                                            <div className="absolute inset-0 bg-indigo-600/90 dark:bg-indigo-700/90 backdrop-blur-[2px] opacity-0 group-hover/preview:opacity-100 transition-opacity flex items-center justify-center gap-2 text-white text-xs font-semibold">
                                                 {!isSignedIn ? (
                                                     <>
                                                         <FaLock className="text-sm" /> Sign in to Preview
@@ -532,39 +533,39 @@ function Home() {
                         title: "Centralized PYQ Archive",
                         desc: "All previous year question papers collected in a single organized university archive — no more digging through WhatsApp groups.",
                         icon: "📂",
-                        accent: "from-blue-500/10 to-indigo-500/10 text-indigo-600",
+                        accent: "from-blue-500/10 to-indigo-500/10 text-indigo-600 dark:text-indigo-400",
                     },
                     {
                         title: "Smart Filter & Search",
                         desc: "Easily filter by branch, semester, course, and exam type to locate the exact question paper you need in seconds.",
                         icon: "🔍",
-                        accent: "from-purple-500/10 to-pink-500/10 text-purple-600",
+                        accent: "from-purple-500/10 to-pink-500/10 text-purple-600 dark:text-purple-400",
                     },
                     {
                         title: "Instant In-App Viewer",
                         desc: "Preview any paper on your phone or laptop with our built-in viewer or download high quality PDF copies directly.",
                         icon: "⚡",
-                        accent: "from-amber-500/10 to-orange-500/10 text-amber-600",
+                        accent: "from-amber-500/10 to-orange-500/10 text-amber-600 dark:text-amber-400",
                     },
                 ].map((item, i) => (
                     <motion.div
                         key={i}
                         whileHover={{ y: -4 }}
-                        className="bg-white/85 backdrop-blur-xl border border-slate-200/80 rounded-2xl p-7 shadow-md hover:shadow-xl transition-all"
+                        className="bg-white/85 dark:bg-slate-900/85 backdrop-blur-xl border border-slate-200/80 dark:border-slate-800 rounded-2xl p-7 shadow-md dark:shadow-none hover:shadow-xl transition-all"
                     >
                         <div
                             className={`w-14 h-14 rounded-2xl bg-gradient-to-br ${item.accent} flex items-center justify-center text-3xl mb-5 shadow-sm`}
                         >
                             {item.icon}
                         </div>
-                        <h3 className="text-lg font-bold text-slate-800 mb-2">{item.title}</h3>
-                        <p className="text-slate-500 text-sm leading-relaxed">{item.desc}</p>
+                        <h3 className="text-lg font-bold text-slate-800 dark:text-white mb-2">{item.title}</h3>
+                        <p className="text-slate-500 dark:text-slate-400 text-sm leading-relaxed">{item.desc}</p>
                     </motion.div>
                 ))}
             </section>
 
             {/* FOOTER */}
-            <footer className="bg-white mt-auto border-t border-slate-200/80">
+            <footer className="bg-white dark:bg-slate-950 mt-auto border-t border-slate-200/80 dark:border-slate-800/80">
                 <div className="h-[3px] bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500" />
 
                 <div className="max-w-7xl mx-auto px-6 py-14 grid grid-cols-1 md:grid-cols-4 gap-10">
@@ -573,30 +574,30 @@ function Home() {
                             <span className="w-7 h-7 rounded-lg bg-indigo-600 text-white flex items-center justify-center font-black text-sm">
                                 P
                             </span>
-                            <h2 className="text-xl font-bold bg-gradient-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent">
+                            <h2 className="text-xl font-bold bg-gradient-to-r from-indigo-600 to-purple-600 dark:from-indigo-400 dark:to-purple-400 bg-clip-text text-transparent">
                                 PaperBridge
                             </h2>
                         </div>
-                        <p className="text-sm text-slate-500 mt-3 leading-relaxed">
+                        <p className="text-sm text-slate-500 dark:text-slate-400 mt-3 leading-relaxed">
                             A modern, student-driven repository to streamline university exam preparation and PYQ management.
                         </p>
                     </div>
 
                     <div>
-                        <h3 className="font-bold text-slate-800 text-sm mb-4 uppercase tracking-wider">Product</h3>
-                        <ul className="space-y-2.5 text-sm text-slate-500 font-medium">
+                        <h3 className="font-bold text-slate-800 dark:text-white text-sm mb-4 uppercase tracking-wider">Product</h3>
+                        <ul className="space-y-2.5 text-sm text-slate-500 dark:text-slate-400 font-medium">
                             <li>
-                                <Link to="/browse" className="hover:text-indigo-600 transition">
+                                <Link to="/browse" className="hover:text-indigo-600 dark:hover:text-indigo-400 transition">
                                     Browse Papers
                                 </Link>
                             </li>
                             <li>
-                                <Link to="/upload" className="hover:text-indigo-600 transition">
+                                <Link to="/upload" className="hover:text-indigo-600 dark:hover:text-indigo-400 transition">
                                     Upload PYQ
                                 </Link>
                             </li>
                             <li>
-                                <Link to="/dashboard" className="hover:text-indigo-600 transition">
+                                <Link to="/dashboard" className="hover:text-indigo-600 dark:hover:text-indigo-400 transition">
                                     Student Dashboard
                                 </Link>
                             </li>
@@ -604,20 +605,20 @@ function Home() {
                     </div>
 
                     <div>
-                        <h3 className="font-bold text-slate-800 text-sm mb-4 uppercase tracking-wider">Quick Links</h3>
-                        <ul className="space-y-2.5 text-sm text-slate-500 font-medium">
+                        <h3 className="font-bold text-slate-800 dark:text-white text-sm mb-4 uppercase tracking-wider">Quick Links</h3>
+                        <ul className="space-y-2.5 text-sm text-slate-500 dark:text-slate-400 font-medium">
                             <li>
-                                <Link to="/browse" className="hover:text-indigo-600 transition">
+                                <Link to="/browse" className="hover:text-indigo-600 dark:hover:text-indigo-400 transition">
                                     B.Tech PYQs
                                 </Link>
                             </li>
                             <li>
-                                <Link to="/browse" className="hover:text-indigo-600 transition">
+                                <Link to="/browse" className="hover:text-indigo-600 dark:hover:text-indigo-400 transition">
                                     MCA PYQs
                                 </Link>
                             </li>
                             <li>
-                                <Link to="/browse" className="hover:text-indigo-600 transition">
+                                <Link to="/browse" className="hover:text-indigo-600 dark:hover:text-indigo-400 transition">
                                     Mid-Term & End-Sem
                                 </Link>
                             </li>
@@ -625,20 +626,20 @@ function Home() {
                     </div>
 
                     <div>
-                        <h3 className="font-bold text-slate-800 text-sm mb-4 uppercase tracking-wider">Ready to Excel?</h3>
-                        <p className="text-sm text-slate-500 mb-4 leading-relaxed">
+                        <h3 className="font-bold text-slate-800 dark:text-white text-sm mb-4 uppercase tracking-wider">Ready to Excel?</h3>
+                        <p className="text-sm text-slate-500 dark:text-slate-400 mb-4 leading-relaxed">
                             Find your subject papers or contribute your exam questions today.
                         </p>
                         <Link
                             to="/browse"
-                            className="inline-flex items-center gap-2 px-4 py-2.5 bg-indigo-600 text-white text-xs font-semibold rounded-xl hover:bg-indigo-700 transition shadow-sm"
+                            className="inline-flex items-center gap-2 px-4 py-2.5 bg-indigo-600 text-white text-xs font-semibold rounded-xl hover:bg-indigo-700 transition shadow-sm cursor-pointer"
                         >
                             Browse All Papers <FaArrowRight className="text-[10px]" />
                         </Link>
                     </div>
                 </div>
 
-                <div className="border-t border-slate-100 py-6 text-center text-xs text-slate-400">
+                <div className="border-t border-slate-100 dark:border-slate-900 py-6 text-center text-xs text-slate-400 dark:text-slate-500">
                     © {new Date().getFullYear()} PaperBridge • Built for students & academic excellence
                 </div>
             </footer>
