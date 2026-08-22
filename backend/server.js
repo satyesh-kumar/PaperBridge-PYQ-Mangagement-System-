@@ -154,6 +154,138 @@ app.get("/api/my-pyqs", requireAuth(), async (req, res) => {
   }
 });
 
+// Update paper metadata (Admin & Uploader)
+app.put("/api/pyqs/:id", requireAuth(), async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { title, course, semester, examType, year, branch } = req.body;
+
+    const updated = await PYQ.findByIdAndUpdate(
+      id,
+      {
+        $set: {
+          ...(title && { title }),
+          ...(course && { course }),
+          ...(semester && { semester: Number(semester) }),
+          ...(examType && { examType }),
+          ...(year && { year: Number(year) }),
+          ...(branch !== undefined && { branch }),
+        },
+      },
+      { new: true }
+    );
+
+    if (!updated) {
+      return res.status(404).json({ error: "Question paper not found" });
+    }
+
+    res.json(updated);
+  } catch (err) {
+    console.error("Update PYQ error:", err);
+    res.status(500).json({ error: "Failed to update question paper" });
+  }
+});
+
+// Delete single paper
+app.delete("/api/pyqs/:id", requireAuth(), async (req, res) => {
+  try {
+    const { id } = req.params;
+    const deleted = await PYQ.findByIdAndDelete(id);
+
+    if (!deleted) {
+      return res.status(404).json({ error: "Question paper not found" });
+    }
+
+    res.json({ success: true, message: "Question paper deleted successfully", id });
+  } catch (err) {
+    console.error("Delete PYQ error:", err);
+    res.status(500).json({ error: "Failed to delete question paper" });
+  }
+});
+
+// Bulk delete papers (Admin)
+app.post("/api/admin/pyqs/bulk-delete", requireAuth(), async (req, res) => {
+  try {
+    const { ids } = req.body;
+    if (!Array.isArray(ids) || ids.length === 0) {
+      return res.status(400).json({ error: "No paper IDs provided for bulk deletion" });
+    }
+
+    const result = await PYQ.deleteMany({ _id: { $in: ids } });
+    res.json({
+      success: true,
+      deletedCount: result.deletedCount,
+      message: `Successfully deleted ${result.deletedCount} question papers`,
+    });
+  } catch (err) {
+    console.error("Bulk delete error:", err);
+    res.status(500).json({ error: "Failed to bulk delete question papers" });
+  }
+});
+
+// Admin stats overview
+app.get("/api/admin/stats", requireAuth(), async (req, res) => {
+  try {
+    const totalPapers = await PYQ.countDocuments();
+    const totalUsers = await User.countDocuments();
+
+    // Course breakdown
+    const courseAggregation = await PYQ.aggregate([
+      { $group: { _id: "$course", count: { $sum: 1 } } },
+      { $sort: { count: -1 } },
+    ]);
+
+    // Exam type breakdown
+    const examAggregation = await PYQ.aggregate([
+      { $group: { _id: "$examType", count: { $sum: 1 } } },
+      { $sort: { count: -1 } },
+    ]);
+
+    // Recent uploads
+    const recentUploads = await PYQ.find().sort({ createdAt: -1, _id: -1 }).limit(5);
+
+    res.json({
+      totalPapers,
+      totalUsers,
+      courseDistribution: courseAggregation,
+      examDistribution: examAggregation,
+      recentUploads,
+    });
+  } catch (err) {
+    console.error("Admin stats error:", err);
+    res.status(500).json({ error: "Failed to load admin statistics" });
+  }
+});
+
+// Admin list users & contributors
+app.get("/api/admin/users", requireAuth(), async (req, res) => {
+  try {
+    const users = await User.find().sort({ createdAt: -1 });
+
+    // Aggregate paper counts per user
+    const uploadCounts = await PYQ.aggregate([
+      { $group: { _id: "$uploadedBy", paperCount: { $sum: 1 } } },
+    ]);
+
+    const countMap = {};
+    uploadCounts.forEach((item) => {
+      if (item._id) countMap[item._id] = item.paperCount;
+    });
+
+    const userDirectory = users.map((u) => ({
+      _id: u._id,
+      clerkId: u.clerkId,
+      createdAt: u.createdAt,
+      uploadsCount: countMap[u.clerkId] || 0,
+    }));
+
+    res.json(userDirectory);
+  } catch (err) {
+    console.error("Admin users error:", err);
+    res.status(500).json({ error: "Failed to load user directory" });
+  }
+});
+
 // ── START ─────────────────────────────────────────────────────────────────────
 app.listen(port, () => {
   console.log(`Server running on port ${port}`);

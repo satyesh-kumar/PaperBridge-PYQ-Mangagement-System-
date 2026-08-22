@@ -6,6 +6,8 @@ import Home from "./pages/Home.jsx";
 import Dashboard from "./pages/Dashboard.jsx";
 import UploadPYQ from "./pages/UploadPYQ";
 import BrowsePYQ from "./pages/BrowsePYQ";
+import AdminPanel from "./pages/AdminPanel.jsx";
+import AdminRoute from "./components/AdminRoute.jsx";
 
 /** Redirect signed-out users to home, otherwise render the child */
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
@@ -32,6 +34,14 @@ function App() {
             </ProtectedRoute>
           }
         />
+        <Route
+          path="/admin"
+          element={
+            <AdminRoute>
+              <AdminPanel />
+            </AdminRoute>
+          }
+        />
         {/* Catch-all — redirect unknown paths to home */}
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
@@ -40,3 +50,4 @@ function App() {
 }
 
 export default App;
+
