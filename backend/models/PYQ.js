@@ -10,7 +10,7 @@ const pyqSchema = new mongoose.Schema({
   fileUrl: String,
   uploadedBy: String
 
-});
+}, { timestamps: true });
 
 const PYQ = mongoose.model("PYQ", pyqSchema);
 

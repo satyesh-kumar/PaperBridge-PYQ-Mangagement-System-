@@ -135,7 +135,7 @@ app.post("/api/upload", requireAuth(), upload.single("file"), async (req, res) =
 // Get all PYQs (newest first)
 app.get("/api/pyqs", async (req, res) => {
   try {
-    const pyqs = await PYQ.find().sort({ createdAt: -1 });
+    const pyqs = await PYQ.find().sort({ createdAt: -1, _id: -1 });
     res.json(pyqs);
   } catch (err) {
     res.status(500).json({ error: "Failed to fetch papers" });
@@ -146,7 +146,7 @@ app.get("/api/pyqs", async (req, res) => {
 app.get("/api/my-pyqs", requireAuth(), async (req, res) => {
   try {
     const clerkId = req.auth.userId;
-    const pyqs = await PYQ.find({ uploadedBy: clerkId }).sort({ createdAt: -1 });
+    const pyqs = await PYQ.find({ uploadedBy: clerkId }).sort({ createdAt: -1, _id: -1 });
     res.json(pyqs);
   } catch (err) {
     console.error("My PYQs error:", err);
