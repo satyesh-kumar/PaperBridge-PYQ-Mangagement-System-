@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useMemo, useCallback, useRef } from "react";
 import axios from "axios";
 import { Link, useSearchParams } from "react-router-dom";
+import { useAuth, useClerk } from "@clerk/react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
     FaFilePdf,
@@ -21,6 +22,7 @@ import {
     FaSpinner,
     FaBookOpen,
     FaCheck,
+    FaLock,
 } from "react-icons/fa";
 import toast from "react-hot-toast";
 import Navbar2 from "../components/Navbar2";
@@ -86,6 +88,9 @@ const getCourseBadgeStyle = (course = "") => {
 };
 
 function BrowsePYQ() {
+    const { isSignedIn } = useAuth();
+    const { openSignIn } = useClerk();
+
     const [searchParams, setSearchParams] = useSearchParams();
     const searchInputRef = useRef(null);
 
@@ -265,9 +270,28 @@ function BrowsePYQ() {
         setCurrentPage(1);
     };
 
-    // Download handler with progress & toast feedback
+    // Preview handler with auth guard
+    const handlePreview = (paper, e) => {
+        if (e) e.stopPropagation();
+        if (!isSignedIn) {
+            toast.error("Please sign in to view and preview question papers.");
+            openSignIn ? openSignIn() : null;
+            return;
+        }
+        setSelectedPdf({
+            fileUrl: paper.fileUrl,
+            title: `${paper.title} (${paper.course || "PYQ"})`,
+        });
+    };
+
+    // Download handler with auth guard, progress & toast feedback
     const handleDownload = async (paper, e) => {
         if (e) e.stopPropagation();
+        if (!isSignedIn) {
+            toast.error("Please sign in to download question papers.");
+            openSignIn ? openSignIn() : null;
+            return;
+        }
         if (!paper.fileUrl) {
             toast.error("File download link is missing.");
             return;
@@ -563,6 +587,38 @@ function BrowsePYQ() {
                     </div>
                 </div>
 
+                {/* GUEST ACCESS NOTIFICATION BANNER */}
+                {!isSignedIn && (
+                    <motion.div
+                        initial={{ opacity: 0, y: 10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        className="mb-8 p-4 sm:p-5 rounded-3xl bg-gradient-to-r from-slate-900 via-indigo-950 to-purple-950 text-white flex flex-col sm:flex-row items-center justify-between gap-4 shadow-xl border border-indigo-500/30"
+                    >
+                        <div className="flex items-center gap-3.5">
+                            <div className="w-10 h-10 rounded-2xl bg-indigo-500/20 border border-indigo-400/30 flex items-center justify-center text-lg shrink-0 text-indigo-300">
+                                <FaLock />
+                            </div>
+                            <div>
+                                <h4 className="text-sm font-bold text-white flex items-center gap-2">
+                                    <span>Sign in required to view & download papers</span>
+                                    <span className="text-[10px] px-2 py-0.5 rounded-full bg-indigo-500/30 text-indigo-200 border border-indigo-400/30 uppercase tracking-wider font-semibold">
+                                        Free Account
+                                    </span>
+                                </h4>
+                                <p className="text-xs text-indigo-200/90 mt-0.5">
+                                    Create a free student account or sign in to unlock instant full-length PDF previews and direct downloads.
+                                </p>
+                            </div>
+                        </div>
+                        <button
+                            onClick={() => openSignIn?.()}
+                            className="shrink-0 w-full sm:w-auto px-5 py-2.5 bg-gradient-to-r from-indigo-500 to-purple-500 hover:from-indigo-600 hover:to-purple-600 text-white font-bold rounded-xl text-xs shadow-md hover:shadow-indigo-500/30 transition-all cursor-pointer flex items-center justify-center gap-2"
+                        >
+                            Sign In / Register Now →
+                        </button>
+                    </motion.div>
+                )}
+
                 {/* RESULTS HEADER & ACTIVE FILTERS CHIPS */}
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6 px-1">
                     <div className="flex items-center gap-2">
@@ -784,7 +840,8 @@ function BrowsePYQ() {
                                         {/* Paper Title */}
                                         <h3
                                             title={paper.title}
-                                            className="text-base font-bold text-slate-800 group-hover:text-indigo-600 transition-colors line-clamp-2 leading-snug mb-2"
+                                            onClick={(e) => handlePreview(paper, e)}
+                                            className="text-base font-bold text-slate-800 group-hover:text-indigo-600 transition-colors line-clamp-2 leading-snug mb-2 cursor-pointer"
                                         >
                                             {paper.title || "Untitled Question Paper"}
                                         </h3>
@@ -802,12 +859,7 @@ function BrowsePYQ() {
 
                                         {/* Interactive Thumbnail Box */}
                                         <div
-                                            onClick={() =>
-                                                setSelectedPdf({
-                                                    fileUrl: paper.fileUrl,
-                                                    title: `${paper.title} (${paper.course || "PYQ"})`,
-                                                })
-                                            }
+                                            onClick={(e) => handlePreview(paper, e)}
                                             className="relative rounded-xl border border-slate-200/80 bg-gradient-to-b from-slate-50 to-slate-100/60 p-4 mb-4 cursor-pointer group/preview hover:bg-indigo-50/40 hover:border-indigo-200 transition-all flex flex-col items-center justify-center text-center overflow-hidden"
                                         >
                                             <div className="w-12 h-14 rounded-lg bg-white border border-slate-200 shadow-sm flex flex-col items-center justify-center relative transition-transform duration-200 group-hover/preview:scale-105">
@@ -818,13 +870,22 @@ function BrowsePYQ() {
                                                 <div className="absolute top-0 right-0 w-2.5 h-2.5 bg-slate-200 rounded-bl" />
                                             </div>
 
-                                            <span className="text-xs font-semibold text-slate-600 mt-2">
-                                                Click to preview document
+                                            <span className="text-xs font-semibold text-slate-600 mt-2 flex items-center gap-1">
+                                                {!isSignedIn && <FaLock className="text-[10px] text-amber-500" />}
+                                                {isSignedIn ? "Click to preview document" : "Sign in to preview"}
                                             </span>
 
                                             {/* Hover Overlay */}
                                             <div className="absolute inset-0 bg-indigo-600/90 backdrop-blur-[2px] opacity-0 group-hover/preview:opacity-100 transition-opacity flex items-center justify-center gap-2 text-white text-xs font-semibold">
-                                                <FaEye className="text-sm" /> Quick Preview
+                                                {!isSignedIn ? (
+                                                    <>
+                                                        <FaLock className="text-sm" /> Sign in to Preview
+                                                    </>
+                                                ) : (
+                                                    <>
+                                                        <FaEye className="text-sm" /> Quick Preview
+                                                    </>
+                                                )}
                                             </div>
                                         </div>
                                     </div>
@@ -833,26 +894,26 @@ function BrowsePYQ() {
                                     <div className="flex items-center gap-2 pt-2">
                                         <button
                                             id={`view-btn-${paper._id}`}
-                                            onClick={() =>
-                                                setSelectedPdf({
-                                                    fileUrl: paper.fileUrl,
-                                                    title: `${paper.title} (${paper.course || "PYQ"})`,
-                                                })
-                                            }
-                                            className="flex-1 flex items-center justify-center gap-1.5 py-2 px-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-semibold shadow-sm transition"
+                                            onClick={(e) => handlePreview(paper, e)}
+                                            className="flex-1 flex items-center justify-center gap-1.5 py-2 px-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-semibold shadow-sm transition cursor-pointer"
                                         >
-                                            <FaEye className="text-xs" /> Preview
+                                            {!isSignedIn ? <FaLock className="text-[10px]" /> : <FaEye className="text-xs" />}
+                                            {isSignedIn ? "Preview" : "Sign In"}
                                         </button>
 
                                         <button
                                             id={`download-btn-${paper._id}`}
                                             onClick={(e) => handleDownload(paper, e)}
                                             disabled={downloadingId === paper._id}
-                                            className="flex-1 flex items-center justify-center gap-1.5 py-2 px-3 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white rounded-xl text-xs font-semibold shadow-sm transition disabled:opacity-75"
+                                            className="flex-1 flex items-center justify-center gap-1.5 py-2 px-3 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white rounded-xl text-xs font-semibold shadow-sm transition disabled:opacity-75 cursor-pointer"
                                         >
                                             {downloadingId === paper._id ? (
                                                 <>
                                                     <FaSpinner className="animate-spin text-xs" /> Saving...
+                                                </>
+                                            ) : !isSignedIn ? (
+                                                <>
+                                                    <FaLock className="text-[10px]" /> Download
                                                 </>
                                             ) : (
                                                 <>
@@ -864,7 +925,7 @@ function BrowsePYQ() {
                                         <button
                                             onClick={(e) => handleShare(paper, e)}
                                             title="Copy Share Link"
-                                            className="p-2 bg-slate-100 hover:bg-slate-200 text-slate-600 hover:text-indigo-600 rounded-xl text-xs transition"
+                                            className="p-2 bg-slate-100 hover:bg-slate-200 text-slate-600 hover:text-indigo-600 rounded-xl text-xs transition cursor-pointer"
                                         >
                                             {copiedId === paper._id ? (
                                                 <FaCheck className="text-emerald-600" />
@@ -905,12 +966,7 @@ function BrowsePYQ() {
                                                     </div>
                                                     <span
                                                         className="font-bold text-slate-900 hover:text-indigo-600 cursor-pointer line-clamp-1 max-w-xs"
-                                                        onClick={() =>
-                                                            setSelectedPdf({
-                                                                fileUrl: paper.fileUrl,
-                                                                title: `${paper.title} (${paper.course || "PYQ"})`,
-                                                            })
-                                                        }
+                                                        onClick={(e) => handlePreview(paper, e)}
                                                     >
                                                         {paper.title}
                                                     </span>
@@ -950,32 +1006,29 @@ function BrowsePYQ() {
                                             <td className="py-3.5 px-4 text-right">
                                                 <div className="flex items-center justify-end gap-1.5">
                                                     <button
-                                                        onClick={() =>
-                                                            setSelectedPdf({
-                                                                fileUrl: paper.fileUrl,
-                                                                title: `${paper.title} (${paper.course || "PYQ"})`,
-                                                            })
-                                                        }
-                                                        className="p-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-600 rounded-lg transition"
-                                                        title="Preview Paper"
+                                                        onClick={(e) => handlePreview(paper, e)}
+                                                        className="p-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-600 rounded-lg transition cursor-pointer"
+                                                        title={isSignedIn ? "Preview Paper" : "Sign in to Preview"}
                                                     >
-                                                        <FaEye className="text-xs" />
+                                                        {!isSignedIn ? <FaLock className="text-[10px]" /> : <FaEye className="text-xs" />}
                                                     </button>
                                                     <button
                                                         onClick={(e) => handleDownload(paper, e)}
                                                         disabled={downloadingId === paper._id}
-                                                        className="p-2 bg-purple-50 hover:bg-purple-100 text-purple-600 rounded-lg transition"
-                                                        title="Download PDF"
+                                                        className="p-2 bg-purple-50 hover:bg-purple-100 text-purple-600 rounded-lg transition cursor-pointer"
+                                                        title={isSignedIn ? "Download PDF" : "Sign in to Download"}
                                                     >
                                                         {downloadingId === paper._id ? (
                                                             <FaSpinner className="animate-spin text-xs" />
+                                                        ) : !isSignedIn ? (
+                                                            <FaLock className="text-[10px]" />
                                                         ) : (
                                                             <FaDownload className="text-xs" />
                                                         )}
                                                     </button>
                                                     <button
                                                         onClick={(e) => handleShare(paper, e)}
-                                                        className="p-2 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-lg transition"
+                                                        className="p-2 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-lg transition cursor-pointer"
                                                         title="Share Link"
                                                     >
                                                         {copiedId === paper._id ? (
