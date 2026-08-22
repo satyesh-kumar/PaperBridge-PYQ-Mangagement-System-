@@ -9,15 +9,15 @@ const ThemeContext = createContext({
 
 export function ThemeProvider({ children }) {
     const [theme, setThemeState] = useState(() => {
-        return localStorage.getItem("paperbridge-theme") || "system";
+        return localStorage.getItem("paperbridge-theme") || "light";
     });
 
     const [resolvedTheme, setResolvedTheme] = useState(() => {
         if (typeof window === "undefined") return "light";
-        const saved = localStorage.getItem("paperbridge-theme") || "system";
+        const saved = localStorage.getItem("paperbridge-theme") || "light";
         if (saved === "dark") return "dark";
         if (saved === "light") return "light";
-        return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+        return "light";
     });
 
     useEffect(() => {
