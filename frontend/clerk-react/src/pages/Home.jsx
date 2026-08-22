@@ -2,7 +2,6 @@ import React, { useEffect, useState, useCallback } from "react";
 import axios from "axios";
 import { Link } from "react-router-dom";
 import { useAuth, useClerk } from "@clerk/react";
-import { motion, AnimatePresence } from "framer-motion";
 import {
     FaFilePdf,
     FaEye,
@@ -11,21 +10,51 @@ import {
     FaArrowRight,
     FaCalendarAlt,
     FaGraduationCap,
-    FaLayerGroup,
     FaClock,
     FaSpinner,
     FaLock,
-    FaSearch,
     FaBook,
     FaStickyNote,
 } from "react-icons/fa";
 import toast from "react-hot-toast";
 import Navbar2 from "../components/Navbar2";
 import PDFViewer from "../components/PDFViewer";
+import { downloadPDF } from "../utils/downloadHelper";
 
 const API_URL = import.meta.env.VITE_API_URL || "http://localhost:5000";
 
 const COURSE_TABS = ["All", "B.Tech", "MCA", "MBA", "BCA", "BBA"];
+
+const getExamBadgeStyle = (examType = "") => {
+    const lower = examType.toLowerCase();
+    if (lower.includes("mid")) {
+        return "bg-amber-50 dark:bg-amber-950/50 text-amber-700 dark:text-amber-300 border-amber-200 dark:border-amber-800/60";
+    }
+    if (lower.includes("sem") || lower.includes("final")) {
+        return "bg-purple-50 dark:bg-purple-950/50 text-purple-700 dark:text-purple-300 border-purple-200 dark:border-purple-800/60";
+    }
+    if (lower.includes("make") || lower.includes("sup")) {
+        return "bg-emerald-50 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800/60";
+    }
+    return "bg-indigo-50 dark:bg-indigo-950/50 text-indigo-700 dark:text-indigo-300 border-indigo-200 dark:border-indigo-800/60";
+};
+
+const getCourseBadgeStyle = (course = "") => {
+    const lower = course.toLowerCase();
+    if (lower.includes("b.tech") || lower.includes("btech")) {
+        return "bg-blue-50 dark:bg-blue-950/50 text-blue-700 dark:text-blue-300 border-blue-200 dark:border-blue-800/60";
+    }
+    if (lower.includes("mca")) {
+        return "bg-purple-50 dark:bg-purple-950/50 text-purple-700 dark:text-purple-300 border-purple-200 dark:border-purple-800/60";
+    }
+    if (lower.includes("mba")) {
+        return "bg-rose-50 dark:bg-rose-950/50 text-rose-700 dark:text-rose-300 border-rose-200 dark:border-rose-800/60";
+    }
+    if (lower.includes("bca")) {
+        return "bg-teal-50 dark:bg-teal-950/50 text-teal-700 dark:text-teal-300 border-teal-200 dark:border-teal-800/60";
+    }
+    return "bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700";
+};
 
 function Home() {
     const { isSignedIn } = useAuth();
@@ -50,7 +79,7 @@ function Home() {
             }
         } catch (err) {
             console.error("Failed to load papers:", err);
-            setError("Unable to load latest papers right now. Please try again.");
+            setError("Unable to load latest papers right now. Please check connection.");
         } finally {
             setLoading(false);
         }
@@ -86,28 +115,8 @@ function Home() {
         }
 
         setDownloadingId(paper._id);
-        const toastId = toast.loading(`Downloading ${paper.title || "paper"}...`);
-
-        try {
-            const response = await fetch(paper.fileUrl);
-            const blob = await response.blob();
-            const blobUrl = window.URL.createObjectURL(blob);
-            const link = document.createElement("a");
-            link.href = blobUrl;
-            link.download = `${(paper.title || "question_paper").replace(/[^a-zA-Z0-9_-]/g, "_")}.pdf`;
-            document.body.appendChild(link);
-            link.click();
-            document.body.removeChild(link);
-            window.URL.revokeObjectURL(blobUrl);
-
-            toast.success("Download started!", { id: toastId });
-        } catch (err) {
-            console.error("Direct download failed, opening in new tab:", err);
-            window.open(paper.fileUrl, "_blank");
-            toast.success("Opening paper in new tab...", { id: toastId });
-        } finally {
-            setDownloadingId(null);
-        }
+        await downloadPDF(paper.fileUrl, `${paper.title || "question_paper"}_${paper.course || ""}`);
+        setDownloadingId(null);
     };
 
     // Filter by course tab and limit to latest 8
@@ -119,45 +128,48 @@ function Home() {
         .slice(0, 8);
 
     return (
-        <div className="min-h-screen bg-slate-50/50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 flex flex-col font-sans transition-colors duration-300">
+        <div className="min-h-screen bg-slate-50/60 dark:bg-slate-950 text-slate-900 dark:text-slate-100 flex flex-col font-sans transition-colors duration-300">
             <Navbar2 />
 
             {/* HERO SECTION */}
-            <section className="bg-white dark:bg-slate-950 border-b border-slate-200 dark:border-slate-800 py-16 md:py-24 px-4 sm:px-6">
+            <section className="bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 py-16 md:py-20 px-4 sm:px-6">
                 <div className="max-w-4xl mx-auto text-center flex flex-col items-center">
                     {/* Badge */}
-                    <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 text-xs font-medium mb-6">
-                        <span className="w-2 h-2 rounded-full bg-emerald-500" />
+                    <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-indigo-50 dark:bg-indigo-950/60 border border-indigo-200/80 dark:border-indigo-800/80 text-indigo-700 dark:text-indigo-300 text-xs font-semibold mb-6 shadow-2xs">
+                        <span className="w-2 h-2 rounded-full bg-indigo-600 animate-pulse" />
                         Verified Academic Question Papers & Study Vault
                     </div>
 
                     {/* Headline */}
                     <h1 className="text-4xl sm:text-5xl md:text-6xl font-extrabold text-slate-900 dark:text-white tracking-tight leading-[1.15]">
-                        Previous year university papers and study notes, organized.
+                        Previous Year Question Papers{" "}
+                        <span className="bg-gradient-to-r from-indigo-600 to-purple-600 dark:from-indigo-400 dark:to-purple-400 bg-clip-text text-transparent">
+                            & Study Notes
+                        </span>
                     </h1>
 
                     {/* Subheading */}
-                    <p className="text-slate-600 dark:text-slate-400 mt-5 text-base sm:text-lg max-w-2xl leading-relaxed">
-                        Access authentic semester examination papers, unit summaries, and lecture notes curated by students and faculty in one clean platform.
+                    <p className="text-slate-600 dark:text-slate-300 mt-5 text-base sm:text-lg max-w-2xl leading-relaxed">
+                        Access authentic semester examination papers, unit summaries, and lecture notes curated by university students and faculty in one clean platform.
                     </p>
 
                     {/* CTA Actions */}
                     <div className="flex flex-col sm:flex-row items-center gap-3 mt-8 w-full sm:w-auto">
                         <Link
                             to="/browse"
-                            className="w-full sm:w-auto flex items-center justify-center gap-2 bg-slate-900 dark:bg-white hover:bg-slate-800 dark:hover:bg-slate-100 text-white dark:text-slate-900 px-6 py-3 rounded-lg text-sm font-semibold shadow-xs transition cursor-pointer"
+                            className="w-full sm:w-auto flex items-center justify-center gap-2 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white px-6 py-3 rounded-xl text-sm font-bold shadow-md shadow-indigo-500/20 transition cursor-pointer"
                         >
                             <FaBook className="text-xs" /> Browse Question Papers
                         </Link>
                         <Link
                             to="/notes"
-                            className="w-full sm:w-auto flex items-center justify-center gap-2 bg-white dark:bg-slate-900 hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-800 px-6 py-3 rounded-lg text-sm font-semibold shadow-xs transition cursor-pointer"
+                            className="w-full sm:w-auto flex items-center justify-center gap-2 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 border border-slate-200 dark:border-slate-700 px-6 py-3 rounded-xl text-sm font-bold shadow-xs transition cursor-pointer"
                         >
-                            <FaStickyNote className="text-xs" /> Explore Study Notes
+                            <FaStickyNote className="text-xs text-emerald-600" /> Explore Study Notes
                         </Link>
                         <Link
                             to="/upload"
-                            className="w-full sm:w-auto flex items-center justify-center gap-2 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white px-4 py-3 text-sm font-medium transition cursor-pointer"
+                            className="w-full sm:w-auto flex items-center justify-center gap-2 text-indigo-600 dark:text-indigo-400 hover:text-indigo-700 px-4 py-3 text-sm font-semibold transition cursor-pointer"
                         >
                             + Upload Material
                         </Link>
@@ -166,13 +178,13 @@ function Home() {
                     {/* Feature Tickers */}
                     <div className="flex flex-wrap items-center justify-center gap-6 mt-10 text-xs text-slate-500 dark:text-slate-400 font-medium">
                         <span className="flex items-center gap-1.5">
-                            <span className="text-emerald-500 font-bold">✓</span> Direct PDF Viewer
+                            <span className="text-emerald-500 font-bold">✓</span> Direct In-App PDF Viewer
                         </span>
                         <span className="flex items-center gap-1.5">
-                            <span className="text-emerald-500 font-bold">✓</span> Fast Downloads
+                            <span className="text-emerald-500 font-bold">✓</span> 100% Reliable Downloads
                         </span>
                         <span className="flex items-center gap-1.5">
-                            <span className="text-emerald-500 font-bold">✓</span> Verified Submissions
+                            <span className="text-emerald-500 font-bold">✓</span> Admin Verified Content
                         </span>
                     </div>
                 </div>
@@ -181,11 +193,11 @@ function Home() {
             {/* RECENTLY ADDED PAPERS */}
             <section id="recently-added" className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 w-full flex-1">
                 {/* Section Header Card */}
-                <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-6 shadow-xs mb-8">
+                <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/90 dark:border-slate-800 p-6 shadow-xs mb-8">
                     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-slate-100 dark:border-slate-800">
                         <div>
-                            <div className="flex items-center gap-2 text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">
-                                <FaClock className="text-slate-400" />
+                            <div className="flex items-center gap-2 text-xs font-semibold text-indigo-600 dark:text-indigo-400 uppercase tracking-wider mb-1">
+                                <FaClock />
                                 <span>Recent Additions</span>
                             </div>
                             <h2 className="text-2xl font-bold text-slate-900 dark:text-white tracking-tight">
@@ -195,15 +207,15 @@ function Home() {
 
                         <Link
                             to="/browse"
-                            className="inline-flex items-center gap-1.5 text-xs font-semibold text-indigo-600 dark:text-indigo-400 hover:text-indigo-700 transition"
+                            className="inline-flex items-center gap-1.5 text-xs font-bold text-indigo-600 dark:text-indigo-400 hover:text-indigo-700 transition"
                         >
                             View all ({papers.length}) <FaArrowRight className="text-[10px]" />
                         </Link>
                     </div>
 
                     {/* Course Filter Tabs */}
-                    <div className="flex items-center gap-1.5 overflow-x-auto pt-4 no-scrollbar">
-                        <span className="text-xs font-semibold text-slate-400 dark:text-slate-500 mr-2 flex items-center gap-1 shrink-0">
+                    <div className="flex items-center gap-2 overflow-x-auto pt-4 no-scrollbar">
+                        <span className="text-xs font-semibold text-slate-400 mr-2 flex items-center gap-1 shrink-0">
                             Course:
                         </span>
                         {COURSE_TABS.map((tab) => {
@@ -212,10 +224,10 @@ function Home() {
                                 <button
                                     key={tab}
                                     onClick={() => setSelectedCourse(tab)}
-                                    className={`px-3.5 py-1.5 rounded-lg text-xs font-medium transition shrink-0 cursor-pointer ${
+                                    className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition shrink-0 cursor-pointer ${
                                         active
-                                            ? "bg-slate-900 dark:bg-white text-white dark:text-slate-900 font-semibold"
-                                            : "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700"
+                                            ? "bg-indigo-600 text-white shadow-xs"
+                                            : "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-indigo-50 dark:hover:bg-slate-700 hover:text-indigo-600"
                                     }`}
                                 >
                                     {tab}
@@ -227,9 +239,9 @@ function Home() {
 
                 {/* GUEST ACCESS NOTIFICATION BANNER */}
                 {!isSignedIn && (
-                    <div className="mb-8 p-4 rounded-xl bg-slate-900 text-white flex flex-col sm:flex-row items-center justify-between gap-4 shadow-sm border border-slate-800">
+                    <div className="mb-8 p-4 rounded-2xl bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 text-white flex flex-col sm:flex-row items-center justify-between gap-4 shadow-sm border border-indigo-900">
                         <div className="flex items-center gap-3">
-                            <div className="w-8 h-8 rounded-lg bg-white/10 flex items-center justify-center text-sm shrink-0">
+                            <div className="w-9 h-9 rounded-xl bg-indigo-500/20 text-indigo-300 flex items-center justify-center text-sm shrink-0 border border-indigo-400/20">
                                 <FaLock />
                             </div>
                             <div>
@@ -243,9 +255,9 @@ function Home() {
                         </div>
                         <button
                             onClick={() => openSignIn?.()}
-                            className="shrink-0 px-4 py-2 bg-white hover:bg-slate-100 text-slate-900 font-semibold rounded-lg text-xs transition cursor-pointer shadow-xs"
+                            className="shrink-0 px-4 py-2 bg-gradient-to-r from-indigo-500 to-purple-500 hover:from-indigo-600 hover:to-purple-600 text-white font-bold rounded-xl text-xs transition cursor-pointer shadow-xs"
                         >
-                            Sign In / Sign Up
+                            Sign In / Register Now →
                         </button>
                     </div>
                 )}
@@ -256,7 +268,7 @@ function Home() {
                         {[...Array(8)].map((_, i) => (
                             <div
                                 key={i}
-                                className="bg-white dark:bg-slate-900 rounded-xl p-5 border border-slate-200 dark:border-slate-800 shadow-xs animate-pulse flex flex-col justify-between h-72"
+                                className="bg-white dark:bg-slate-900 rounded-2xl p-5 border border-slate-200 dark:border-slate-800 shadow-xs animate-pulse flex flex-col justify-between h-72"
                             >
                                 <div>
                                     <div className="flex justify-between items-center mb-4">
@@ -277,12 +289,12 @@ function Home() {
 
                 {/* ERROR STATE */}
                 {!loading && error && (
-                    <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-10 text-center shadow-xs max-w-md mx-auto">
+                    <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-10 text-center shadow-xs max-w-md mx-auto">
                         <h3 className="text-base font-bold text-slate-900 dark:text-white mb-1">Unable to Load Papers</h3>
                         <p className="text-xs text-slate-500 dark:text-slate-400 mb-5">{error}</p>
                         <button
                             onClick={fetchPapers}
-                            className="inline-flex items-center gap-1.5 bg-slate-900 hover:bg-slate-800 text-white px-4 py-2 rounded-lg text-xs font-semibold shadow-xs transition cursor-pointer"
+                            className="inline-flex items-center gap-1.5 bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-xl text-xs font-semibold shadow-xs transition cursor-pointer"
                         >
                             <FaRedo className="text-xs" /> Try Again
                         </button>
@@ -291,8 +303,8 @@ function Home() {
 
                 {/* EMPTY STATE */}
                 {!loading && !error && filteredPapers.length === 0 && (
-                    <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-12 text-center shadow-xs max-w-md mx-auto">
-                        <div className="w-12 h-12 bg-slate-100 dark:bg-slate-800 text-slate-500 rounded-xl flex items-center justify-center mx-auto text-xl mb-3">
+                    <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-12 text-center shadow-xs max-w-md mx-auto">
+                        <div className="w-12 h-12 bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 rounded-xl flex items-center justify-center mx-auto text-xl mb-3">
                             <FaBook />
                         </div>
                         <h3 className="text-base font-bold text-slate-900 dark:text-white mb-1">
@@ -303,7 +315,7 @@ function Home() {
                         </p>
                         <Link
                             to="/upload"
-                            className="inline-flex items-center gap-1.5 px-4 py-2 bg-slate-900 text-white rounded-lg text-xs font-semibold shadow-xs transition"
+                            className="inline-flex items-center gap-1.5 px-4 py-2 bg-indigo-600 text-white rounded-xl text-xs font-semibold shadow-xs transition"
                         >
                             + Upload Paper
                         </Link>
@@ -316,23 +328,23 @@ function Home() {
                         {filteredPapers.map((paper) => (
                             <div
                                 key={paper._id}
-                                className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700 p-4 shadow-xs hover:shadow-sm transition flex flex-col justify-between"
+                                className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/90 dark:border-slate-800 hover:border-indigo-300 dark:hover:border-indigo-700 p-4 shadow-xs hover:shadow-md transition flex flex-col justify-between"
                             >
                                 <div>
                                     {/* Top Badges */}
                                     <div className="flex items-center justify-between gap-2 mb-2.5">
-                                        <span className="px-2 py-0.5 rounded text-[11px] font-semibold bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300">
+                                        <span className={`px-2 py-0.5 rounded-md text-[11px] font-semibold border ${getCourseBadgeStyle(paper.course)}`}>
                                             {paper.course || "General"}
                                         </span>
 
                                         <div className="flex items-center gap-1.5">
                                             {paper.examType && (
-                                                <span className="px-2 py-0.5 rounded text-[11px] font-medium bg-slate-50 dark:bg-slate-800/60 text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-slate-700 capitalize">
+                                                <span className={`px-2 py-0.5 rounded-md text-[11px] font-medium border capitalize ${getExamBadgeStyle(paper.examType)}`}>
                                                     {paper.examType}
                                                 </span>
                                             )}
                                             {paper.year && (
-                                                <span className="text-[11px] font-medium text-slate-400">
+                                                <span className="text-[11px] font-semibold text-slate-400">
                                                     {paper.year}
                                                 </span>
                                             )}
@@ -349,7 +361,7 @@ function Home() {
                                     </h3>
 
                                     {/* Metadata */}
-                                    <p className="text-xs text-slate-500 dark:text-slate-400 mb-3">
+                                    <p className="text-xs text-slate-500 dark:text-slate-400 mb-3 font-medium">
                                         {paper.semester ? `Semester ${paper.semester}` : ""}
                                         {paper.branch ? ` • ${paper.branch}` : ""}
                                     </p>
@@ -357,29 +369,29 @@ function Home() {
                                     {/* Quick Preview Thumbnail */}
                                     <div
                                         onClick={(e) => handlePreview(paper, e)}
-                                        className="rounded-lg border border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 p-3 mb-3 cursor-pointer hover:bg-slate-100/70 dark:hover:bg-slate-900 transition flex items-center justify-center gap-2"
+                                        className="rounded-xl border border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 p-3 mb-3 cursor-pointer hover:bg-indigo-50/50 dark:hover:bg-indigo-950/30 transition flex items-center justify-center gap-2"
                                     >
                                         <FaFilePdf className="text-red-500 text-base" />
-                                        <span className="text-xs font-medium text-slate-600 dark:text-slate-300">
+                                        <span className="text-xs font-semibold text-slate-600 dark:text-slate-300">
                                             {!isSignedIn ? "Sign in to preview" : "Click to preview"}
                                         </span>
                                     </div>
                                 </div>
 
                                 {/* Action Buttons */}
-                                <div className="grid grid-cols-2 gap-2 pt-1 border-t border-slate-100 dark:border-slate-800">
+                                <div className="grid grid-cols-2 gap-2 pt-2 border-t border-slate-100 dark:border-slate-800">
                                     <button
                                         onClick={(e) => handlePreview(paper, e)}
-                                        className="flex items-center justify-center gap-1.5 py-1.5 px-3 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-700 rounded-lg text-xs font-semibold transition cursor-pointer shadow-2xs"
+                                        className="flex items-center justify-center gap-1.5 py-2 px-3 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-bold transition cursor-pointer shadow-2xs"
                                     >
-                                        {!isSignedIn ? <FaLock className="text-[10px]" /> : <FaEye className="text-xs" />}
+                                        {!isSignedIn ? <FaLock className="text-[10px]" /> : <FaEye className="text-xs text-indigo-500" />}
                                         {isSignedIn ? "Preview" : "Sign In"}
                                     </button>
 
                                     <button
                                         onClick={(e) => handleDownload(paper, e)}
                                         disabled={downloadingId === paper._id}
-                                        className="flex items-center justify-center gap-1.5 py-1.5 px-3 bg-slate-900 dark:bg-white hover:bg-slate-800 dark:hover:bg-slate-100 text-white dark:text-slate-900 rounded-lg text-xs font-semibold transition disabled:opacity-60 cursor-pointer shadow-xs"
+                                        className="flex items-center justify-center gap-1.5 py-2 px-3 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white rounded-xl text-xs font-bold transition disabled:opacity-60 cursor-pointer shadow-xs"
                                     >
                                         {downloadingId === paper._id ? (
                                             <FaSpinner className="animate-spin text-xs" />
@@ -400,8 +412,8 @@ function Home() {
             {/* THREE COLUMN VALUE PROPOSITION */}
             <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 border-t border-slate-200 dark:border-slate-800">
                 <div className="grid md:grid-cols-3 gap-6">
-                    <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-6 shadow-xs">
-                        <div className="w-10 h-10 rounded-lg bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-slate-700 dark:text-slate-200 font-bold mb-4">
+                    <div className="bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 rounded-2xl p-6 shadow-xs">
+                        <div className="w-10 h-10 rounded-xl bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 flex items-center justify-center font-bold mb-4">
                             01
                         </div>
                         <h3 className="text-base font-bold text-slate-900 dark:text-white mb-1.5">Centralized Academic Archive</h3>
@@ -410,8 +422,8 @@ function Home() {
                         </p>
                     </div>
 
-                    <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-6 shadow-xs">
-                        <div className="w-10 h-10 rounded-lg bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-slate-700 dark:text-slate-200 font-bold mb-4">
+                    <div className="bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 rounded-2xl p-6 shadow-xs">
+                        <div className="w-10 h-10 rounded-xl bg-emerald-50 dark:bg-emerald-950/60 text-emerald-600 flex items-center justify-center font-bold mb-4">
                             02
                         </div>
                         <h3 className="text-base font-bold text-slate-900 dark:text-white mb-1.5">Unit-Wise Study Notes</h3>
@@ -420,8 +432,8 @@ function Home() {
                         </p>
                     </div>
 
-                    <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-6 shadow-xs">
-                        <div className="w-10 h-10 rounded-lg bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-slate-700 dark:text-slate-200 font-bold mb-4">
+                    <div className="bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 rounded-2xl p-6 shadow-xs">
+                        <div className="w-10 h-10 rounded-xl bg-purple-50 dark:bg-purple-950/60 text-purple-600 flex items-center justify-center font-bold mb-4">
                             03
                         </div>
                         <h3 className="text-base font-bold text-slate-900 dark:text-white mb-1.5">Direct Preview & Download</h3>
@@ -436,16 +448,16 @@ function Home() {
             <footer className="bg-white dark:bg-slate-950 border-t border-slate-200 dark:border-slate-800 mt-auto">
                 <div className="max-w-7xl mx-auto px-4 sm:px-6 py-8 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-slate-500 dark:text-slate-400">
                     <div className="flex items-center gap-2">
-                        <span className="font-bold text-slate-900 dark:text-white">PaperBridge</span>
+                        <span className="font-bold text-indigo-600 dark:text-indigo-400">PaperBridge</span>
                         <span>•</span>
                         <span>Academic Repository & Notes Vault</span>
                     </div>
 
-                    <div className="flex items-center gap-4 font-medium">
-                        <Link to="/browse" className="hover:text-slate-900 dark:hover:text-white">Browse Papers</Link>
-                        <Link to="/notes" className="hover:text-slate-900 dark:hover:text-white">Study Notes</Link>
-                        <Link to="/upload" className="hover:text-slate-900 dark:hover:text-white">Upload</Link>
-                        <Link to="/dashboard" className="hover:text-slate-900 dark:hover:text-white">Dashboard</Link>
+                    <div className="flex items-center gap-4 font-semibold">
+                        <Link to="/browse" className="hover:text-indigo-600">Browse Papers</Link>
+                        <Link to="/notes" className="hover:text-emerald-600">Study Notes</Link>
+                        <Link to="/upload" className="hover:text-indigo-600">Upload</Link>
+                        <Link to="/dashboard" className="hover:text-indigo-600">Dashboard</Link>
                     </div>
                 </div>
             </footer>
