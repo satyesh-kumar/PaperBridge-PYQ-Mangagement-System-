@@ -6,7 +6,7 @@ import {
   UserButton,
   Show,
 } from "@clerk/react";
-import { FaShieldAlt } from "react-icons/fa";
+import { FaShieldAlt, FaStickyNote, FaBook } from "react-icons/fa";
 import { useIsAdmin } from "../hooks/useIsAdmin";
 import ThemeToggle from "./ThemeToggle";
 
@@ -33,11 +33,14 @@ function Navbar() {
           <Link to="/" className="hover:text-indigo-600 dark:hover:text-indigo-400 transition">
             Home
           </Link>
-          <Link to="/browse" className="hover:text-indigo-600 dark:hover:text-indigo-400 transition">
-            Browse Papers
+          <Link to="/browse" className="hover:text-indigo-600 dark:hover:text-indigo-400 transition flex items-center gap-1.5">
+            <FaBook className="text-xs text-indigo-500" /> Browse Papers
+          </Link>
+          <Link to="/notes" className="hover:text-emerald-600 dark:hover:text-emerald-400 transition flex items-center gap-1.5 font-semibold text-emerald-600 dark:text-emerald-400">
+            <FaStickyNote className="text-xs" /> Study Notes
           </Link>
           <Link to="/upload" className="hover:text-indigo-600 dark:hover:text-indigo-400 transition">
-            Upload PYQ
+            + Upload
           </Link>
           <Show when="signed-in">
             <Link to="/dashboard" className="hover:text-indigo-600 dark:hover:text-indigo-400 transition">

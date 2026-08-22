@@ -9,6 +9,7 @@ import User from "./models/User.js";
 import upload from "./middleware/upload.js";
 import cloudinary from "./config/cloudinary.js";
 import PYQ from "./models/PYQ.js";
+import Note from "./models/Note.js";
 
 dotenv.config();
 
@@ -79,7 +80,7 @@ mongoose.connect(process.env.MONGO_URL)
 // ── ROUTES ────────────────────────────────────────────────────────────────────
 
 app.get("/", (req, res) => {
-  res.json({ status: "success", message: "PaperBridge API running" });
+  res.json({ status: "success", message: "PaperBridge API running with PYQs & Notes modules" });
 });
 
 // Sync / create user from Clerk
@@ -96,27 +97,30 @@ app.post("/api/users", requireAuth(), async (req, res) => {
   }
 });
 
-// Upload PDF → Cloudinary → save PYQ metadata (Status: "pending" by default)
+// Helper for Cloudinary streaming upload
+const uploadToCloudinary = (fileBuffer) => {
+  return new Promise((resolve, reject) => {
+    const stream = cloudinary.uploader.upload_stream(
+      { resource_type: "raw" },
+      (error, result) => {
+        if (result) resolve(result);
+        else reject(error);
+      }
+    );
+    streamifier.createReadStream(fileBuffer).pipe(stream);
+  });
+};
+
+// ── PYQS ENDPOINTS ────────────────────────────────────────────────────────────
+
+// Upload PYQ PDF → Cloudinary → save metadata (Status: "pending" by default)
 app.post("/api/upload", requireAuth(), upload.single("file"), async (req, res) => {
   try {
     if (!req.file) {
       return res.status(400).json({ error: "No PDF file attached" });
     }
 
-    const streamUpload = () => {
-      return new Promise((resolve, reject) => {
-        const stream = cloudinary.uploader.upload_stream(
-          { resource_type: "raw" },
-          (error, result) => {
-            if (result) resolve(result);
-            else reject(error);
-          }
-        );
-        streamifier.createReadStream(req.file.buffer).pipe(stream);
-      });
-    };
-
-    const result = await streamUpload();
+    const result = await uploadToCloudinary(req.file.buffer);
 
     const pyq = await PYQ.create({
       title: req.body.title,
@@ -127,17 +131,17 @@ app.post("/api/upload", requireAuth(), upload.single("file"), async (req, res) =
       branch: req.body.branch || "",
       fileUrl: result.secure_url,
       uploadedBy: req.auth.userId,
-      status: "pending", // Requires admin approval before appearing publicly
+      status: "pending",
     });
 
     res.json(pyq);
   } catch (error) {
-    console.error("Upload error:", error);
+    console.error("Upload PYQ error:", error);
     res.status(500).json({ error: "Upload failed" });
   }
 });
 
-// Get Public Approved PYQs (Home & Browse: only approved or legacy without status)
+// Get Public Approved PYQs
 app.get("/api/pyqs", async (req, res) => {
   try {
     const pyqs = await PYQ.find({
@@ -155,7 +159,7 @@ app.get("/api/pyqs", async (req, res) => {
   }
 });
 
-// Get ALL PYQs for Admin (Approved, Pending, and Rejected)
+// Get ALL PYQs for Admin
 app.get("/api/admin/pyqs", requireAuth(), async (req, res) => {
   try {
     const { status } = req.query;
@@ -172,7 +176,7 @@ app.get("/api/admin/pyqs", requireAuth(), async (req, res) => {
   }
 });
 
-// Get papers uploaded by the authenticated user (with status)
+// Get papers uploaded by the authenticated user
 app.get("/api/my-pyqs", requireAuth(), async (req, res) => {
   try {
     const clerkId = req.auth.userId;
@@ -184,14 +188,14 @@ app.get("/api/my-pyqs", requireAuth(), async (req, res) => {
   }
 });
 
-// Admin Approve / Reject single paper status
+// Admin Approve / Reject single PYQ
 app.patch("/api/admin/pyqs/:id/status", requireAuth(), async (req, res) => {
   try {
     const { id } = req.params;
     const { status, rejectionReason } = req.body;
 
     if (!["approved", "rejected", "pending"].includes(status)) {
-      return res.status(400).json({ error: "Invalid status value. Must be 'approved', 'rejected', or 'pending'" });
+      return res.status(400).json({ error: "Invalid status value" });
     }
 
     const updated = await PYQ.findByIdAndUpdate(
@@ -207,32 +211,21 @@ app.patch("/api/admin/pyqs/:id/status", requireAuth(), async (req, res) => {
       { new: true }
     );
 
-    if (!updated) {
-      return res.status(404).json({ error: "Question paper not found" });
-    }
+    if (!updated) return res.status(404).json({ error: "Question paper not found" });
 
-    res.json({
-      success: true,
-      message: `Paper status changed to '${status}' successfully`,
-      paper: updated,
-    });
+    res.json({ success: true, message: `Paper status changed to '${status}'`, paper: updated });
   } catch (err) {
     console.error("Change status error:", err);
     res.status(500).json({ error: "Failed to update paper status" });
   }
 });
 
-// Admin Bulk Approve / Reject
+// Admin Bulk Approve / Reject PYQs
 app.post("/api/admin/pyqs/bulk-status", requireAuth(), async (req, res) => {
   try {
     const { ids, status, rejectionReason } = req.body;
-
     if (!Array.isArray(ids) || ids.length === 0) {
       return res.status(400).json({ error: "No paper IDs provided" });
-    }
-
-    if (!["approved", "rejected", "pending"].includes(status)) {
-      return res.status(400).json({ error: "Invalid status value" });
     }
 
     const result = await PYQ.updateMany(
@@ -247,43 +240,36 @@ app.post("/api/admin/pyqs/bulk-status", requireAuth(), async (req, res) => {
       }
     );
 
-    res.json({
-      success: true,
-      modifiedCount: result.modifiedCount,
-      message: `Successfully set ${result.modifiedCount} papers to '${status}'`,
-    });
+    res.json({ success: true, modifiedCount: result.modifiedCount });
   } catch (err) {
     console.error("Bulk status error:", err);
-    res.status(500).json({ error: "Failed to update bulk paper status" });
+    res.status(500).json({ error: "Failed to update bulk status" });
   }
 });
 
-// Update paper metadata (Admin & Uploader)
+// Update PYQ metadata
 app.put("/api/pyqs/:id", requireAuth(), async (req, res) => {
   try {
     const { id } = req.params;
     const { title, course, semester, examType, year, branch, status } = req.body;
 
-    const updateFields = {
-      ...(title && { title }),
-      ...(course && { course }),
-      ...(semester && { semester: Number(semester) }),
-      ...(examType && { examType }),
-      ...(year && { year: Number(year) }),
-      ...(branch !== undefined && { branch }),
-      ...(status && { status }),
-    };
-
     const updated = await PYQ.findByIdAndUpdate(
       id,
-      { $set: updateFields },
+      {
+        $set: {
+          ...(title && { title }),
+          ...(course && { course }),
+          ...(semester && { semester: Number(semester) }),
+          ...(examType && { examType }),
+          ...(year && { year: Number(year) }),
+          ...(branch !== undefined && { branch }),
+          ...(status && { status }),
+        },
+      },
       { new: true }
     );
 
-    if (!updated) {
-      return res.status(404).json({ error: "Question paper not found" });
-    }
-
+    if (!updated) return res.status(404).json({ error: "Question paper not found" });
     res.json(updated);
   } catch (err) {
     console.error("Update PYQ error:", err);
@@ -291,78 +277,281 @@ app.put("/api/pyqs/:id", requireAuth(), async (req, res) => {
   }
 });
 
-// Delete single paper
+// Delete single PYQ
 app.delete("/api/pyqs/:id", requireAuth(), async (req, res) => {
   try {
     const { id } = req.params;
     const deleted = await PYQ.findByIdAndDelete(id);
-
-    if (!deleted) {
-      return res.status(404).json({ error: "Question paper not found" });
-    }
-
-    res.json({ success: true, message: "Question paper deleted successfully", id });
+    if (!deleted) return res.status(404).json({ error: "Question paper not found" });
+    res.json({ success: true, message: "Question paper deleted", id });
   } catch (err) {
     console.error("Delete PYQ error:", err);
     res.status(500).json({ error: "Failed to delete question paper" });
   }
 });
 
-// Bulk delete papers (Admin)
+// Bulk delete PYQs
 app.post("/api/admin/pyqs/bulk-delete", requireAuth(), async (req, res) => {
   try {
     const { ids } = req.body;
     if (!Array.isArray(ids) || ids.length === 0) {
-      return res.status(400).json({ error: "No paper IDs provided for bulk deletion" });
+      return res.status(400).json({ error: "No paper IDs provided" });
     }
-
     const result = await PYQ.deleteMany({ _id: { $in: ids } });
-    res.json({
-      success: true,
-      deletedCount: result.deletedCount,
-      message: `Successfully deleted ${result.deletedCount} question papers`,
-    });
+    res.json({ success: true, deletedCount: result.deletedCount });
   } catch (err) {
     console.error("Bulk delete error:", err);
     res.status(500).json({ error: "Failed to bulk delete question papers" });
   }
 });
 
-// Admin stats overview
+// ── NOTES & STUDY MATERIALS ENDPOINTS ─────────────────────────────────────────
+
+// Upload Study Note PDF → Cloudinary → save metadata (Status: "pending" by default)
+app.post("/api/notes/upload", requireAuth(), upload.single("file"), async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ error: "No PDF / document attached" });
+    }
+
+    const result = await uploadToCloudinary(req.file.buffer);
+
+    const note = await Note.create({
+      title: req.body.title,
+      subject: req.body.subject,
+      unit: req.body.unit || "Complete Syllabus",
+      university: req.body.university || "Uttaranchal University",
+      course: req.body.course || "B.Tech",
+      semester: req.body.semester ? Number(req.body.semester) : 1,
+      branch: req.body.branch || "",
+      author: req.body.author || "",
+      description: req.body.description || "",
+      fileUrl: result.secure_url,
+      uploadedBy: req.auth.userId,
+      status: "pending",
+    });
+
+    res.json(note);
+  } catch (error) {
+    console.error("Upload Note error:", error);
+    res.status(500).json({ error: "Failed to upload study notes" });
+  }
+});
+
+// Get Public Approved Notes
+app.get("/api/notes", async (req, res) => {
+  try {
+    const notes = await Note.find({
+      $or: [
+        { status: "approved" },
+        { status: { $exists: false } },
+        { status: null },
+      ],
+    }).sort({ createdAt: -1, _id: -1 });
+
+    res.json(notes);
+  } catch (err) {
+    console.error("Public Notes error:", err);
+    res.status(500).json({ error: "Failed to fetch study notes" });
+  }
+});
+
+// Get ALL Notes for Admin
+app.get("/api/admin/notes", requireAuth(), async (req, res) => {
+  try {
+    const { status } = req.query;
+    const filter = {};
+    if (status && status !== "all") {
+      filter.status = status;
+    }
+
+    const notes = await Note.find(filter).sort({ createdAt: -1, _id: -1 });
+    res.json(notes);
+  } catch (err) {
+    console.error("Admin Notes error:", err);
+    res.status(500).json({ error: "Failed to fetch admin notes" });
+  }
+});
+
+// Get notes uploaded by the authenticated user
+app.get("/api/my-notes", requireAuth(), async (req, res) => {
+  try {
+    const clerkId = req.auth.userId;
+    const notes = await Note.find({ uploadedBy: clerkId }).sort({ createdAt: -1, _id: -1 });
+    res.json(notes);
+  } catch (err) {
+    console.error("My Notes error:", err);
+    res.status(500).json({ error: "Failed to fetch your study notes" });
+  }
+});
+
+// Admin Approve / Reject single Note
+app.patch("/api/admin/notes/:id/status", requireAuth(), async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { status, rejectionReason } = req.body;
+
+    if (!["approved", "rejected", "pending"].includes(status)) {
+      return res.status(400).json({ error: "Invalid status value" });
+    }
+
+    const updated = await Note.findByIdAndUpdate(
+      id,
+      {
+        $set: {
+          status,
+          rejectionReason: rejectionReason || "",
+          reviewedBy: req.auth.userId,
+          reviewedAt: new Date(),
+        },
+      },
+      { new: true }
+    );
+
+    if (!updated) return res.status(404).json({ error: "Study note not found" });
+
+    res.json({ success: true, message: `Note status changed to '${status}'`, note: updated });
+  } catch (err) {
+    console.error("Change note status error:", err);
+    res.status(500).json({ error: "Failed to update note status" });
+  }
+});
+
+// Admin Bulk Approve / Reject Notes
+app.post("/api/admin/notes/bulk-status", requireAuth(), async (req, res) => {
+  try {
+    const { ids, status, rejectionReason } = req.body;
+    if (!Array.isArray(ids) || ids.length === 0) {
+      return res.status(400).json({ error: "No note IDs provided" });
+    }
+
+    const result = await Note.updateMany(
+      { _id: { $in: ids } },
+      {
+        $set: {
+          status,
+          rejectionReason: rejectionReason || "",
+          reviewedBy: req.auth.userId,
+          reviewedAt: new Date(),
+        },
+      }
+    );
+
+    res.json({ success: true, modifiedCount: result.modifiedCount });
+  } catch (err) {
+    console.error("Bulk note status error:", err);
+    res.status(500).json({ error: "Failed to update bulk note status" });
+  }
+});
+
+// Update Note metadata
+app.put("/api/notes/:id", requireAuth(), async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { title, subject, unit, university, course, semester, branch, author, description, status } = req.body;
+
+    const updated = await Note.findByIdAndUpdate(
+      id,
+      {
+        $set: {
+          ...(title && { title }),
+          ...(subject && { subject }),
+          ...(unit && { unit }),
+          ...(university && { university }),
+          ...(course && { course }),
+          ...(semester && { semester: Number(semester) }),
+          ...(branch !== undefined && { branch }),
+          ...(author !== undefined && { author }),
+          ...(description !== undefined && { description }),
+          ...(status && { status }),
+        },
+      },
+      { new: true }
+    );
+
+    if (!updated) return res.status(404).json({ error: "Study note not found" });
+    res.json(updated);
+  } catch (err) {
+    console.error("Update Note error:", err);
+    res.status(500).json({ error: "Failed to update study note" });
+  }
+});
+
+// Delete single Note
+app.delete("/api/notes/:id", requireAuth(), async (req, res) => {
+  try {
+    const { id } = req.params;
+    const deleted = await Note.findByIdAndDelete(id);
+    if (!deleted) return res.status(404).json({ error: "Study note not found" });
+    res.json({ success: true, message: "Study note deleted", id });
+  } catch (err) {
+    console.error("Delete Note error:", err);
+    res.status(500).json({ error: "Failed to delete study note" });
+  }
+});
+
+// Bulk delete Notes
+app.post("/api/admin/notes/bulk-delete", requireAuth(), async (req, res) => {
+  try {
+    const { ids } = req.body;
+    if (!Array.isArray(ids) || ids.length === 0) {
+      return res.status(400).json({ error: "No note IDs provided" });
+    }
+    const result = await Note.deleteMany({ _id: { $in: ids } });
+    res.json({ success: true, deletedCount: result.deletedCount });
+  } catch (err) {
+    console.error("Bulk delete notes error:", err);
+    res.status(500).json({ error: "Failed to bulk delete study notes" });
+  }
+});
+
+// ── COMBINED ADMIN STATS & USER DIRECTORY ──────────────────────────────────────
+
+// Admin stats overview (both PYQs and Notes)
 app.get("/api/admin/stats", requireAuth(), async (req, res) => {
   try {
     const totalPapers = await PYQ.countDocuments();
-    const pendingCount = await PYQ.countDocuments({ status: "pending" });
-    const approvedCount = await PYQ.countDocuments({
-      $or: [{ status: "approved" }, { status: { $exists: false } }, { status: null }]
+    const pendingPapersCount = await PYQ.countDocuments({ status: "pending" });
+    const approvedPapersCount = await PYQ.countDocuments({
+      $or: [{ status: "approved" }, { status: { $exists: false } }, { status: null }],
     });
-    const rejectedCount = await PYQ.countDocuments({ status: "rejected" });
+    const rejectedPapersCount = await PYQ.countDocuments({ status: "rejected" });
+
+    const totalNotes = await Note.countDocuments();
+    const pendingNotesCount = await Note.countDocuments({ status: "pending" });
+    const approvedNotesCount = await Note.countDocuments({
+      $or: [{ status: "approved" }, { status: { $exists: false } }, { status: null }],
+    });
+    const rejectedNotesCount = await Note.countDocuments({ status: "rejected" });
+
     const totalUsers = await User.countDocuments();
 
-    // Course breakdown
+    // Course breakdown (PYQs)
     const courseAggregation = await PYQ.aggregate([
       { $group: { _id: "$course", count: { $sum: 1 } } },
       { $sort: { count: -1 } },
     ]);
 
-    // Exam type breakdown
-    const examAggregation = await PYQ.aggregate([
-      { $group: { _id: "$examType", count: { $sum: 1 } } },
+    // Subject breakdown (Notes)
+    const subjectAggregation = await Note.aggregate([
+      { $group: { _id: "$subject", count: { $sum: 1 } } },
       { $sort: { count: -1 } },
+      { $limit: 8 },
     ]);
-
-    // Recent uploads
-    const recentUploads = await PYQ.find().sort({ createdAt: -1, _id: -1 }).limit(5);
 
     res.json({
       totalPapers,
-      pendingCount,
-      approvedCount,
-      rejectedCount,
+      pendingCount: pendingPapersCount,
+      approvedCount: approvedPapersCount,
+      rejectedCount: rejectedPapersCount,
+      totalNotes,
+      pendingNotesCount,
+      approvedNotesCount,
+      rejectedNotesCount,
+      totalPendingAll: pendingPapersCount + pendingNotesCount,
       totalUsers,
       courseDistribution: courseAggregation,
-      examDistribution: examAggregation,
-      recentUploads,
+      subjectDistribution: subjectAggregation,
     });
   } catch (err) {
     console.error("Admin stats error:", err);
@@ -375,21 +564,30 @@ app.get("/api/admin/users", requireAuth(), async (req, res) => {
   try {
     const users = await User.find().sort({ createdAt: -1 });
 
-    // Aggregate paper counts per user
-    const uploadCounts = await PYQ.aggregate([
-      { $group: { _id: "$uploadedBy", paperCount: { $sum: 1 } } },
+    const pyqCounts = await PYQ.aggregate([
+      { $group: { _id: "$uploadedBy", count: { $sum: 1 } } },
+    ]);
+    const noteCounts = await Note.aggregate([
+      { $group: { _id: "$uploadedBy", count: { $sum: 1 } } },
     ]);
 
-    const countMap = {};
-    uploadCounts.forEach((item) => {
-      if (item._id) countMap[item._id] = item.paperCount;
+    const pyqMap = {};
+    pyqCounts.forEach((item) => {
+      if (item._id) pyqMap[item._id] = item.count;
+    });
+
+    const noteMap = {};
+    noteCounts.forEach((item) => {
+      if (item._id) noteMap[item._id] = item.count;
     });
 
     const userDirectory = users.map((u) => ({
       _id: u._id,
       clerkId: u.clerkId,
       createdAt: u.createdAt,
-      uploadsCount: countMap[u.clerkId] || 0,
+      pyqUploads: pyqMap[u.clerkId] || 0,
+      noteUploads: noteMap[u.clerkId] || 0,
+      totalUploads: (pyqMap[u.clerkId] || 0) + (noteMap[u.clerkId] || 0),
     }));
 
     res.json(userDirectory);

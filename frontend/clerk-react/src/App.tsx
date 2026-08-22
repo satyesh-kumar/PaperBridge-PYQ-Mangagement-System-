@@ -6,6 +6,7 @@ import Home from "./pages/Home.jsx";
 import Dashboard from "./pages/Dashboard.jsx";
 import UploadPYQ from "./pages/UploadPYQ";
 import BrowsePYQ from "./pages/BrowsePYQ";
+import BrowseNotes from "./pages/BrowseNotes";
 import AdminPanel from "./pages/AdminPanel.jsx";
 import AdminRoute from "./components/AdminRoute.jsx";
 
@@ -25,6 +26,7 @@ function App() {
       <Routes>
         <Route path="/" element={<Home />} />
         <Route path="/browse" element={<BrowsePYQ />} />
+        <Route path="/notes" element={<BrowseNotes />} />
         <Route path="/upload" element={<UploadPYQ />} />
         <Route
           path="/dashboard"
@@ -50,4 +52,3 @@ function App() {
 }
 
 export default App;
-
