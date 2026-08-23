@@ -33,9 +33,14 @@ function PDFViewer({ fileUrl, title = "Document Preview", onClose }) {
 
             // Potential fetch candidate URLs to handle raw/image Cloudinary paths
             const candidates = [
-                proxyUrl,
                 fileUrl,
-                fileUrl.replace(/\.pdf$/i, ""),
+                ...(fileUrl.includes("res.cloudinary.com") ? [
+                    fileUrl.replace("/image/upload/", "/raw/upload/").replace(/\.pdf$/i, ""),
+                    fileUrl.replace("/image/upload/", "/raw/upload/"),
+                    fileUrl.replace("/raw/upload/", "/image/upload/"),
+                    fileUrl.replace(/\.pdf$/i, ""),
+                ] : []),
+                proxyUrl,
             ];
 
             let foundBlob = null;
