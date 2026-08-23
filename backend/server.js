@@ -120,7 +120,7 @@ mongoose.connect(process.env.MONGO_URL)
 const uploadToCloudinary = (fileBuffer) => {
   return new Promise((resolve, reject) => {
     const stream = cloudinary.uploader.upload_stream(
-      { resource_type: "raw" },
+      { resource_type: "auto", folder: "paperbridge" },
       (error, result) => {
         if (result) resolve(result);
         else reject(error);
@@ -130,13 +130,38 @@ const uploadToCloudinary = (fileBuffer) => {
   });
 };
 
-// ── BASE & USER SYNC ──────────────────────────────────────────────────────────
+// ── BASE & PDF VIEWER PROXY ──────────────────────────────────────────────────
 app.get("/", (req, res) => {
   res.json({
     status: "success",
     message: "PaperBridge Dynamic Multi-University Academic Platform API is running",
     version: "2.0.0",
   });
+});
+
+// Inline PDF Viewer Proxy to prevent automatic raw downloads and guarantee inline rendering
+app.get("/api/pdf/view", async (req, res) => {
+  try {
+    const { url } = req.query;
+    if (!url) {
+      return res.status(400).json({ error: "Missing url parameter" });
+    }
+
+    const response = await fetch(url);
+    if (!response.ok) {
+      return res.status(response.status).json({ error: "Failed to fetch document from storage" });
+    }
+
+    res.setHeader("Content-Type", "application/pdf");
+    res.setHeader("Content-Disposition", "inline; filename=\"document.pdf\"");
+    res.setHeader("Cache-Control", "public, max-age=86400");
+
+    const arrayBuffer = await response.arrayBuffer();
+    res.send(Buffer.from(arrayBuffer));
+  } catch (err) {
+    console.error("PDF inline proxy error:", err);
+    res.status(500).json({ error: "Unable to render PDF preview" });
+  }
 });
 
 app.post("/api/users", requireAuth(), async (req, res) => {
