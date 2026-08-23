@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo, useCallback } from "react";
 import { useAuth, useUser } from "@clerk/react";
 import { Link } from "react-router-dom";
 import toast from "react-hot-toast";
@@ -14,6 +14,7 @@ import {
     FaCheck,
     FaSpinner,
     FaLayerGroup,
+    FaSyncAlt,
 } from "react-icons/fa";
 import { MdDriveFolderUpload } from "react-icons/md";
 import { useDropzone } from "react-dropzone";
@@ -24,27 +25,14 @@ import axios from "axios";
 
 const API_URL = import.meta.env.VITE_API_URL || "http://localhost:5000";
 
-const COURSES = [
-    "B.Tech",
-    "BCA",
-    "MCA",
-    "MBA",
-    "BBA",
-    "Diploma",
-    "B.Sc",
-    "B.Com",
-    "Other",
-];
-
-const SEMESTERS = [
-    { value: "1", label: "Semester 1" },
-    { value: "2", label: "Semester 2" },
-    { value: "3", label: "Semester 3" },
-    { value: "4", label: "Semester 4" },
-    { value: "5", label: "Semester 5" },
-    { value: "6", label: "Semester 6" },
-    { value: "7", label: "Semester 7" },
-    { value: "8", label: "Semester 8" },
+const FALLBACK_COURSES = [
+    { _id: "course_btech", name: "B.Tech Computer Science and Engineering", code: "BTECH-CSE", numberOfSemesters: 8, status: "active" },
+    { _id: "course_bca", name: "Bachelor of Computer Applications", code: "BCA", numberOfSemesters: 6, status: "active" },
+    { _id: "course_bca_ibm", name: "Bachelor of Computer Applications-IBM", code: "BCA-IBM", numberOfSemesters: 6, status: "active" },
+    { _id: "course_mca", name: "Master of Computer Applications", code: "MCA", numberOfSemesters: 4, status: "active" },
+    { _id: "course_mba", name: "Master of Business Administration", code: "MBA", numberOfSemesters: 4, status: "active" },
+    { _id: "course_bba", name: "Bachelor of Business Administration", code: "BBA", numberOfSemesters: 6, status: "active" },
+    { _id: "course_diploma", name: "Diploma in Engineering", code: "DIPLOMA", numberOfSemesters: 6, status: "active" },
 ];
 
 const EXAM_TYPES = [
@@ -61,18 +49,22 @@ const EXAM_TYPES = [
 ];
 
 const EXAM_YEARS = [
+    "2026-27",
+    "2025-26",
+    "2024-25",
+    "2023-24",
+    "2022-23",
+    "2021-22",
+    "2020-21",
+    "2019-20",
+    "2018-19",
+    "2017-18",
+    "2016-17",
+    "2015-16",
     "2026",
     "2025",
     "2024",
     "2023",
-    "2022",
-    "2021",
-    "2020",
-    "2019",
-    "2018",
-    "2017",
-    "2016",
-    "2015",
 ];
 
 const UNITS = [
@@ -95,20 +87,26 @@ export default function UploadPYQ() {
     // Mode: 'pyq' | 'note'
     const [uploadType, setUploadType] = useState("pyq");
 
+    // Dynamic Admin Courses & Loading
+    const [courses, setCourses] = useState(FALLBACK_COURSES);
+    const [loadingCourses, setLoadingCourses] = useState(true);
+
     // PYQ Form State
     const [pyqForm, setPyqForm] = useState({
         title: "",
-        course: "B.Tech",
+        courseId: "",
+        course: "",
         semester: "1",
         examType: "End Semester",
-        examYear: "2026",
+        examYear: "2024-25",
         branch: "",
     });
 
     // Notes Form State
     const [noteForm, setNoteForm] = useState({
         title: "",
-        course: "B.Tech",
+        courseId: "",
+        course: "",
         semester: "1",
         unit: "Complete Syllabus",
         author: "",
@@ -120,6 +118,107 @@ export default function UploadPYQ() {
     const [previewOpen, setPreviewOpen] = useState(false);
     const [uploadedItem, setUploadedItem] = useState(null);
     const [uploadProgress, setUploadProgress] = useState(0);
+
+    // ── FETCH COURSES CREATED IN ADMIN PORTAL ────────────────────────────────
+    const fetchAdminCourses = useCallback(async () => {
+        try {
+            setLoadingCourses(true);
+            const res = await axios.get(`${API_URL}/api/courses?status=active`, { timeout: 15000 });
+            if (Array.isArray(res.data) && res.data.length > 0) {
+                setCourses(res.data);
+
+                // Set initial default course if not yet selected
+                const defaultCourse = res.data[0];
+                setPyqForm((prev) => ({
+                    ...prev,
+                    courseId: prev.courseId || defaultCourse._id,
+                    course: prev.course || defaultCourse.name,
+                }));
+                setNoteForm((prev) => ({
+                    ...prev,
+                    courseId: prev.courseId || defaultCourse._id,
+                    course: prev.course || defaultCourse.name,
+                }));
+            } else {
+                setCourses(FALLBACK_COURSES);
+                setPyqForm((prev) => ({
+                    ...prev,
+                    courseId: prev.courseId || FALLBACK_COURSES[0]._id,
+                    course: prev.course || FALLBACK_COURSES[0].name,
+                }));
+                setNoteForm((prev) => ({
+                    ...prev,
+                    courseId: prev.courseId || FALLBACK_COURSES[0]._id,
+                    course: prev.course || FALLBACK_COURSES[0].name,
+                }));
+            }
+        } catch (err) {
+            console.warn("Could not fetch dynamic admin courses, using fallback:", err.message);
+            setCourses(FALLBACK_COURSES);
+            setPyqForm((prev) => ({
+                ...prev,
+                courseId: prev.courseId || FALLBACK_COURSES[0]._id,
+                course: prev.course || FALLBACK_COURSES[0].name,
+            }));
+            setNoteForm((prev) => ({
+                ...prev,
+                courseId: prev.courseId || FALLBACK_COURSES[0]._id,
+                course: prev.course || FALLBACK_COURSES[0].name,
+            }));
+        } finally {
+            setLoadingCourses(false);
+        }
+    }, []);
+
+    useEffect(() => {
+        fetchAdminCourses();
+    }, [fetchAdminCourses]);
+
+    // ── DYNAMIC SEMESTERS CALCULATOR ─────────────────────────────────────────
+    const getAvailableSemesters = (courseIdOrName) => {
+        if (!courseIdOrName) return [1, 2, 3, 4, 5, 6, 7, 8];
+        const matched = courses.find(
+            (c) => c._id === courseIdOrName || c.name === courseIdOrName || c.code === courseIdOrName
+        );
+        const count = matched?.numberOfSemesters || 8;
+        return Array.from({ length: count }, (_, i) => i + 1);
+    };
+
+    const pyqSemesters = useMemo(() => {
+        return getAvailableSemesters(pyqForm.courseId || pyqForm.course);
+    }, [courses, pyqForm.courseId, pyqForm.course]);
+
+    const noteSemesters = useMemo(() => {
+        return getAvailableSemesters(noteForm.courseId || noteForm.course);
+    }, [courses, noteForm.courseId, noteForm.course]);
+
+    // Handle course selection for PYQ
+    const handlePyqCourseChange = (selectedCourseId) => {
+        const selected = courses.find((c) => c._id === selectedCourseId);
+        const maxSems = selected?.numberOfSemesters || 8;
+        const currentSem = Number(pyqForm.semester) || 1;
+
+        setPyqForm({
+            ...pyqForm,
+            courseId: selectedCourseId,
+            course: selected ? selected.name : pyqForm.course,
+            semester: currentSem > maxSems ? "1" : String(currentSem),
+        });
+    };
+
+    // Handle course selection for Notes
+    const handleNoteCourseChange = (selectedCourseId) => {
+        const selected = courses.find((c) => c._id === selectedCourseId);
+        const maxSems = selected?.numberOfSemesters || 8;
+        const currentSem = Number(noteForm.semester) || 1;
+
+        setNoteForm({
+            ...noteForm,
+            courseId: selectedCourseId,
+            course: selected ? selected.name : noteForm.course,
+            semester: currentSem > maxSems ? "1" : String(currentSem),
+        });
+    };
 
     // Dropzone setup
     const onDrop = (acceptedFiles, fileRejections) => {
@@ -198,8 +297,10 @@ export default function UploadPYQ() {
             };
 
             if (isPyq) {
+                const chosenCourse = courses.find((c) => c._id === pyqForm.courseId) || courses[0];
+                if (chosenCourse?._id) data.append("courseId", chosenCourse._id);
+                data.append("course", chosenCourse ? chosenCourse.name : pyqForm.course);
                 data.append("title", pyqForm.title.trim());
-                data.append("course", pyqForm.course);
                 data.append("semester", pyqForm.semester);
                 data.append("subject", pyqForm.title.trim());
                 data.append("examType", pyqForm.examType);
@@ -226,8 +327,10 @@ export default function UploadPYQ() {
                     toast.success("Submitted for admin verification!");
                 }
             } else {
+                const chosenCourse = courses.find((c) => c._id === noteForm.courseId) || courses[0];
+                if (chosenCourse?._id) data.append("courseId", chosenCourse._id);
+                data.append("course", chosenCourse ? chosenCourse.name : noteForm.course);
                 data.append("title", noteForm.title.trim());
-                data.append("course", noteForm.course);
                 data.append("semester", noteForm.semester);
                 data.append("subject", noteForm.title.trim());
                 data.append("unit", noteForm.unit);
@@ -258,66 +361,58 @@ export default function UploadPYQ() {
             setFile(null);
         } catch (err) {
             console.error("Upload error:", err);
-            toast.error(err.response?.data?.error || "Upload failed. Please try again.");
+            toast.error(err.response?.data?.error || "Failed to upload file. Please try again.");
         } finally {
             setLoading(false);
         }
     };
 
     return (
-        <div className="min-h-screen bg-[#FAF8F5] dark:bg-[#0F0E0D] text-[#1A1614] dark:text-[#F5F2EC] flex flex-col font-sans transition-colors duration-300">
+        <div className="min-h-screen bg-[#FAF8F5] dark:bg-[#0F0E0D] text-[#1A1614] dark:text-[#FAF8F5] flex flex-col font-sans transition-colors duration-300">
             <Navbar2 />
 
-            <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-10 w-full flex-1">
-                {/* Tab Selector: Question Paper vs Study Notes */}
-                <div className="flex items-center justify-center gap-2 mb-8 bg-[#F4EFEA] dark:bg-[#1C1916] p-1 rounded-full max-w-sm mx-auto border border-[#EAE2D8] dark:border-[#2E2822]">
-                    <button
-                        type="button"
-                        onClick={() => {
-                            setUploadType("pyq");
-                            setUploadedItem(null);
-                        }}
-                        className={`flex-1 py-2.5 px-4 rounded-full text-xs font-bold transition flex items-center justify-center gap-2 cursor-pointer ${
-                            uploadType === "pyq"
-                                ? "bg-[#0D1B2A] text-white dark:bg-[#C89D5C] dark:text-[#0D1B2A] shadow-sm"
-                                : "text-[#6B5B49] dark:text-[#C2B3A0] hover:text-[#0D1B2A]"
-                        }`}
-                    >
-                        <FaBook className="text-xs" />
-                        <span>Question Paper</span>
-                    </button>
+            <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-10 flex-1 w-full">
+                {/* Header Title */}
+                <div className="text-center mb-8">
+                    <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-[#FAF8F5] dark:bg-[#1C1916] border border-[#DDD2C4] dark:border-[#2E2822] text-[#8C6239] dark:text-[#E5C378] text-xs font-bold uppercase mb-3">
+                        <FaUpload className="text-[10px]" /> Academic Vault Contributor
+                    </div>
+                    <h1 className="text-2xl sm:text-3xl font-serif font-bold text-[#0D1B2A] dark:text-[#FAF8F5] tracking-tight">
+                        Upload Academic Material
+                    </h1>
+                    <p className="text-xs sm:text-sm text-[#8C7862] dark:text-[#A8957E] mt-1.5 max-w-md mx-auto">
+                        Contribute previous year papers and handwritten notes synced with live course curricula.
+                    </p>
+                </div>
 
+                {/* Upload Mode Switcher: PYQ vs Study Note */}
+                <div className="grid grid-cols-2 p-1 bg-[#F4EFEA] dark:bg-[#1C1916] border border-[#EAE2D8] dark:border-[#2E2822] rounded-2xl mb-8">
                     <button
                         type="button"
-                        onClick={() => {
-                            setUploadType("note");
-                            setUploadedItem(null);
-                        }}
-                        className={`flex-1 py-2.5 px-4 rounded-full text-xs font-bold transition flex items-center justify-center gap-2 cursor-pointer ${
-                            uploadType === "note"
-                                ? "bg-[#0D1B2A] text-white dark:bg-[#C89D5C] dark:text-[#0D1B2A] shadow-sm"
-                                : "text-[#6B5B49] dark:text-[#C2B3A0] hover:text-[#0D1B2A]"
-                        }`}
+                        onClick={() => setUploadType("pyq")}
+                        className={`py-3 rounded-xl text-xs font-bold flex items-center justify-center gap-2 transition cursor-pointer ${uploadType === "pyq"
+                                ? "bg-white dark:bg-[#24201C] text-[#0D1B2A] dark:text-[#FAF8F5] shadow-xs"
+                                : "text-[#8C7862] dark:text-[#A8957E] hover:text-[#0D1B2A]"
+                            }`}
                     >
-                        <FaStickyNote className="text-xs" />
-                        <span>Study Notes</span>
+                        <FaFilePdf className="text-sm text-[#C89D5C]" />
+                        <span>Question Paper (PYQ)</span>
+                    </button>
+                    <button
+                        type="button"
+                        onClick={() => setUploadType("note")}
+                        className={`py-3 rounded-xl text-xs font-bold flex items-center justify-center gap-2 transition cursor-pointer ${uploadType === "note"
+                                ? "bg-white dark:bg-[#24201C] text-[#0D1B2A] dark:text-[#FAF8F5] shadow-xs"
+                                : "text-[#8C7862] dark:text-[#A8957E] hover:text-[#0D1B2A]"
+                            }`}
+                    >
+                        <FaStickyNote className="text-sm text-sky-500" />
+                        <span>Study Notes & Handouts</span>
                     </button>
                 </div>
 
-                {/* Main Card Container */}
-                <div className="bg-white dark:bg-[#161412] border border-[#EAE2D8] dark:border-[#2E2822] rounded-3xl p-6 sm:p-10 shadow-sm">
-                    {/* Header Title */}
-                    <div className="text-center mb-8">
-                        <h1 className="text-2xl sm:text-3xl font-serif font-bold text-[#0D1B2A] dark:text-[#FAF8F5] tracking-tight mb-1.5">
-                            {uploadType === "pyq" ? "Upload Previous Year Paper" : "Upload Study Notes & Material"}
-                        </h1>
-                        <p className="text-xs sm:text-sm text-[#8C7862] dark:text-[#A8957E]">
-                            {uploadType === "pyq"
-                                ? "Share semester and mid-term exam papers with fellow students"
-                                : "Share handwritten unit notes, lecture summaries, and formula sheets"}
-                        </p>
-                    </div>
-
+                {/* Main Upload Card */}
+                <div className="bg-white dark:bg-[#161412] border border-[#EAE2D8] dark:border-[#2E2822] rounded-3xl p-6 sm:p-8 shadow-xs">
                     <form onSubmit={handleSubmit} className="space-y-5">
                         {uploadType === "pyq" ? (
                             <>
@@ -332,24 +427,29 @@ export default function UploadPYQ() {
                                         value={pyqForm.title}
                                         onChange={(e) => setPyqForm({ ...pyqForm, title: e.target.value })}
                                         placeholder="e.g. Data Structures & Algorithms End Sem 2024"
-                                        className="w-full px-4 py-2.5 bg-white dark:bg-[#1C1916] border border-[#EAE2D8] dark:border-[#2E2822] rounded-xl text-xs text-[#0D1B2A] dark:text-[#FAF8F5] font-medium placeholder:text-[#A8957E] focus:outline-none focus:border-[#8C6239] transition"
+                                        className="w-full px-4 py-2.5 bg-white dark:bg-[#1C1916] border border-[#EAE2D8] dark:border-[#2E2822] rounded-xl text-xs text-[#0D1B2A] dark:text-[#FAF8F5] font-medium placeholder:text-[#A8957E] focus:outline-hidden focus:border-[#8C6239] transition"
                                     />
                                 </div>
 
-                                {/* Row: Course & Semester */}
+                                {/* Row: Live Course & Dynamic Semesters */}
                                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                     <div>
-                                        <label className="block text-xs font-bold text-[#4A3E31] dark:text-[#C2B3A0] mb-1.5">
-                                            Course
-                                        </label>
+                                        <div className="flex items-center justify-between mb-1.5">
+                                            <label className="text-xs font-bold text-[#4A3E31] dark:text-[#C2B3A0]">
+                                                Course / Degree Program *
+                                            </label>
+                                            {loadingCourses && (
+                                                <FaSpinner className="text-[10px] text-[#C89D5C] animate-spin" />
+                                            )}
+                                        </div>
                                         <select
-                                            value={pyqForm.course}
-                                            onChange={(e) => setPyqForm({ ...pyqForm, course: e.target.value })}
-                                            className="w-full px-4 py-2.5 bg-white dark:bg-[#1C1916] border border-[#EAE2D8] dark:border-[#2E2822] rounded-xl text-xs text-[#0D1B2A] dark:text-[#FAF8F5] font-medium focus:outline-none focus:border-[#8C6239] transition"
+                                            value={pyqForm.courseId || courses.find((c) => c.name === pyqForm.course)?._id || courses[0]?._id}
+                                            onChange={(e) => handlePyqCourseChange(e.target.value)}
+                                            className="w-full px-4 py-2.5 bg-white dark:bg-[#1C1916] border border-[#EAE2D8] dark:border-[#2E2822] rounded-xl text-xs text-[#0D1B2A] dark:text-[#FAF8F5] font-medium focus:outline-hidden focus:border-[#8C6239] transition"
                                         >
-                                            {COURSES.map((c) => (
-                                                <option key={c} value={c} className="dark:bg-[#161412]">
-                                                    {c}
+                                            {courses.map((c) => (
+                                                <option key={c._id} value={c._id} className="dark:bg-[#161412]">
+                                                    {c.name} ({c.code || "Program"})
                                                 </option>
                                             ))}
                                         </select>
@@ -357,16 +457,16 @@ export default function UploadPYQ() {
 
                                     <div>
                                         <label className="block text-xs font-bold text-[#4A3E31] dark:text-[#C2B3A0] mb-1.5">
-                                            Semester
+                                            Semester * <span className="text-[10px] text-[#8C7862]">({pyqSemesters.length} Semesters available)</span>
                                         </label>
                                         <select
                                             value={pyqForm.semester}
                                             onChange={(e) => setPyqForm({ ...pyqForm, semester: e.target.value })}
-                                            className="w-full px-4 py-2.5 bg-white dark:bg-[#1C1916] border border-[#EAE2D8] dark:border-[#2E2822] rounded-xl text-xs text-[#0D1B2A] dark:text-[#FAF8F5] font-medium focus:outline-none focus:border-[#8C6239] transition"
+                                            className="w-full px-4 py-2.5 bg-white dark:bg-[#1C1916] border border-[#EAE2D8] dark:border-[#2E2822] rounded-xl text-xs text-[#0D1B2A] dark:text-[#FAF8F5] font-medium focus:outline-hidden focus:border-[#8C6239] transition"
                                         >
-                                            {SEMESTERS.map((s) => (
-                                                <option key={s.value} value={s.value} className="dark:bg-[#161412]">
-                                                    {s.label}
+                                            {pyqSemesters.map((s) => (
+                                                <option key={s} value={String(s)} className="dark:bg-[#161412]">
+                                                    Semester {s}
                                                 </option>
                                             ))}
                                         </select>
@@ -382,7 +482,7 @@ export default function UploadPYQ() {
                                         <select
                                             value={pyqForm.examType}
                                             onChange={(e) => setPyqForm({ ...pyqForm, examType: e.target.value })}
-                                            className="w-full px-4 py-2.5 bg-white dark:bg-[#1C1916] border border-[#EAE2D8] dark:border-[#2E2822] rounded-xl text-xs text-[#0D1B2A] dark:text-[#FAF8F5] font-medium focus:outline-none focus:border-[#8C6239] transition"
+                                            className="w-full px-4 py-2.5 bg-white dark:bg-[#1C1916] border border-[#EAE2D8] dark:border-[#2E2822] rounded-xl text-xs text-[#0D1B2A] dark:text-[#FAF8F5] font-medium focus:outline-hidden focus:border-[#8C6239] transition"
                                         >
                                             {EXAM_TYPES.map((t) => (
                                                 <option key={t} value={t} className="dark:bg-[#161412]">
@@ -394,12 +494,12 @@ export default function UploadPYQ() {
 
                                     <div>
                                         <label className="block text-xs font-bold text-[#4A3E31] dark:text-[#C2B3A0] mb-1.5">
-                                            Exam Year
+                                            Academic / Exam Year
                                         </label>
                                         <select
                                             value={pyqForm.examYear}
                                             onChange={(e) => setPyqForm({ ...pyqForm, examYear: e.target.value })}
-                                            className="w-full px-4 py-2.5 bg-white dark:bg-[#1C1916] border border-[#EAE2D8] dark:border-[#2E2822] rounded-xl text-xs text-[#0D1B2A] dark:text-[#FAF8F5] font-medium focus:outline-none focus:border-[#8C6239] transition"
+                                            className="w-full px-4 py-2.5 bg-white dark:bg-[#1C1916] border border-[#EAE2D8] dark:border-[#2E2822] rounded-xl text-xs text-[#0D1B2A] dark:text-[#FAF8F5] font-medium focus:outline-hidden focus:border-[#8C6239] transition"
                                         >
                                             {EXAM_YEARS.map((yr) => (
                                                 <option key={yr} value={yr} className="dark:bg-[#161412]">
@@ -413,14 +513,14 @@ export default function UploadPYQ() {
                                 {/* Branch (optional) */}
                                 <div>
                                     <label className="block text-xs font-bold text-[#4A3E31] dark:text-[#C2B3A0] mb-1.5">
-                                        Branch (optional)
+                                        Branch / Specialization (optional)
                                     </label>
                                     <input
                                         type="text"
                                         value={pyqForm.branch}
                                         onChange={(e) => setPyqForm({ ...pyqForm, branch: e.target.value })}
-                                        placeholder="e.g. CSE, ECE, Mechanical..."
-                                        className="w-full px-4 py-2.5 bg-white dark:bg-[#1C1916] border border-[#EAE2D8] dark:border-[#2E2822] rounded-xl text-xs text-[#0D1B2A] dark:text-[#FAF8F5] font-medium placeholder:text-[#A8957E] focus:outline-none focus:border-[#8C6239] transition"
+                                        placeholder="e.g. Computer Science, AI-ML, Mechanical..."
+                                        className="w-full px-4 py-2.5 bg-white dark:bg-[#1C1916] border border-[#EAE2D8] dark:border-[#2E2822] rounded-xl text-xs text-[#0D1B2A] dark:text-[#FAF8F5] font-medium placeholder:text-[#A8957E] focus:outline-hidden focus:border-[#8C6239] transition"
                                     />
                                 </div>
                             </>
@@ -437,24 +537,29 @@ export default function UploadPYQ() {
                                         value={noteForm.title}
                                         onChange={(e) => setNoteForm({ ...noteForm, title: e.target.value })}
                                         placeholder="e.g. Data Structures & Algorithms Unit 1-5 Handwritten Kit"
-                                        className="w-full px-4 py-2.5 bg-white dark:bg-[#1C1916] border border-[#EAE2D8] dark:border-[#2E2822] rounded-xl text-xs text-[#0D1B2A] dark:text-[#FAF8F5] font-medium placeholder:text-[#A8957E] focus:outline-none focus:border-[#8C6239] transition"
+                                        className="w-full px-4 py-2.5 bg-white dark:bg-[#1C1916] border border-[#EAE2D8] dark:border-[#2E2822] rounded-xl text-xs text-[#0D1B2A] dark:text-[#FAF8F5] font-medium placeholder:text-[#A8957E] focus:outline-hidden focus:border-[#8C6239] transition"
                                     />
                                 </div>
 
-                                {/* Row: Course & Semester */}
+                                {/* Row: Live Course & Dynamic Semesters */}
                                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                     <div>
-                                        <label className="block text-xs font-bold text-[#4A3E31] dark:text-[#C2B3A0] mb-1.5">
-                                            Course
-                                        </label>
+                                        <div className="flex items-center justify-between mb-1.5">
+                                            <label className="text-xs font-bold text-[#4A3E31] dark:text-[#C2B3A0]">
+                                                Course / Degree Program *
+                                            </label>
+                                            {loadingCourses && (
+                                                <FaSpinner className="text-[10px] text-[#C89D5C] animate-spin" />
+                                            )}
+                                        </div>
                                         <select
-                                            value={noteForm.course}
-                                            onChange={(e) => setNoteForm({ ...noteForm, course: e.target.value })}
-                                            className="w-full px-4 py-2.5 bg-white dark:bg-[#1C1916] border border-[#EAE2D8] dark:border-[#2E2822] rounded-xl text-xs text-[#0D1B2A] dark:text-[#FAF8F5] font-medium focus:outline-none focus:border-[#8C6239] transition"
+                                            value={noteForm.courseId || courses.find((c) => c.name === noteForm.course)?._id || courses[0]?._id}
+                                            onChange={(e) => handleNoteCourseChange(e.target.value)}
+                                            className="w-full px-4 py-2.5 bg-white dark:bg-[#1C1916] border border-[#EAE2D8] dark:border-[#2E2822] rounded-xl text-xs text-[#0D1B2A] dark:text-[#FAF8F5] font-medium focus:outline-hidden focus:border-[#8C6239] transition"
                                         >
-                                            {COURSES.map((c) => (
-                                                <option key={c} value={c} className="dark:bg-[#161412]">
-                                                    {c}
+                                            {courses.map((c) => (
+                                                <option key={c._id} value={c._id} className="dark:bg-[#161412]">
+                                                    {c.name} ({c.code || "Program"})
                                                 </option>
                                             ))}
                                         </select>
@@ -462,16 +567,16 @@ export default function UploadPYQ() {
 
                                     <div>
                                         <label className="block text-xs font-bold text-[#4A3E31] dark:text-[#C2B3A0] mb-1.5">
-                                            Semester
+                                            Semester * <span className="text-[10px] text-[#8C7862]">({noteSemesters.length} Semesters available)</span>
                                         </label>
                                         <select
                                             value={noteForm.semester}
                                             onChange={(e) => setNoteForm({ ...noteForm, semester: e.target.value })}
-                                            className="w-full px-4 py-2.5 bg-white dark:bg-[#1C1916] border border-[#EAE2D8] dark:border-[#2E2822] rounded-xl text-xs text-[#0D1B2A] dark:text-[#FAF8F5] font-medium focus:outline-none focus:border-[#8C6239] transition"
+                                            className="w-full px-4 py-2.5 bg-white dark:bg-[#1C1916] border border-[#EAE2D8] dark:border-[#2E2822] rounded-xl text-xs text-[#0D1B2A] dark:text-[#FAF8F5] font-medium focus:outline-hidden focus:border-[#8C6239] transition"
                                         >
-                                            {SEMESTERS.map((s) => (
-                                                <option key={s.value} value={s.value} className="dark:bg-[#161412]">
-                                                    {s.label}
+                                            {noteSemesters.map((s) => (
+                                                <option key={s} value={String(s)} className="dark:bg-[#161412]">
+                                                    Semester {s}
                                                 </option>
                                             ))}
                                         </select>
@@ -487,7 +592,7 @@ export default function UploadPYQ() {
                                         <select
                                             value={noteForm.unit}
                                             onChange={(e) => setNoteForm({ ...noteForm, unit: e.target.value })}
-                                            className="w-full px-4 py-2.5 bg-white dark:bg-[#1C1916] border border-[#EAE2D8] dark:border-[#2E2822] rounded-xl text-xs text-[#0D1B2A] dark:text-[#FAF8F5] font-medium focus:outline-none focus:border-[#8C6239] transition"
+                                            className="w-full px-4 py-2.5 bg-white dark:bg-[#1C1916] border border-[#EAE2D8] dark:border-[#2E2822] rounded-xl text-xs text-[#0D1B2A] dark:text-[#FAF8F5] font-medium focus:outline-hidden focus:border-[#8C6239] transition"
                                         >
                                             {UNITS.map((u) => (
                                                 <option key={u} value={u} className="dark:bg-[#161412]">
@@ -506,7 +611,7 @@ export default function UploadPYQ() {
                                             value={noteForm.author}
                                             onChange={(e) => setNoteForm({ ...noteForm, author: e.target.value })}
                                             placeholder={user?.fullName || "Prof. / Student Name"}
-                                            className="w-full px-4 py-2.5 bg-white dark:bg-[#1C1916] border border-[#EAE2D8] dark:border-[#2E2822] rounded-xl text-xs text-[#0D1B2A] dark:text-[#FAF8F5] font-medium placeholder:text-[#A8957E] focus:outline-none focus:border-[#8C6239] transition"
+                                            className="w-full px-4 py-2.5 bg-white dark:bg-[#1C1916] border border-[#EAE2D8] dark:border-[#2E2822] rounded-xl text-xs text-[#0D1B2A] dark:text-[#FAF8F5] font-medium placeholder:text-[#A8957E] focus:outline-hidden focus:border-[#8C6239] transition"
                                         />
                                     </div>
                                 </div>
@@ -514,14 +619,14 @@ export default function UploadPYQ() {
                                 {/* Branch (optional) */}
                                 <div>
                                     <label className="block text-xs font-bold text-[#4A3E31] dark:text-[#C2B3A0] mb-1.5">
-                                        Branch (optional)
+                                        Branch / Specialization (optional)
                                     </label>
                                     <input
                                         type="text"
                                         value={noteForm.branch}
                                         onChange={(e) => setNoteForm({ ...noteForm, branch: e.target.value })}
                                         placeholder="e.g. CSE, ECE, Mechanical..."
-                                        className="w-full px-4 py-2.5 bg-white dark:bg-[#1C1916] border border-[#EAE2D8] dark:border-[#2E2822] rounded-xl text-xs text-[#0D1B2A] dark:text-[#FAF8F5] font-medium placeholder:text-[#A8957E] focus:outline-none focus:border-[#8C6239] transition"
+                                        className="w-full px-4 py-2.5 bg-white dark:bg-[#1C1916] border border-[#EAE2D8] dark:border-[#2E2822] rounded-xl text-xs text-[#0D1B2A] dark:text-[#FAF8F5] font-medium placeholder:text-[#A8957E] focus:outline-hidden focus:border-[#8C6239] transition"
                                     />
                                 </div>
                             </>
@@ -531,13 +636,12 @@ export default function UploadPYQ() {
                         <div className="pt-2">
                             <div
                                 {...getRootProps()}
-                                className={`border-2 border-dashed rounded-2xl p-8 text-center cursor-pointer transition-all duration-200 ${
-                                    isDragActive
+                                className={`border-2 border-dashed rounded-2xl p-8 text-center cursor-pointer transition-all duration-200 ${isDragActive
                                         ? "border-[#8C6239] bg-[#FAF8F5] dark:bg-[#24201C]"
                                         : file
-                                        ? "border-emerald-500/60 bg-emerald-50/20 dark:bg-emerald-950/20"
-                                        : "border-[#EAE2D8] dark:border-[#2E2822] hover:border-[#8C6239] bg-[#FAF8F5]/40 dark:bg-[#1C1916]/40"
-                                }`}
+                                            ? "border-emerald-500/60 bg-emerald-50/20 dark:bg-emerald-950/20"
+                                            : "border-[#EAE2D8] dark:border-[#2E2822] hover:border-[#8C6239] bg-[#FAF8F5]/40 dark:bg-[#1C1916]/40"
+                                    }`}
                             >
                                 <input {...getInputProps()} />
                                 {file ? (
@@ -657,15 +761,17 @@ export default function UploadPYQ() {
                                         setUploadedItem(null);
                                         setPyqForm({
                                             title: "",
-                                            course: "B.Tech",
+                                            courseId: courses[0]?._id || "",
+                                            course: courses[0]?.name || "",
                                             semester: "1",
                                             examType: "End Semester",
-                                            examYear: "2026",
+                                            examYear: "2024-25",
                                             branch: "",
                                         });
                                         setNoteForm({
                                             title: "",
-                                            course: "B.Tech",
+                                            courseId: courses[0]?._id || "",
+                                            course: courses[0]?.name || "",
                                             semester: "1",
                                             unit: "Complete Syllabus",
                                             author: "",
