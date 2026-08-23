@@ -117,6 +117,17 @@ const pyqSchema = new mongoose.Schema(
       default: null,
       index: true,
     },
+    userEmail: {
+      type: String,
+      default: "",
+      trim: true,
+      index: true,
+    },
+    userName: {
+      type: String,
+      default: "",
+      trim: true,
+    },
     status: {
       type: String,
       enum: ["pending", "approved", "rejected"],

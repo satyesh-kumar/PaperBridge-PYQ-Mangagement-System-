@@ -1200,6 +1200,17 @@ app.post("/api/upload", requireAuth(), upload.single("file"), async (req, res) =
 
     const parsedSemester = (semester && !isNaN(Number(semester))) ? Number(semester) : 1;
 
+    // Resolve uploader identity
+    const uploaderUserId = req.auth?.userId || req.headers["x-user-id"] || req.body?.userId || null;
+    const uploaderEmail = (
+      req.body?.userEmail ||
+      req.headers["x-user-email"] ||
+      ""
+    ).toLowerCase().trim();
+    const uploaderName = req.body?.userName || "";
+
+    const finalUploaderId = uploaderUserId || uploaderEmail || "anonymous";
+
     const pyq = await PYQ.create({
       title: title.trim(),
       universityId: universityId || null,
@@ -1218,10 +1229,12 @@ app.post("/api/upload", requireAuth(), upload.single("file"), async (req, res) =
       description: description || "",
       fileUrl: result.secure_url,
       fileSize: req.file.size || 0,
-      uploadedBy: req.auth.userId,
+      uploadedBy: finalUploaderId,
+      userEmail: uploaderEmail,
+      userName: uploaderName,
       status: initialStatus,
       ...(isAdmin && {
-        reviewedBy: req.auth.userId,
+        reviewedBy: finalUploaderId,
         reviewedAt: new Date(),
       }),
     });
@@ -1327,14 +1340,32 @@ app.get("/api/admin/pyqs", requireAdmin, async (req, res) => {
 });
 
 // Get papers uploaded by the authenticated user
-app.get("/api/my-pyqs", requireAuth(), async (req, res) => {
+app.get("/api/my-pyqs", async (req, res) => {
   try {
-    const clerkId = req.auth.userId;
-    const pyqs = await PYQ.find({ uploadedBy: clerkId })
+    const clerkId = req.auth?.userId || req.headers["x-user-id"];
+    const userEmail = (
+      req.headers["x-user-email"] ||
+      req.query?.email ||
+      ""
+    ).toLowerCase().trim();
+
+    if (!clerkId && !userEmail) {
+      return res.json([]);
+    }
+
+    const conditions = [];
+    if (clerkId) conditions.push({ uploadedBy: clerkId });
+    if (userEmail) {
+      conditions.push({ uploadedBy: userEmail });
+      conditions.push({ userEmail: userEmail });
+    }
+
+    const pyqs = await PYQ.find({ $or: conditions })
       .populate("universityId", "name code")
       .populate("courseId", "name code")
       .populate("subjectId", "name code")
       .sort({ createdAt: -1, _id: -1 });
+
     res.json(pyqs);
   } catch (err) {
     res.status(500).json({ error: "Failed to fetch your papers" });
@@ -1578,6 +1609,17 @@ app.post("/api/notes/upload", requireAuth(), upload.single("file"), async (req, 
     const isAdmin = await isUserAdmin(req);
     const initialStatus = isAdmin ? "approved" : "pending";
 
+    // Resolve uploader identity
+    const uploaderUserId = req.auth?.userId || req.headers["x-user-id"] || req.body?.userId || null;
+    const uploaderEmail = (
+      req.body?.userEmail ||
+      req.headers["x-user-email"] ||
+      ""
+    ).toLowerCase().trim();
+    const uploaderName = req.body?.userName || "";
+
+    const finalUploaderId = uploaderUserId || uploaderEmail || "anonymous";
+
     const note = await Note.create({
       title: title.trim(),
       subject: subject || "General",
@@ -1595,10 +1637,12 @@ app.post("/api/notes/upload", requireAuth(), upload.single("file"), async (req, 
       description: description || "",
       fileUrl: result.secure_url,
       fileSize: req.file.size || 0,
-      uploadedBy: req.auth.userId,
+      uploadedBy: finalUploaderId,
+      userEmail: uploaderEmail,
+      userName: uploaderName,
       status: initialStatus,
       ...(isAdmin && {
-        reviewedBy: req.auth.userId,
+        reviewedBy: finalUploaderId,
         reviewedAt: new Date(),
       }),
     });
@@ -1683,14 +1727,32 @@ app.get("/api/admin/notes", requireAdmin, async (req, res) => {
 });
 
 // Get notes uploaded by the authenticated user
-app.get("/api/my-notes", requireAuth(), async (req, res) => {
+app.get("/api/my-notes", async (req, res) => {
   try {
-    const clerkId = req.auth.userId;
-    const notes = await Note.find({ uploadedBy: clerkId })
+    const clerkId = req.auth?.userId || req.headers["x-user-id"];
+    const userEmail = (
+      req.headers["x-user-email"] ||
+      req.query?.email ||
+      ""
+    ).toLowerCase().trim();
+
+    if (!clerkId && !userEmail) {
+      return res.json([]);
+    }
+
+    const conditions = [];
+    if (clerkId) conditions.push({ uploadedBy: clerkId });
+    if (userEmail) {
+      conditions.push({ uploadedBy: userEmail });
+      conditions.push({ userEmail: userEmail });
+    }
+
+    const notes = await Note.find({ $or: conditions })
       .populate("universityId", "name code")
       .populate("courseId", "name code")
       .populate("subjectId", "name code")
       .sort({ createdAt: -1, _id: -1 });
+
     res.json(notes);
   } catch (err) {
     res.status(500).json({ error: "Failed to fetch your study notes" });

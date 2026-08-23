@@ -1,12 +1,28 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useCallback } from "react";
 import { useAuth, useUser } from "@clerk/react";
 import { Link } from "react-router-dom";
 import axios from "axios";
-import { FaFilePdf, FaUpload, FaSearch, FaEye, FaClock, FaCheckCircle, FaTimesCircle, FaStickyNote, FaUniversity, FaUserGraduate, FaBookmark, FaTrash } from "react-icons/fa";
+import {
+    FaFilePdf,
+    FaUpload,
+    FaSearch,
+    FaEye,
+    FaDownload,
+    FaClock,
+    FaCheckCircle,
+    FaTimesCircle,
+    FaStickyNote,
+    FaUniversity,
+    FaBookmark,
+    FaTrash,
+    FaSyncAlt,
+} from "react-icons/fa";
 import Navbar2 from "../components/Navbar2";
 import Footer from "../components/Footer";
 import PDFViewer from "../components/PDFViewer";
 import { getBookmarks, toggleBookmark } from "../utils/bookmarkHelper";
+import { downloadPDF } from "../utils/downloadHelper";
+import toast from "react-hot-toast";
 
 const API_URL = import.meta.env.VITE_API_URL || "http://localhost:5000";
 
@@ -16,6 +32,7 @@ const formatCourseBadge = (courseStr = "") => {
         "B.Tech Computer Science": "B.Tech CSE",
         "B.Tech Computer Science and Engineering": "B.Tech CSE",
         "Bachelor of Computer Applications": "BCA",
+        "Bachelor of Computer Applications-IBM": "BCA-IBM",
         "Master of Computer Applications": "MCA",
         "Master of Business Administration": "MBA",
         "Bachelor of Business Administration": "BBA",
@@ -36,8 +53,8 @@ const formatCourseBadge = (courseStr = "") => {
 
 function StatCard({ icon, label, value }) {
     return (
-        <div className="bg-white dark:bg-[#161412] rounded-3xl border border-[#EAE2D8] dark:border-[#2E2822] shadow-sm p-5 flex items-center gap-4">
-            <div className="w-11 h-11 rounded-2xl bg-[#F4EFEA] dark:bg-[#24201C] flex items-center justify-center text-xl text-[#8C6239] dark:text-[#E5C378]">
+        <div className="bg-white dark:bg-[#161412] rounded-3xl border border-[#EAE2D8] dark:border-[#2E2822] shadow-xs p-5 flex items-center gap-4">
+            <div className="w-11 h-11 rounded-2xl bg-[#FAF8F5] dark:bg-[#24201C] flex items-center justify-center text-xl text-[#8C6239] dark:text-[#E5C378]">
                 {icon}
             </div>
             <div>
@@ -70,44 +87,58 @@ function Dashboard() {
         return () => window.removeEventListener("paperbridge_bookmarks_updated", sync);
     }, []);
 
-    useEffect(() => {
+    const fetchUserData = useCallback(async () => {
         if (!isSignedIn) return;
 
-        const fetchData = async () => {
-            try {
-                const token = await getToken();
+        try {
+            setLoading(true);
+            const token = await getToken();
+            const userEmail = (
+                user?.primaryEmailAddress?.emailAddress ||
+                user?.emailAddresses?.[0]?.emailAddress ||
+                ""
+            ).toLowerCase().trim();
+            const userId = user?.id || "";
 
-                // Sync user to backend
-                await fetch(`${API_URL}/api/users`, {
+            // Sync user record to backend
+            if (token) {
+                fetch(`${API_URL}/api/users`, {
                     method: "POST",
-                    headers: { Authorization: `Bearer ${token}` },
-                });
-
-                // Fetch user's papers & notes concurrently
-                const [myRes, notesRes, allRes, allNotesRes] = await Promise.all([
-                    axios.get(`${API_URL}/api/my-pyqs`, {
-                        headers: { Authorization: `Bearer ${token}` },
-                    }),
-                    axios.get(`${API_URL}/api/my-notes`, {
-                        headers: { Authorization: `Bearer ${token}` },
-                    }),
-                    axios.get(`${API_URL}/api/pyqs`),
-                    axios.get(`${API_URL}/api/notes`),
-                ]);
-
-                setMyPapers(myRes.data || []);
-                setMyNotes(notesRes.data || []);
-                setAllPapersCount(allRes.data?.length || 0);
-                setAllNotesCount(allNotesRes.data?.length || 0);
-            } catch (err) {
-                console.error("Dashboard fetch error:", err);
-            } finally {
-                setLoading(false);
+                    headers: {
+                        Authorization: `Bearer ${token}`,
+                        ...(userEmail ? { "x-user-email": userEmail } : {}),
+                    },
+                }).catch(() => {});
             }
-        };
 
-        fetchData();
-    }, [isSignedIn, getToken]);
+            const authHeaders = {
+                ...(token ? { Authorization: `Bearer ${token}` } : {}),
+                ...(userId ? { "x-user-id": userId } : {}),
+                ...(userEmail ? { "x-user-email": userEmail } : {}),
+            };
+
+            const [myRes, notesRes, allRes, allNotesRes] = await Promise.all([
+                axios.get(`${API_URL}/api/my-pyqs?email=${encodeURIComponent(userEmail)}`, { headers: authHeaders, timeout: 20000 }).catch(() => ({ data: [] })),
+                axios.get(`${API_URL}/api/my-notes?email=${encodeURIComponent(userEmail)}`, { headers: authHeaders, timeout: 20000 }).catch(() => ({ data: [] })),
+                axios.get(`${API_URL}/api/pyqs`, { timeout: 20000 }).catch(() => ({ data: [] })),
+                axios.get(`${API_URL}/api/notes`, { timeout: 20000 }).catch(() => ({ data: [] })),
+            ]);
+
+            setMyPapers(Array.isArray(myRes.data) ? myRes.data : []);
+            setMyNotes(Array.isArray(notesRes.data) ? notesRes.data : []);
+            setAllPapersCount(Array.isArray(allRes.data) ? allRes.data.length : 0);
+            setAllNotesCount(Array.isArray(allNotesRes.data) ? allNotesRes.data.length : 0);
+        } catch (err) {
+            console.error("Dashboard fetch error:", err);
+            toast.error("Failed to load user library");
+        } finally {
+            setLoading(false);
+        }
+    }, [isSignedIn, getToken, user]);
+
+    useEffect(() => {
+        fetchUserData();
+    }, [fetchUserData]);
 
     if (!isSignedIn) {
         return (
@@ -116,7 +147,7 @@ function Dashboard() {
                 <div className="min-h-screen flex items-center justify-center bg-[#FAF8F5] dark:bg-[#0F0E0D] p-6 text-[#1A1614] dark:text-[#F5F2EC]">
                     <div className="bg-white dark:bg-[#161412] rounded-3xl p-8 text-center shadow-sm border border-[#EAE2D8] dark:border-[#2E2822] max-w-sm w-full">
                         <h2 className="text-xl font-serif font-bold mb-1">Sign in Required</h2>
-                        <p className="text-[#8C7862] text-xs mb-5">Please sign in to view your United University student library.</p>
+                        <p className="text-[#8C7862] text-xs mb-5">Please sign in to view your personal academic library.</p>
                         <Link to="/" className="text-[#8C6239] dark:text-[#E5C378] font-semibold hover:underline text-xs">← Back to Home</Link>
                     </div>
                 </div>
@@ -141,35 +172,56 @@ function Dashboard() {
 
             <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8 w-full flex-1">
                 {/* Welcome header */}
-                <div className="bg-white dark:bg-[#161412] rounded-3xl border border-[#EAE2D8] dark:border-[#2E2822] shadow-sm p-6 sm:p-8 mb-6 flex flex-col sm:flex-row items-start sm:items-center gap-5">
-                    {avatarUrl && (
-                        <img
-                            src={avatarUrl}
-                            alt="avatar"
-                            className="w-14 h-14 rounded-2xl border-2 border-[#8C6239] dark:border-[#C5A059] object-cover shadow-sm"
-                        />
-                    )}
-                    <div className="flex-1">
-                        <h1 className="text-2xl sm:text-3xl font-serif font-bold text-[#1A1614] dark:text-[#FAF8F5] tracking-tight">
-                            Welcome, {firstName}
-                        </h1>
-                        <p className="text-[#8C7862] dark:text-[#A8957E] mt-1 text-xs sm:text-sm">
-                            Track your uploaded question papers & study notes, review statuses, and platform stats.
-                        </p>
+                <div className="bg-white dark:bg-[#161412] rounded-3xl border border-[#EAE2D8] dark:border-[#2E2822] shadow-xs p-6 sm:p-8 mb-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-5">
+                    <div className="flex items-center gap-4">
+                        {avatarUrl ? (
+                            <img
+                                src={avatarUrl}
+                                alt="avatar"
+                                className="w-14 h-14 rounded-2xl border-2 border-[#8C6239] dark:border-[#C5A059] object-cover shadow-xs"
+                            />
+                        ) : (
+                            <div className="w-14 h-14 rounded-2xl bg-[#0D1B2A] dark:bg-[#C89D5C] text-white dark:text-[#0D1B2A] flex items-center justify-center font-bold text-xl">
+                                {firstName.charAt(0).toUpperCase()}
+                            </div>
+                        )}
+                        <div>
+                            <div className="flex items-center gap-2">
+                                <h1 className="text-2xl sm:text-3xl font-serif font-bold text-[#1A1614] dark:text-[#FAF8F5] tracking-tight">
+                                    Welcome, {firstName}
+                                </h1>
+                                <span className="px-2.5 py-0.5 rounded-full bg-[#F4EFEA] dark:bg-[#24201C] text-[#8C6239] dark:text-[#E5C378] text-[10px] font-bold uppercase border border-[#DDD2C4] dark:border-[#2E2822]">
+                                    Student Library
+                                </span>
+                            </div>
+                            <p className="text-[#8C7862] dark:text-[#A8957E] mt-1 text-xs sm:text-sm">
+                                Track your uploaded question papers & study notes, review statuses, and platform stats.
+                            </p>
+                        </div>
                     </div>
-                    <Link
-                        to="/upload"
-                        className="bg-[#4A2E1B] hover:bg-[#331F12] dark:bg-[#C5A059] dark:hover:bg-[#E5C378] text-white dark:text-[#0F0E0D] px-6 py-2.5 rounded-full text-xs font-bold shadow-xs transition"
-                    >
-                        + Upload Material ↗
-                    </Link>
+
+                    <div className="flex items-center gap-2 w-full sm:w-auto">
+                        <button
+                            onClick={fetchUserData}
+                            className="p-2.5 rounded-2xl bg-[#FAF8F5] dark:bg-[#1C1916] hover:bg-[#F4EFEA] dark:hover:bg-[#24201C] text-[#4A3E31] dark:text-[#FAF8F5] border border-[#EAE2D8] dark:border-[#2E2822] flex items-center justify-center transition cursor-pointer shadow-2xs"
+                            title="Refresh Library"
+                        >
+                            <FaSyncAlt className="text-xs text-[#8C6239] dark:text-[#E5C378]" />
+                        </button>
+                        <Link
+                            to="/upload"
+                            className="flex-1 sm:flex-none inline-flex items-center justify-center gap-1.5 px-5 py-2.5 rounded-full bg-[#0D1B2A] hover:bg-[#1E293B] dark:bg-[#C89D5C] dark:hover:bg-[#E5C378] text-white dark:text-[#0D1B2A] text-xs font-bold shadow-xs transition"
+                        >
+                            <FaUpload className="text-[10px]" /> + Upload Material ↗
+                        </Link>
+                    </div>
                 </div>
 
-                {/* Stats row */}
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-6">
+                {/* 4 Stat Cards */}
+                <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
                     <StatCard
                         icon="📄"
-                        label="Contributions"
+                        label="My Contributions"
                         value={loading ? "…" : totalSubmissions}
                     />
                     <StatCard
@@ -214,6 +266,9 @@ function Dashboard() {
                             <h2 className="text-lg font-serif font-bold text-[#1A1614] dark:text-[#FAF8F5]">
                                 My Uploads & Review Status
                             </h2>
+                            <p className="text-xs text-[#8C7862] dark:text-[#A8957E]">
+                                Direct access to your uploaded papers, review feedback, and saved bookmarks.
+                            </p>
                         </div>
 
                         {/* Tab Switcher */}
@@ -269,13 +324,18 @@ function Dashboard() {
                         <>
                             {myPapers.length === 0 ? (
                                 <div className="bg-white dark:bg-[#161412] rounded-3xl border border-[#EAE2D8] dark:border-[#2E2822] p-10 text-center shadow-xs">
-                                    <h3 className="text-base font-serif font-bold text-[#1A1614] dark:text-[#FAF8F5] mb-1">No question papers uploaded yet</h3>
-                                    <p className="text-[#8C7862] text-xs mb-5">
-                                        Share past United University exam question papers to help your classmates.
+                                    <div className="w-12 h-12 rounded-2xl bg-[#F4EFEA] dark:bg-[#24201C] text-[#8C6239] dark:text-[#E5C378] flex items-center justify-center text-xl mx-auto mb-3">
+                                        <FaFilePdf />
+                                    </div>
+                                    <h3 className="text-base font-serif font-bold text-[#1A1614] dark:text-[#FAF8F5] mb-1">
+                                        No question papers uploaded yet
+                                    </h3>
+                                    <p className="text-[#8C7862] text-xs mb-5 max-w-sm mx-auto">
+                                        Share past exam question papers to help your classmates and earn academic contributor status.
                                     </p>
                                     <Link
                                         to="/upload"
-                                        className="inline-flex items-center gap-1.5 bg-[#4A2E1B] dark:bg-[#C5A059] dark:text-[#0F0E0D] text-white px-5 py-2.5 rounded-full text-xs font-bold shadow-xs"
+                                        className="inline-flex items-center gap-1.5 bg-[#0D1B2A] hover:bg-[#1E293B] dark:bg-[#C89D5C] dark:hover:bg-[#E5C378] dark:text-[#0D1B2A] text-white px-5 py-2.5 rounded-full text-xs font-bold shadow-xs transition"
                                     >
                                         <FaUpload className="text-[10px]" /> Upload Paper ↗
                                     </Link>
@@ -292,26 +352,24 @@ function Dashboard() {
                                                 <div>
                                                     <div className="mb-3 flex items-center justify-between">
                                                         {status === "pending" && (
-                                                            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-medium bg-amber-50 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300 border border-amber-200 dark:border-amber-800">
+                                                            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-medium bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/30">
                                                                 <FaClock className="text-[10px]" /> Pending Review
                                                             </span>
                                                         )}
                                                         {status === "approved" && (
-                                                            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-medium bg-emerald-50 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800">
+                                                            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-medium bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30">
                                                                 <FaCheckCircle className="text-[10px]" /> Approved
                                                             </span>
                                                         )}
                                                         {status === "rejected" && (
-                                                            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-medium bg-rose-50 dark:bg-rose-950/60 text-rose-800 dark:text-rose-300 border border-rose-200 dark:border-rose-800">
+                                                            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-medium bg-rose-500/10 text-rose-600 border border-rose-500/30">
                                                                 <FaTimesCircle className="text-[10px]" /> Rejected
                                                             </span>
                                                         )}
 
-                                                        {paper.year && (
-                                                            <span className="text-[11px] font-semibold text-[#8C7862] dark:text-[#A8957E]">
-                                                                {paper.year}
-                                                            </span>
-                                                        )}
+                                                        <span className="text-[11px] font-semibold text-[#8C7862] dark:text-[#A8957E]">
+                                                            {paper.academicYear || paper.year || "2024-25"}
+                                                        </span>
                                                     </div>
 
                                                     <h3 className="font-serif font-bold text-[#1A1614] dark:text-[#FAF8F5] text-sm line-clamp-2 mb-1">
@@ -328,15 +386,23 @@ function Dashboard() {
                                                     )}
                                                 </div>
 
-                                                <button
-                                                    onClick={() => setSelectedPdf({
-                                                        fileUrl: paper.fileUrl,
-                                                        title: `${paper.title} (${formatCourseBadge(paper.courseId?.name || paper.course)})`,
-                                                    })}
-                                                    className="flex items-center justify-center gap-1.5 w-full bg-[#FAF8F5] dark:bg-[#1C1916] hover:bg-[#F4EFEA] dark:hover:bg-[#24201C] text-[#4A2E1B] dark:text-[#FAF8F5] border border-[#EAE2D8] dark:border-[#2E2822] py-2 px-3 rounded-full text-xs font-semibold transition cursor-pointer shadow-2xs"
-                                                >
-                                                    <FaEye className="text-xs text-[#8C6239] dark:text-[#E5C378]" /> View Paper
-                                                </button>
+                                                <div className="grid grid-cols-2 gap-2 pt-2 border-t border-[#EAE2D8] dark:border-[#2E2822]">
+                                                    <button
+                                                        onClick={() => setSelectedPdf({
+                                                            fileUrl: paper.fileUrl,
+                                                            title: `${paper.title} (${formatCourseBadge(paper.courseId?.name || paper.course)})`,
+                                                        })}
+                                                        className="flex items-center justify-center gap-1.5 bg-[#FAF8F5] dark:bg-[#1C1916] hover:bg-[#F4EFEA] dark:hover:bg-[#24201C] text-[#4A2E1B] dark:text-[#FAF8F5] border border-[#EAE2D8] dark:border-[#2E2822] py-2 px-3 rounded-full text-xs font-semibold transition cursor-pointer shadow-2xs"
+                                                    >
+                                                        <FaEye className="text-xs text-[#8C6239] dark:text-[#E5C378]" /> Preview
+                                                    </button>
+                                                    <button
+                                                        onClick={() => downloadPDF(paper.fileUrl, `${paper.title}.pdf`)}
+                                                        className="flex items-center justify-center gap-1.5 bg-[#FAF8F5] dark:bg-[#1C1916] hover:bg-[#F4EFEA] dark:hover:bg-[#24201C] text-[#4A2E1B] dark:text-[#FAF8F5] border border-[#EAE2D8] dark:border-[#2E2822] py-2 px-3 rounded-full text-xs font-semibold transition cursor-pointer shadow-2xs"
+                                                    >
+                                                        <FaDownload className="text-xs text-[#8C6239] dark:text-[#E5C378]" /> Download
+                                                    </button>
+                                                </div>
                                             </div>
                                         );
                                     })}
@@ -350,13 +416,18 @@ function Dashboard() {
                         <>
                             {myNotes.length === 0 ? (
                                 <div className="bg-white dark:bg-[#161412] rounded-3xl border border-[#EAE2D8] dark:border-[#2E2822] p-10 text-center shadow-xs">
-                                    <h3 className="text-base font-serif font-bold text-[#1A1614] dark:text-[#FAF8F5] mb-1">No study notes uploaded yet</h3>
-                                    <p className="text-[#8C7862] text-xs mb-5">
-                                        Upload handwritten notes, unit summaries, and formula sheets.
+                                    <div className="w-12 h-12 rounded-2xl bg-[#F4EFEA] dark:bg-[#24201C] text-[#8C6239] dark:text-[#E5C378] flex items-center justify-center text-xl mx-auto mb-3">
+                                        <FaStickyNote />
+                                    </div>
+                                    <h3 className="text-base font-serif font-bold text-[#1A1614] dark:text-[#FAF8F5] mb-1">
+                                        No study notes uploaded yet
+                                    </h3>
+                                    <p className="text-[#8C7862] text-xs mb-5 max-w-sm mx-auto">
+                                        Upload handwritten notes, unit summaries, and formula sheets to share with peers.
                                     </p>
                                     <Link
                                         to="/upload"
-                                        className="inline-flex items-center gap-1.5 bg-[#4A2E1B] dark:bg-[#C5A059] dark:text-[#0F0E0D] text-white px-5 py-2.5 rounded-full text-xs font-bold shadow-xs"
+                                        className="inline-flex items-center gap-1.5 bg-[#0D1B2A] hover:bg-[#1E293B] dark:bg-[#C89D5C] dark:hover:bg-[#E5C378] dark:text-[#0D1B2A] text-white px-5 py-2.5 rounded-full text-xs font-bold shadow-xs transition"
                                     >
                                         <FaUpload className="text-[10px]" /> Upload Study Notes ↗
                                     </Link>
@@ -373,31 +444,31 @@ function Dashboard() {
                                                 <div>
                                                     <div className="mb-3 flex items-center justify-between">
                                                         {status === "pending" && (
-                                                            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-medium bg-amber-50 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300 border border-amber-200 dark:border-amber-800">
+                                                            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-medium bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/30">
                                                                 <FaClock className="text-[10px]" /> Pending Review
                                                             </span>
                                                         )}
                                                         {status === "approved" && (
-                                                            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-medium bg-emerald-50 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800">
+                                                            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-medium bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30">
                                                                 <FaCheckCircle className="text-[10px]" /> Approved
                                                             </span>
                                                         )}
                                                         {status === "rejected" && (
-                                                            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-medium bg-rose-50 dark:bg-rose-950/60 text-rose-800 dark:text-rose-300 border border-rose-200 dark:border-rose-800">
+                                                            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-medium bg-rose-500/10 text-rose-600 border border-rose-500/30">
                                                                 <FaTimesCircle className="text-[10px]" /> Rejected
                                                             </span>
                                                         )}
 
                                                         <span className="text-[11px] font-semibold text-[#8C7862] dark:text-[#A8957E]">
-                                                            {note.unit}
+                                                            {note.unit || "Unit 1"}
                                                         </span>
                                                     </div>
 
                                                     <h3 className="font-serif font-bold text-[#1A1614] dark:text-[#FAF8F5] text-sm line-clamp-2 mb-1">
                                                         {note.title}
                                                     </h3>
-                                                    <p className="text-[11px] text-[#8C6239] dark:text-[#E5C378] font-semibold mb-4">
-                                                        {note.subject}
+                                                    <p className="text-[11px] text-[#8C7862] dark:text-[#A8957E] mb-4">
+                                                        {note.universityId?.name || note.university} • {formatCourseBadge(note.courseId?.name || note.course)}{note.semester ? ` • Sem ${note.semester}` : ""}
                                                     </p>
 
                                                     {status === "rejected" && note.rejectionReason && (
@@ -407,15 +478,23 @@ function Dashboard() {
                                                     )}
                                                 </div>
 
-                                                <button
-                                                    onClick={() => setSelectedPdf({
-                                                        fileUrl: note.fileUrl,
-                                                        title: `${note.title} (${note.subject || "Study Notes"})`,
-                                                    })}
-                                                    className="flex items-center justify-center gap-1.5 w-full bg-[#FAF8F5] dark:bg-[#1C1916] hover:bg-[#F4EFEA] dark:hover:bg-[#24201C] text-[#4A2E1B] dark:text-[#FAF8F5] border border-[#EAE2D8] dark:border-[#2E2822] py-2 px-3 rounded-full text-xs font-semibold transition cursor-pointer shadow-2xs"
-                                                >
-                                                    <FaEye className="text-xs text-[#8C6239] dark:text-[#E5C378]" /> View Study Notes
-                                                </button>
+                                                <div className="grid grid-cols-2 gap-2 pt-2 border-t border-[#EAE2D8] dark:border-[#2E2822]">
+                                                    <button
+                                                        onClick={() => setSelectedPdf({
+                                                            fileUrl: note.fileUrl,
+                                                            title: `${note.title} (${note.subject || "Study Notes"})`,
+                                                        })}
+                                                        className="flex items-center justify-center gap-1.5 bg-[#FAF8F5] dark:bg-[#1C1916] hover:bg-[#F4EFEA] dark:hover:bg-[#24201C] text-[#4A2E1B] dark:text-[#FAF8F5] border border-[#EAE2D8] dark:border-[#2E2822] py-2 px-3 rounded-full text-xs font-semibold transition cursor-pointer shadow-2xs"
+                                                    >
+                                                        <FaEye className="text-xs text-[#8C6239] dark:text-[#E5C378]" /> Preview
+                                                    </button>
+                                                    <button
+                                                        onClick={() => downloadPDF(note.fileUrl, `${note.title}.pdf`)}
+                                                        className="flex items-center justify-center gap-1.5 bg-[#FAF8F5] dark:bg-[#1C1916] hover:bg-[#F4EFEA] dark:hover:bg-[#24201C] text-[#4A2E1B] dark:text-[#FAF8F5] border border-[#EAE2D8] dark:border-[#2E2822] py-2 px-3 rounded-full text-xs font-semibold transition cursor-pointer shadow-2xs"
+                                                    >
+                                                        <FaDownload className="text-xs text-[#8C6239] dark:text-[#E5C378]" /> Download
+                                                    </button>
+                                                </div>
                                             </div>
                                         );
                                     })}
@@ -429,16 +508,18 @@ function Dashboard() {
                         <>
                             {bookmarks.length === 0 ? (
                                 <div className="bg-white dark:bg-[#161412] rounded-3xl border border-[#EAE2D8] dark:border-[#2E2822] p-10 text-center shadow-xs">
-                                    <div className="w-12 h-12 rounded-2xl bg-amber-50 dark:bg-amber-950/40 text-amber-500 flex items-center justify-center text-xl mx-auto mb-3">
+                                    <div className="w-12 h-12 rounded-2xl bg-amber-500/10 text-amber-500 flex items-center justify-center text-xl mx-auto mb-3">
                                         <FaBookmark />
                                     </div>
-                                    <h3 className="text-base font-serif font-bold text-[#1A1614] dark:text-[#FAF8F5] mb-1">No bookmarked papers yet</h3>
-                                    <p className="text-[#8C7862] text-xs mb-5">
-                                        Click the bookmark star on any question paper or study note to save it here for fast revision.
+                                    <h3 className="text-base font-serif font-bold text-[#1A1614] dark:text-[#FAF8F5] mb-1">
+                                        No bookmarked papers yet
+                                    </h3>
+                                    <p className="text-[#8C7862] text-xs mb-5 max-w-sm mx-auto">
+                                        Click the bookmark icon on any question paper or study note to save it here for quick access.
                                     </p>
                                     <Link
                                         to="/browse"
-                                        className="inline-flex items-center gap-1.5 bg-[#0D1B2A] dark:bg-[#C89D5C] text-white dark:text-[#0D1B2A] px-5 py-2.5 rounded-full text-xs font-bold shadow-xs"
+                                        className="inline-flex items-center gap-1.5 bg-[#0D1B2A] hover:bg-[#1E293B] dark:bg-[#C89D5C] dark:hover:bg-[#E5C378] text-white dark:text-[#0D1B2A] px-5 py-2.5 rounded-full text-xs font-bold shadow-xs transition"
                                     >
                                         <FaSearch className="text-[10px]" /> Browse Papers ↗
                                     </Link>
@@ -472,15 +553,23 @@ function Dashboard() {
                                                 </p>
                                             </div>
 
-                                            <button
-                                                onClick={() => setSelectedPdf({
-                                                    fileUrl: item.fileUrl,
-                                                    title: item.title || "Saved Document",
-                                                })}
-                                                className="flex items-center justify-center gap-1.5 w-full bg-[#FAF8F5] dark:bg-[#1C1916] hover:bg-[#F4EFEA] dark:hover:bg-[#24201C] text-[#4A2E1B] dark:text-[#FAF8F5] border border-[#EAE2D8] dark:border-[#2E2822] py-2 px-3 rounded-full text-xs font-semibold transition cursor-pointer shadow-2xs"
-                                            >
-                                                <FaEye className="text-xs text-[#8C6239] dark:text-[#E5C378]" /> View Document
-                                            </button>
+                                            <div className="grid grid-cols-2 gap-2 pt-2 border-t border-[#EAE2D8] dark:border-[#2E2822]">
+                                                <button
+                                                    onClick={() => setSelectedPdf({
+                                                        fileUrl: item.fileUrl,
+                                                        title: item.title || "Saved Document",
+                                                    })}
+                                                    className="flex items-center justify-center gap-1.5 bg-[#FAF8F5] dark:bg-[#1C1916] hover:bg-[#F4EFEA] dark:hover:bg-[#24201C] text-[#4A2E1B] dark:text-[#FAF8F5] border border-[#EAE2D8] dark:border-[#2E2822] py-2 px-3 rounded-full text-xs font-semibold transition cursor-pointer shadow-2xs"
+                                                >
+                                                    <FaEye className="text-xs text-[#8C6239] dark:text-[#E5C378]" /> Preview
+                                                </button>
+                                                <button
+                                                    onClick={() => downloadPDF(item.fileUrl, `${item.title || "Document"}.pdf`)}
+                                                    className="flex items-center justify-center gap-1.5 bg-[#FAF8F5] dark:bg-[#1C1916] hover:bg-[#F4EFEA] dark:hover:bg-[#24201C] text-[#4A2E1B] dark:text-[#FAF8F5] border border-[#EAE2D8] dark:border-[#2E2822] py-2 px-3 rounded-full text-xs font-semibold transition cursor-pointer shadow-2xs"
+                                                >
+                                                    <FaDownload className="text-xs text-[#8C6239] dark:text-[#E5C378]" /> Download
+                                                </button>
+                                            </div>
                                         </div>
                                     ))}
                                 </div>

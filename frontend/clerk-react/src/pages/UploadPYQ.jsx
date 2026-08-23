@@ -276,19 +276,25 @@ export default function UploadPYQ() {
 
         try {
             setLoading(true);
-            const token = await getToken();
-            const userEmail = user?.primaryEmailAddress?.emailAddress || user?.emailAddresses?.[0]?.emailAddress || "";
+            const userEmail = (user?.primaryEmailAddress?.emailAddress || user?.emailAddresses?.[0]?.emailAddress || "").toLowerCase().trim();
             const data = new FormData();
 
             data.append("file", file);
             data.append("university", "United University");
+            if (user?.id) {
+                data.append("userId", user.id);
+            }
             if (userEmail) {
                 data.append("userEmail", userEmail);
+            }
+            if (user?.fullName || user?.firstName) {
+                data.append("userName", user.fullName || user.firstName || "");
             }
 
             const uploadHeaders = {
                 Authorization: `Bearer ${token}`,
                 "Content-Type": "multipart/form-data",
+                ...(user?.id && { "x-user-id": user.id }),
                 ...(userEmail && { "x-user-email": userEmail }),
             };
 
