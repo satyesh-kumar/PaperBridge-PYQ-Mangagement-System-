@@ -640,7 +640,7 @@ export default function UploadPYQ() {
                         <div className="pt-2">
                             <div
                                 {...getRootProps()}
-                                className={`border-2 border-dashed rounded-2xl p-8 text-center cursor-pointer transition-all duration-200 ${isDragActive
+                                className={`border-2 border-dashed rounded-2xl p-5 sm:p-8 text-center cursor-pointer transition-all duration-200 ${isDragActive
                                     ? "border-[#8C6239] bg-[#FAF8F5] dark:bg-[#24201C]"
                                     : file
                                         ? "border-emerald-500/60 bg-emerald-50/20 dark:bg-emerald-950/20"
@@ -653,20 +653,20 @@ export default function UploadPYQ() {
                                         <div className="w-12 h-12 rounded-2xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 flex items-center justify-center text-2xl mb-2">
                                             <FaFilePdf />
                                         </div>
-                                        <span className="font-bold text-xs text-[#0D1B2A] dark:text-[#FAF8F5] max-w-sm truncate">
+                                        <span className="font-bold text-xs text-[#0D1B2A] dark:text-[#FAF8F5] max-w-[220px] xs:max-w-xs sm:max-w-sm truncate">
                                             {file.name}
                                         </span>
                                         <span className="text-[11px] text-[#8C7862] mt-0.5">
                                             {(file.size / (1024 * 1024)).toFixed(2)} MB • Ready to upload
                                         </span>
-                                        <div className="flex items-center gap-3 mt-3">
+                                        <div className="flex items-center gap-2 sm:gap-3 mt-3 flex-wrap justify-center">
                                             <button
                                                 type="button"
                                                 onClick={(e) => {
                                                     e.stopPropagation();
                                                     setPreviewOpen(true);
                                                 }}
-                                                className="px-3 py-1 bg-white dark:bg-[#24201C] border border-[#DDD2C4] dark:border-[#2E2822] rounded-full text-xs font-semibold"
+                                                className="px-3.5 py-1.5 bg-white dark:bg-[#24201C] border border-[#DDD2C4] dark:border-[#2E2822] rounded-full text-xs font-semibold min-h-[36px]"
                                             >
                                                 <FaEye className="inline mr-1 text-[10px]" /> Local Preview
                                             </button>
@@ -676,7 +676,7 @@ export default function UploadPYQ() {
                                                     e.stopPropagation();
                                                     setFile(null);
                                                 }}
-                                                className="px-3 py-1 bg-rose-500/10 text-rose-600 rounded-full text-xs font-semibold"
+                                                className="px-3.5 py-1.5 bg-rose-500/10 text-rose-600 rounded-full text-xs font-semibold min-h-[36px]"
                                             >
                                                 <FaTrash className="inline mr-1 text-[10px]" /> Remove
                                             </button>

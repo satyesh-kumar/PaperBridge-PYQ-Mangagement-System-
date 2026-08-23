@@ -350,36 +350,38 @@ function Home() {
                         </div>
 
                         {/* Grand Editorial Headline */}
-                        <h1 className="text-4xl sm:text-5xl lg:text-6xl font-serif font-medium tracking-tight text-[#1A1614] dark:text-[#FAF8F5] leading-[1.12] mb-5">
-                            Find & Download Your <br />
+                        <h1 className="text-3xl xs:text-4xl sm:text-5xl lg:text-6xl font-serif font-medium tracking-tight text-[#1A1614] dark:text-[#FAF8F5] leading-[1.15] mb-4 sm:mb-5">
+                            Find & Download Your <br className="hidden xs:inline" />
                             <span className="text-[#8C6239] dark:text-[#E5C378] italic">
                                 University Exam Papers.
                             </span>
                         </h1>
 
                         {/* Subtitle explaining what it does & how it helps */}
-                        <p className="text-[#6B5B49] dark:text-[#C2B3A0] text-sm sm:text-base max-w-xl leading-relaxed mb-7 font-normal">
+                        <p className="text-[#6B5B49] dark:text-[#C2B3A0] text-xs sm:text-sm md:text-base max-w-xl leading-relaxed mb-6 sm:mb-7 font-normal">
                             Instant access to verified previous year question papers (PYQs), unit-wise handwritten study notes, and syllabus formula sheets across B.Tech, MCA, BCA, MBA & all university courses.
                         </p>
 
                         {/* Luxury Pill Search Bar */}
                         <form
                             onSubmit={handleSearchSubmit}
-                            className="w-full max-w-xl bg-white dark:bg-[#161412] border border-[#EAE2D8] dark:border-[#2E2822] p-1.5 rounded-full shadow-lg shadow-[#4A2E1B]/5 dark:shadow-black/40 flex items-center gap-2 transition-all focus-within:border-[#8C6239] dark:focus-within:border-[#C5A059] focus-within:ring-2 focus-within:ring-[#8C6239]/20"
+                            className="w-full max-w-xl bg-white dark:bg-[#161412] border border-[#EAE2D8] dark:border-[#2E2822] p-1.5 rounded-2xl sm:rounded-full shadow-lg shadow-[#4A2E1B]/5 dark:shadow-black/40 flex flex-col sm:flex-row items-stretch sm:items-center gap-1.5 sm:gap-2 transition-all focus-within:border-[#8C6239] dark:focus-within:border-[#C5A059] focus-within:ring-2 focus-within:ring-[#8C6239]/20"
                         >
-                            <div className="pl-4 text-[#A8957E] flex items-center justify-center">
-                                <FaSearch className="text-sm" />
+                            <div className="flex items-center flex-1 min-w-0">
+                                <div className="pl-3 sm:pl-4 text-[#A8957E] flex items-center justify-center shrink-0">
+                                    <FaSearch className="text-xs sm:text-sm" />
+                                </div>
+                                <input
+                                    type="text"
+                                    value={searchQuery}
+                                    onChange={(e) => setSearchQuery(e.target.value)}
+                                    placeholder="Search by course, paper title, or keyword..."
+                                    className="w-full bg-transparent border-none outline-none text-xs sm:text-sm text-[#1A1614] dark:text-[#FAF8F5] placeholder-[#A8957E] font-medium px-2 py-2"
+                                />
                             </div>
-                            <input
-                                type="text"
-                                value={searchQuery}
-                                onChange={(e) => setSearchQuery(e.target.value)}
-                                placeholder="Search by course, paper title, or keyword..."
-                                className="flex-1 bg-transparent border-none outline-none text-sm text-[#1A1614] dark:text-[#FAF8F5] placeholder-[#A8957E] font-medium px-2 py-2"
-                            />
                             <button
                                 type="submit"
-                                className="bg-[#4A2E1B] hover:bg-[#331F12] dark:bg-[#C5A059] dark:hover:bg-[#E5C378] text-white dark:text-[#0F0E0D] px-5 py-2.5 rounded-full text-xs font-bold transition-all duration-200 cursor-pointer flex items-center gap-1.5 shrink-0 shadow-sm"
+                                className="bg-[#4A2E1B] hover:bg-[#331F12] dark:bg-[#C5A059] dark:hover:bg-[#E5C378] text-white dark:text-[#0F0E0D] px-5 py-2.5 rounded-xl sm:rounded-full text-xs font-bold transition-all duration-200 cursor-pointer flex items-center justify-center gap-1.5 shrink-0 shadow-sm min-h-[42px]"
                             >
                                 <span>Search Papers</span>
                                 <span className="text-xs">↗</span>

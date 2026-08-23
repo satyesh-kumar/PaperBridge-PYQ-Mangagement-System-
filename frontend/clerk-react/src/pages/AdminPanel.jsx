@@ -731,31 +731,26 @@ export default function AdminPanel() {
                     </div>
 
                     {/* Quick Global Actions */}
-                    <div className="flex items-center gap-2 flex-wrap">
-                        <Link
-                            to="/"
-                            className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-[#FAF8F5] dark:bg-[#1C1916] hover:bg-[#F4EFEA] dark:hover:bg-[#24201C] text-[#4A3E31] dark:text-[#FAF8F5] text-xs font-semibold rounded-full border border-[#EAE2D8] dark:border-[#2E2822] transition cursor-pointer shadow-2xs"
-                        >
-                            <FaArrowLeft className="text-[10px]" /> Back to Site
-                        </Link>
-
+                    <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap">
                         <button
                             onClick={() => {
                                 setIsFullWidth((prev) => !prev);
                                 toggleBrowserFullscreen();
                             }}
-                            className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-white dark:bg-[#1C1916] hover:bg-[#FAF8F5] dark:hover:bg-[#24201C] text-[#4A3E31] dark:text-[#FAF8F5] text-xs font-semibold rounded-full border border-[#EAE2D8] dark:border-[#2E2822] transition cursor-pointer shadow-2xs"
+                            className="inline-flex items-center gap-1.5 px-3 py-1.5 sm:px-3.5 sm:py-2 bg-white dark:bg-[#1C1916] hover:bg-[#FAF8F5] dark:hover:bg-[#24201C] text-[#4A3E31] dark:text-[#FAF8F5] text-xs font-semibold rounded-full border border-[#EAE2D8] dark:border-[#2E2822] transition cursor-pointer shadow-2xs min-h-[36px]"
                             title={isFullWidth ? "Standard Layout" : "Full Screen View"}
                         >
                             {isFullWidth ? <FaCompress className="text-[#C89D5C] text-xs" /> : <FaExpand className="text-[#C89D5C] text-xs" />}
-                            <span>{isFullWidth ? "Standard Width" : "Full Screen"}</span>
+                            <span className="hidden sm:inline">{isFullWidth ? "Standard" : "Full Screen"}</span>
                         </button>
 
                         <button
                             onClick={handleExportCSV}
-                            className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-white dark:bg-[#1C1916] hover:bg-[#FAF8F5] dark:hover:bg-[#24201C] text-[#4A3E31] dark:text-[#FAF8F5] text-xs font-semibold rounded-full border border-[#EAE2D8] dark:border-[#2E2822] transition cursor-pointer shadow-2xs"
+                            className="inline-flex items-center gap-1.5 px-3 py-1.5 sm:px-3.5 sm:py-2 bg-white dark:bg-[#1C1916] hover:bg-[#FAF8F5] dark:hover:bg-[#24201C] text-[#4A3E31] dark:text-[#FAF8F5] text-xs font-semibold rounded-full border border-[#EAE2D8] dark:border-[#2E2822] transition cursor-pointer shadow-2xs min-h-[36px]"
+                            title="Export CSV"
                         >
-                            <FaFileCsv className="text-[#C89D5C]" /> Export CSV
+                            <FaFileCsv className="text-[#C89D5C]" />
+                            <span className="hidden sm:inline">Export CSV</span>
                         </button>
 
                         <button
@@ -763,16 +758,19 @@ export default function AdminPanel() {
                                 fetchAllData();
                                 toast.success("Repository refreshed!");
                             }}
-                            className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-white dark:bg-[#1C1916] hover:bg-[#FAF8F5] dark:hover:bg-[#24201C] text-[#4A3E31] dark:text-[#FAF8F5] text-xs font-semibold rounded-full border border-[#EAE2D8] dark:border-[#2E2822] transition cursor-pointer shadow-2xs"
+                            className="inline-flex items-center gap-1.5 px-3 py-1.5 sm:px-3.5 sm:py-2 bg-white dark:bg-[#1C1916] hover:bg-[#FAF8F5] dark:hover:bg-[#24201C] text-[#4A3E31] dark:text-[#FAF8F5] text-xs font-semibold rounded-full border border-[#EAE2D8] dark:border-[#2E2822] transition cursor-pointer shadow-2xs min-h-[36px]"
+                            title="Refresh Data"
                         >
-                            <FaSyncAlt className="text-[#C89D5C]" /> Refresh
+                            <FaSyncAlt className="text-[#C89D5C]" />
+                            <span className="hidden sm:inline">Refresh</span>
                         </button>
 
                         <Link
                             to="/upload"
-                            className="inline-flex items-center gap-1.5 px-4 py-2 bg-[#0D1B2A] hover:bg-[#1E293B] dark:bg-[#C89D5C] dark:hover:bg-[#E5C378] text-[#FAF8F5] dark:text-[#0D1B2A] text-xs font-bold rounded-full shadow-xs transition"
+                            className="inline-flex items-center gap-1.5 px-3.5 py-1.5 sm:px-4 sm:py-2 bg-[#0D1B2A] hover:bg-[#1E293B] dark:bg-[#C89D5C] dark:hover:bg-[#E5C378] text-[#FAF8F5] dark:text-[#0D1B2A] text-xs font-bold rounded-full shadow-xs transition min-h-[36px]"
                         >
-                            <FaPlus className="text-[10px]" /> Upload Material ↗
+                            <FaPlus className="text-[10px]" />
+                            <span>Upload</span>
                         </Link>
                     </div>
                 </div>

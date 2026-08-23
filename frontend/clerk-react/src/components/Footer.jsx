@@ -52,17 +52,17 @@ export default function Footer() {
             </div>
           </div>
 
-          <div className="flex items-center gap-3 shrink-0">
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5 sm:gap-3 w-full md:w-auto shrink-0">
             <Link
               to="/upload"
-              className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full bg-[#0D1B2A] hover:bg-[#1E293B] text-[#FAF8F5] dark:bg-[#C89D5C] dark:hover:bg-[#E5C378] dark:text-[#0D1B2A] text-xs font-bold shadow-sm transition"
+              className="inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-full bg-[#0D1B2A] hover:bg-[#1E293B] text-[#FAF8F5] dark:bg-[#C89D5C] dark:hover:bg-[#E5C378] dark:text-[#0D1B2A] text-xs font-bold shadow-sm transition min-h-[42px]"
             >
               <FaUpload className="text-[10px]" />
               <span>Contribute Paper ↗</span>
             </Link>
             <Link
               to="/browse"
-              className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full bg-white dark:bg-[#1A1614] border border-[#DDD2C4] dark:border-[#2E2822] text-[#0D1B2A] dark:text-[#FAF8F5] hover:bg-[#FAF8F5] text-xs font-semibold shadow-2xs transition"
+              className="inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-full bg-white dark:bg-[#1A1614] border border-[#DDD2C4] dark:border-[#2E2822] text-[#0D1B2A] dark:text-[#FAF8F5] hover:bg-[#FAF8F5] text-xs font-semibold shadow-2xs transition min-h-[42px]"
             >
               <FaFilePdf className="text-xs text-[#C89D5C]" />
               <span>Browse Repository</span>

@@ -95,9 +95,9 @@ function BrowseNotes() {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState("");
 
-    // Search and Filters
     const [search, setSearch] = useState(searchParams.get("q") || "");
     const [debouncedSearch, setDebouncedSearch] = useState(searchParams.get("q") || "");
+    const [isMobileFilterOpen, setIsMobileFilterOpen] = useState(false);
     const [courseFilter, setCourseFilter] = useState(searchParams.get("course") || "All");
     const [unitFilter, setUnitFilter] = useState(searchParams.get("unit") || "All");
     const [semesterFilter, setSemesterFilter] = useState(searchParams.get("semester") || "");
@@ -463,8 +463,22 @@ function BrowseNotes() {
                         </div>
 
                         {/* Controls */}
-                        <div className="flex items-center gap-2.5 shrink-0 flex-wrap">
-                            <div className="flex items-center gap-1.5 bg-[#FAF8F5] dark:bg-[#1C1916] border border-[#EAE2D8] dark:border-[#2E2822] rounded-full px-4 py-2 text-xs font-semibold text-[#4A3E31] dark:text-[#EAE2D8]">
+                        <div className="flex items-center gap-2 shrink-0 flex-wrap">
+                            {/* Mobile Filter Drawer Trigger */}
+                            <button
+                                type="button"
+                                onClick={() => setIsMobileFilterOpen(true)}
+                                className="md:hidden px-3.5 py-2 bg-[#FAF8F5] dark:bg-[#1C1916] border border-[#EAE2D8] dark:border-[#2E2822] text-[#4A3E31] dark:text-[#EAE2D8] rounded-full text-xs font-bold transition flex items-center gap-1.5 shadow-2xs cursor-pointer min-h-[38px]"
+                            >
+                                <span>Filters</span>
+                                {activeFiltersCount > 0 && (
+                                    <span className="w-4 h-4 rounded-full bg-[#8C6239] dark:bg-[#C5A059] text-white text-[9px] flex items-center justify-center font-bold">
+                                        {activeFiltersCount}
+                                    </span>
+                                )}
+                            </button>
+
+                            <div className="flex items-center gap-1.5 bg-[#FAF8F5] dark:bg-[#1C1916] border border-[#EAE2D8] dark:border-[#2E2822] rounded-full px-3.5 py-2 text-xs font-semibold text-[#4A3E31] dark:text-[#EAE2D8] min-h-[38px]">
                                 <FaSortAmountDown className="text-[#8C6239] dark:text-[#E5C378]" />
                                 <span className="text-[#8C7862] dark:text-[#A8957E] hidden sm:inline">Sort:</span>
                                 <select
@@ -478,7 +492,7 @@ function BrowseNotes() {
                                 </select>
                             </div>
 
-                            <div className="flex items-center bg-[#F4EFEA] dark:bg-[#1C1916] p-1 rounded-full border border-[#EAE2D8] dark:border-[#2E2822]">
+                            <div className="flex items-center bg-[#F4EFEA] dark:bg-[#1C1916] p-1 rounded-full border border-[#EAE2D8] dark:border-[#2E2822] min-h-[38px]">
                                 <button
                                     onClick={() => setViewMode("grid")}
                                     className={`p-2 rounded-full transition cursor-pointer ${
@@ -506,7 +520,7 @@ function BrowseNotes() {
                             {activeFiltersCount > 0 && (
                                 <button
                                     onClick={clearAllFilters}
-                                    className="px-4 py-2 bg-rose-50 dark:bg-rose-950/60 hover:bg-rose-100 text-rose-700 dark:text-rose-300 rounded-full text-xs font-semibold transition flex items-center gap-1 cursor-pointer border border-rose-200 dark:border-rose-800"
+                                    className="px-3.5 py-2 bg-rose-50 dark:bg-rose-950/60 hover:bg-rose-100 text-rose-700 dark:text-rose-300 rounded-full text-xs font-semibold transition flex items-center gap-1 cursor-pointer border border-rose-200 dark:border-rose-800 min-h-[38px]"
                                 >
                                     <FaTimes className="text-[10px]" /> Clear ({activeFiltersCount})
                                 </button>
@@ -514,8 +528,8 @@ function BrowseNotes() {
                         </div>
                     </div>
 
-                    {/* Secondary Filters */}
-                    <div className="mt-4 pt-4 border-t border-[#EAE2D8] dark:border-[#2E2822] grid grid-cols-2 sm:grid-cols-4 gap-3">
+                    {/* Secondary Filters (Hidden on Mobile) */}
+                    <div className="hidden md:grid mt-4 pt-4 border-t border-[#EAE2D8] dark:border-[#2E2822] grid-cols-2 sm:grid-cols-4 gap-3">
                         <div>
                             <label className="block text-[10px] font-bold text-[#8C7862] dark:text-[#A8957E] uppercase tracking-wider mb-1">
                                 University
@@ -598,6 +612,135 @@ function BrowseNotes() {
                             </select>
                         </div>
                     </div>
+
+                    {/* Mobile Slide-Over Filter Drawer Modal */}
+                    {isMobileFilterOpen && (
+                        <div className="fixed inset-0 z-50 md:hidden flex justify-end">
+                            <div
+                                className="fixed inset-0 bg-black/60 backdrop-blur-xs animate-in fade-in"
+                                onClick={() => setIsMobileFilterOpen(false)}
+                            />
+                            <div className="relative w-4/5 max-w-xs bg-white dark:bg-[#161412] h-full shadow-2xl border-l border-[#EAE2D8] dark:border-[#2E2822] flex flex-col p-6 overflow-y-auto animate-in slide-in-from-right duration-200 z-10">
+                                <div className="flex items-center justify-between pb-4 border-b border-[#EAE2D8] dark:border-[#2E2822] mb-6">
+                                    <h3 className="font-serif text-base font-bold text-[#1A1614] dark:text-[#FAF8F5]">
+                                        Filter Study Notes
+                                    </h3>
+                                    <button
+                                        onClick={() => setIsMobileFilterOpen(false)}
+                                        className="p-1.5 rounded-full bg-[#FAF8F5] dark:bg-[#1C1916] text-[#8C7862] hover:text-[#0D1B2A] cursor-pointer"
+                                    >
+                                        <FaTimes />
+                                    </button>
+                                </div>
+
+                                <div className="space-y-4 flex-1">
+                                    <div>
+                                        <label className="block text-[11px] font-bold text-[#8C7862] dark:text-[#A8957E] uppercase tracking-wider mb-1.5">
+                                            University
+                                        </label>
+                                        <select
+                                            value={universityFilter}
+                                            onChange={(e) => {
+                                                setUniversityFilter(e.target.value);
+                                                setCurrentPage(1);
+                                            }}
+                                            className="w-full bg-[#FAF8F5] dark:bg-[#1C1916] border border-[#EAE2D8] dark:border-[#2E2822] rounded-xl px-3 py-2.5 text-xs text-[#4A3E31] dark:text-[#FAF8F5] font-medium outline-none"
+                                        >
+                                            <option value="All">All Universities</option>
+                                            {universities.map((u) => (
+                                                <option key={u._id} value={u.name}>
+                                                    {u.name} ({u.code})
+                                                </option>
+                                            ))}
+                                        </select>
+                                    </div>
+
+                                    <div>
+                                        <label className="block text-[11px] font-bold text-[#8C7862] dark:text-[#A8957E] uppercase tracking-wider mb-1.5">
+                                            Course / Program
+                                        </label>
+                                        <select
+                                            value={courseFilter}
+                                            onChange={(e) => {
+                                                setCourseFilter(e.target.value);
+                                                setCurrentPage(1);
+                                            }}
+                                            className="w-full bg-[#FAF8F5] dark:bg-[#1C1916] border border-[#EAE2D8] dark:border-[#2E2822] rounded-xl px-3 py-2.5 text-xs text-[#4A3E31] dark:text-[#FAF8F5] font-medium outline-none"
+                                        >
+                                            <option value="All">All Courses</option>
+                                            {availableCourses.filter((c) => c !== "All").map((c) => (
+                                                <option key={c} value={c}>
+                                                    {formatCourseBadge(c)}
+                                                </option>
+                                            ))}
+                                        </select>
+                                    </div>
+
+                                    <div>
+                                        <label className="block text-[11px] font-bold text-[#8C7862] dark:text-[#A8957E] uppercase tracking-wider mb-1.5">
+                                            Unit / Module
+                                        </label>
+                                        <select
+                                            value={unitFilter}
+                                            onChange={(e) => {
+                                                setUnitFilter(e.target.value);
+                                                setCurrentPage(1);
+                                            }}
+                                            className="w-full bg-[#FAF8F5] dark:bg-[#1C1916] border border-[#EAE2D8] dark:border-[#2E2822] rounded-xl px-3 py-2.5 text-xs text-[#4A3E31] dark:text-[#FAF8F5] font-medium outline-none"
+                                        >
+                                            {UNITS.map((u) => (
+                                                <option key={u.value} value={u.value}>
+                                                    {u.label}
+                                                </option>
+                                            ))}
+                                        </select>
+                                    </div>
+
+                                    <div>
+                                        <label className="block text-[11px] font-bold text-[#8C7862] dark:text-[#A8957E] uppercase tracking-wider mb-1.5">
+                                            Semester
+                                        </label>
+                                        <select
+                                            value={semesterFilter}
+                                            onChange={(e) => {
+                                                setSemesterFilter(e.target.value);
+                                                setCurrentPage(1);
+                                            }}
+                                            className="w-full bg-[#FAF8F5] dark:bg-[#1C1916] border border-[#EAE2D8] dark:border-[#2E2822] rounded-xl px-3 py-2.5 text-xs text-[#4A3E31] dark:text-[#FAF8F5] font-medium outline-none"
+                                        >
+                                            {SEMESTERS.map((s) => (
+                                                <option key={s.value} value={s.value}>
+                                                    {s.label}
+                                                </option>
+                                            ))}
+                                        </select>
+                                    </div>
+                                </div>
+
+                                <div className="pt-6 border-t border-[#EAE2D8] dark:border-[#2E2822] space-y-2">
+                                    <button
+                                        type="button"
+                                        onClick={() => setIsMobileFilterOpen(false)}
+                                        className="w-full py-3 rounded-2xl bg-[#0D1B2A] hover:bg-[#1E293B] dark:bg-[#C89D5C] dark:hover:bg-[#E5C378] text-white dark:text-[#0D1B2A] text-xs font-bold transition min-h-[44px]"
+                                    >
+                                        Apply Filters ({filteredNotes.length} Results)
+                                    </button>
+                                    {activeFiltersCount > 0 && (
+                                        <button
+                                            type="button"
+                                            onClick={() => {
+                                                clearAllFilters();
+                                                setIsMobileFilterOpen(false);
+                                            }}
+                                            className="w-full py-2.5 rounded-2xl bg-rose-50 dark:bg-rose-950/40 text-rose-700 dark:text-rose-300 text-xs font-semibold transition"
+                                        >
+                                            Reset All Filters
+                                        </button>
+                                    )}
+                                </div>
+                            </div>
+                        </div>
+                    )}
                 </div>
 
                 {/* GUEST ACCESS BANNER */}

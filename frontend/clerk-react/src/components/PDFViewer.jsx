@@ -106,46 +106,46 @@ function PDFViewer({ fileUrl, title = "Document Preview", onClose }) {
 
     return (
         <div
-            className="fixed inset-0 bg-black/80 backdrop-blur-xs flex items-center justify-center z-[9999] p-3 sm:p-6"
+            className="fixed inset-0 bg-black/80 backdrop-blur-xs flex items-center justify-center z-[9999] p-2 sm:p-4 md:p-6"
             onClick={onClose}
         >
             <div
-                className="bg-[#FAF8F5] dark:bg-[#161412] w-full max-w-5xl h-[90vh] rounded-3xl shadow-2xl flex flex-col overflow-hidden border border-[#EAE2D8] dark:border-[#2E2822]"
+                className="bg-[#FAF8F5] dark:bg-[#161412] w-full max-w-5xl h-[94vh] sm:h-[88vh] rounded-2xl sm:rounded-3xl shadow-2xl flex flex-col overflow-hidden border border-[#EAE2D8] dark:border-[#2E2822]"
                 onClick={(e) => e.stopPropagation()}
             >
                 {/* Modal Header */}
-                <div className="flex items-center justify-between px-6 py-4 bg-[#2B1B10] dark:bg-[#1A1614] text-white border-b border-[#4A2E1B] dark:border-[#2E2822] shadow-sm">
-                    <div className="flex items-center gap-3 min-w-0">
-                        <div className="w-10 h-10 rounded-2xl bg-white/10 flex items-center justify-center shrink-0 border border-white/10 p-1">
-                            <PaperAirplaneIcon className="w-7 h-7" />
+                <div className="flex items-center justify-between px-3 sm:px-6 py-2.5 sm:py-3.5 bg-[#2B1B10] dark:bg-[#1A1614] text-white border-b border-[#4A2E1B] dark:border-[#2E2822] shadow-sm gap-2">
+                    <div className="flex items-center gap-2 sm:gap-3 min-w-0 flex-1">
+                        <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-xl sm:rounded-2xl bg-white/10 flex items-center justify-center shrink-0 border border-white/10 p-1">
+                            <PaperAirplaneIcon className="w-5 h-5 sm:w-7 sm:h-7" />
                         </div>
-                        <div className="min-w-0">
-                            <h3 className="text-sm font-serif font-bold text-white truncate max-w-xs sm:max-w-md md:max-w-lg">
+                        <div className="min-w-0 flex-1">
+                            <h3 className="text-xs sm:text-sm font-serif font-bold text-white truncate max-w-[160px] xs:max-w-[220px] sm:max-w-md md:max-w-lg">
                                 {title}
                             </h3>
-                            <p className="text-[11px] text-[#A8957E]">
-                                PaperBridge Reader • {viewerMode === "google" ? "Google Cloud Engine" : "Native High-Fidelity Engine"}
+                            <p className="text-[10px] sm:text-[11px] text-[#A8957E] truncate">
+                                {viewerMode === "google" ? "Google Cloud Engine" : "Native High-Fidelity Engine"}
                             </p>
                         </div>
                     </div>
 
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
                         {/* Switch Viewer Engine */}
                         <button
                             onClick={() => {
                                 setViewerMode((prev) => (prev === "google" ? "native" : "google"));
                             }}
-                            className="hidden sm:inline-flex items-center gap-1.5 px-3 py-1.5 bg-white/10 hover:bg-white/20 text-white text-xs font-semibold rounded-full transition cursor-pointer border border-white/10"
+                            className="hidden md:inline-flex items-center gap-1.5 px-3 py-1.5 bg-white/10 hover:bg-white/20 text-white text-xs font-semibold rounded-full transition cursor-pointer border border-white/10 min-h-[36px]"
                             title="Switch rendering engine if document does not display"
                         >
                             <FaSyncAlt className="text-[10px]" />
-                            <span>{viewerMode === "google" ? "Switch to Native" : "Switch to Google View"}</span>
+                            <span>{viewerMode === "google" ? "Native View" : "Google View"}</span>
                         </button>
 
                         <button
                             onClick={handleDownload}
                             title="Download PDF"
-                            className="flex items-center gap-1.5 px-4 py-1.5 bg-[#C5A059] hover:bg-[#E5C378] text-[#0F0E0D] text-xs font-bold rounded-full transition shadow-xs cursor-pointer"
+                            className="flex items-center gap-1.5 px-3 sm:px-4 py-1.5 bg-[#C5A059] hover:bg-[#E5C378] text-[#0F0E0D] text-xs font-bold rounded-full transition shadow-xs cursor-pointer min-h-[36px]"
                         >
                             <FaDownload className="text-xs" />
                             <span className="hidden sm:inline">Download</span>
@@ -156,7 +156,7 @@ function PDFViewer({ fileUrl, title = "Document Preview", onClose }) {
                             target="_blank"
                             rel="noopener noreferrer"
                             title="Open in new window"
-                            className="flex items-center gap-1.5 px-3 py-1.5 bg-white/10 hover:bg-white/20 text-white text-xs font-semibold rounded-full transition cursor-pointer border border-white/10"
+                            className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 bg-white/10 hover:bg-white/20 text-white text-xs font-semibold rounded-full transition cursor-pointer border border-white/10 min-h-[36px]"
                         >
                             <FaExternalLinkAlt className="text-xs" />
                             <span className="hidden sm:inline">Open</span>
@@ -165,7 +165,7 @@ function PDFViewer({ fileUrl, title = "Document Preview", onClose }) {
                         <button
                             onClick={onClose}
                             title="Close Preview (Esc)"
-                            className="w-8 h-8 rounded-full bg-white/10 hover:bg-rose-600 hover:text-white text-stone-300 flex items-center justify-center transition text-sm ml-1 cursor-pointer"
+                            className="w-8 h-8 sm:w-9 sm:h-9 rounded-full bg-white/10 hover:bg-rose-600 hover:text-white text-stone-300 flex items-center justify-center transition text-sm ml-0.5 cursor-pointer min-h-[36px] min-w-[36px]"
                         >
                             <FaTimes />
                         </button>
