@@ -542,7 +542,49 @@ function BrowseNotes() {
                     </div>
 
                     {/* Secondary Filters */}
-                    <div className="mt-4 pt-4 border-t border-[#EAE2D8] dark:border-[#2E2822] grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    <div className="mt-4 pt-4 border-t border-[#EAE2D8] dark:border-[#2E2822] grid grid-cols-2 sm:grid-cols-4 gap-3">
+                        <div>
+                            <label className="block text-[10px] font-bold text-[#8C7862] dark:text-[#A8957E] uppercase tracking-wider mb-1">
+                                University
+                            </label>
+                            <select
+                                value={universityFilter}
+                                onChange={(e) => {
+                                    setUniversityFilter(e.target.value);
+                                    setCurrentPage(1);
+                                }}
+                                className="w-full bg-[#FAF8F5] dark:bg-[#1C1916] border border-[#EAE2D8] dark:border-[#2E2822] rounded-xl px-3 py-2 text-xs text-[#4A3E31] dark:text-[#FAF8F5] font-medium outline-none focus:border-[#8C6239] transition"
+                            >
+                                <option value="All" className="dark:bg-[#161412]">All Universities</option>
+                                {universities.map((u) => (
+                                    <option key={u._id} value={u.name} className="dark:bg-[#161412]">
+                                        {u.name} ({u.code})
+                                    </option>
+                                ))}
+                            </select>
+                        </div>
+
+                        <div>
+                            <label className="block text-[10px] font-bold text-[#8C7862] dark:text-[#A8957E] uppercase tracking-wider mb-1">
+                                Course / Program
+                            </label>
+                            <select
+                                value={courseFilter}
+                                onChange={(e) => {
+                                    setCourseFilter(e.target.value);
+                                    setCurrentPage(1);
+                                }}
+                                className="w-full bg-[#FAF8F5] dark:bg-[#1C1916] border border-[#EAE2D8] dark:border-[#2E2822] rounded-xl px-3 py-2 text-xs text-[#4A3E31] dark:text-[#FAF8F5] font-medium outline-none focus:border-[#8C6239] transition"
+                            >
+                                <option value="All" className="dark:bg-[#161412]">All Courses</option>
+                                {availableCourses.filter((c) => c !== "All").map((c) => (
+                                    <option key={c} value={c} className="dark:bg-[#161412]">
+                                        {formatCourseBadge(c)}
+                                    </option>
+                                ))}
+                            </select>
+                        </div>
+
                         <div>
                             <label className="block text-[10px] font-bold text-[#8C7862] dark:text-[#A8957E] uppercase tracking-wider mb-1">
                                 Unit / Module
@@ -578,27 +620,6 @@ function BrowseNotes() {
                                 {SEMESTERS.map((s) => (
                                     <option key={s.value} value={s.value} className="dark:bg-[#161412]">
                                         {s.label}
-                                    </option>
-                                ))}
-                            </select>
-                        </div>
-
-                        <div>
-                            <label className="block text-[10px] font-bold text-[#8C7862] dark:text-[#A8957E] uppercase tracking-wider mb-1">
-                                University
-                            </label>
-                            <select
-                                value={universityFilter}
-                                onChange={(e) => {
-                                    setUniversityFilter(e.target.value);
-                                    setCurrentPage(1);
-                                }}
-                                className="w-full bg-[#FAF8F5] dark:bg-[#1C1916] border border-[#EAE2D8] dark:border-[#2E2822] rounded-xl px-3 py-2 text-xs text-[#4A3E31] dark:text-[#FAF8F5] font-medium outline-none focus:border-[#8C6239] transition"
-                            >
-                                <option value="All" className="dark:bg-[#161412]">All Universities</option>
-                                {universities.map((u) => (
-                                    <option key={u._id} value={u.name} className="dark:bg-[#161412]">
-                                        {u.name} ({u.code})
                                     </option>
                                 ))}
                             </select>
