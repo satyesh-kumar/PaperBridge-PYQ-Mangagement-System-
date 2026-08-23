@@ -190,8 +190,8 @@ function BrowseNotes() {
         const loadEntities = async () => {
             try {
                 const [uniRes, courseRes] = await Promise.all([
-                    axios.get(`${API_URL}/api/universities`, { timeout: 8000 }).catch(() => ({ data: [] })),
-                    axios.get(`${API_URL}/api/courses`, { timeout: 8000 }).catch(() => ({ data: [] })),
+                    axios.get(`${API_URL}/api/universities`, { timeout: 30000 }).catch(() => ({ data: [] })),
+                    axios.get(`${API_URL}/api/courses`, { timeout: 30000 }).catch(() => ({ data: [] })),
                 ]);
                 if (Array.isArray(uniRes.data) && uniRes.data.length > 0) {
                     setUniversities(uniRes.data);
@@ -215,7 +215,7 @@ function BrowseNotes() {
         const matched = courses.find((c) => c.name?.toLowerCase() === courseFilter.toLowerCase());
         if (matched) {
             axios
-                .get(`${API_URL}/api/semesters?courseId=${matched._id}`)
+                .get(`${API_URL}/api/semesters?courseId=${matched._id}`, { timeout: 30000 })
                 .then((res) => setSemesters(res.data || []))
                 .catch(() => setSemesters([]));
         } else {
@@ -228,7 +228,7 @@ function BrowseNotes() {
         setLoading(true);
         setError("");
         try {
-            const res = await axios.get(`${API_URL}/api/notes`, { timeout: 12000 });
+            const res = await axios.get(`${API_URL}/api/notes`, { timeout: 30000 });
             if (Array.isArray(res.data)) {
                 setNotes(res.data);
             } else {

@@ -261,36 +261,57 @@ app.get("/api/pdf/view", async (req, res) => {
     const candidateUrls = [];
 
     // If Cloudinary URL, extract public ID and create signed URLs
-    if (url.includes("res.cloudinary.com")) {
-      const match = url.match(/\/upload\/(?:v\d+\/)?(.+?)(?:\.pdf)?$/i);
-      const publicId = match ? match[1] : null;
+    if (url.includes("res.cloudinary.com") || url.includes("cloudinary.com")) {
+      const match = url.match(/\/upload\/(?:v\d+\/)?(.+)$/i);
+      const fullPublicId = match ? decodeURIComponent(match[1]) : null;
+      const basePublicId = fullPublicId ? fullPublicId.replace(/\.pdf$/i, "") : null;
 
-      if (publicId) {
+      const idsToTry = [fullPublicId, basePublicId].filter(Boolean);
+
+      for (const pid of idsToTry) {
         try {
-          const signedRawWithPdf = cloudinary.url(`${publicId}.pdf`, {
-            resource_type: "raw",
-            sign_url: true,
-            secure: true,
-            type: "upload",
-          });
-          candidateUrls.push(signedRawWithPdf);
+          // Authenticated private download URLs (works even when Cloudinary has restricted raw/PDF access)
+          candidateUrls.push(
+            cloudinary.utils.private_download_url(pid.endsWith(".pdf") ? pid : `${pid}.pdf`, "", {
+              resource_type: "raw",
+              type: "upload",
+            }),
+            cloudinary.utils.private_download_url(pid.replace(/\.pdf$/i, ""), "", {
+              resource_type: "raw",
+              type: "upload",
+            }),
+            cloudinary.utils.private_download_url(pid.replace(/\.pdf$/i, ""), "pdf", {
+              resource_type: "image",
+              type: "upload",
+            }),
+            cloudinary.utils.private_download_url(pid.replace(/\.pdf$/i, ""), "", {
+              resource_type: "image",
+              type: "upload",
+            })
+          );
 
-          const signedRawUrl = cloudinary.url(publicId, {
-            resource_type: "raw",
-            sign_url: true,
-            secure: true,
-            type: "upload",
-          });
-          candidateUrls.push(signedRawUrl);
-
-          const signedImageUrl = cloudinary.url(publicId, {
-            resource_type: "image",
-            format: "pdf",
-            sign_url: true,
-            secure: true,
-            type: "upload",
-          });
-          candidateUrls.push(signedImageUrl);
+          // Standard signed URLs
+          candidateUrls.push(
+            cloudinary.url(pid.endsWith(".pdf") ? pid : `${pid}.pdf`, {
+              resource_type: "raw",
+              sign_url: true,
+              secure: true,
+              type: "upload",
+            }),
+            cloudinary.url(pid.replace(/\.pdf$/i, ""), {
+              resource_type: "raw",
+              sign_url: true,
+              secure: true,
+              type: "upload",
+            }),
+            cloudinary.url(pid.replace(/\.pdf$/i, ""), {
+              resource_type: "image",
+              format: "pdf",
+              sign_url: true,
+              secure: true,
+              type: "upload",
+            })
+          );
         } catch (signErr) {
           console.warn("Cloudinary URL signing warning:", signErr.message);
         }
@@ -310,6 +331,7 @@ app.get("/api/pdf/view", async (req, res) => {
 
     let targetResponse = null;
     for (const testUrl of candidateUrls) {
+      if (!testUrl) continue;
       try {
         const resp = await fetch(testUrl);
         if (resp.ok) {
@@ -324,7 +346,8 @@ app.get("/api/pdf/view", async (req, res) => {
     // Authenticated Cloudinary fetch fallback if public access returned 401/404
     if ((!targetResponse || !targetResponse.ok) && process.env.CLOUDINARY_KEY && process.env.CLOUDINARY_SECRET) {
       const authHeader = "Basic " + Buffer.from(`${process.env.CLOUDINARY_KEY}:${process.env.CLOUDINARY_SECRET}`).toString("base64");
-      for (const testUrl of candidateUrls.slice(0, 5)) {
+      for (const testUrl of candidateUrls.slice(0, 8)) {
+        if (!testUrl) continue;
         try {
           const resp = await fetch(testUrl, { headers: { Authorization: authHeader } });
           if (resp.ok) {
@@ -340,7 +363,8 @@ app.get("/api/pdf/view", async (req, res) => {
     }
 
     res.setHeader("Content-Type", "application/pdf");
-    res.setHeader("Content-Disposition", "inline; filename=\"document.pdf\"");
+    res.setHeader("Content-Disposition", 'inline; filename="document.pdf"');
+    res.setHeader("Access-Control-Allow-Origin", "*");
     res.setHeader("Cache-Control", "public, max-age=86400");
 
     const arrayBuffer = await targetResponse.arrayBuffer();

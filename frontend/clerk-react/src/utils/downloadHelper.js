@@ -1,9 +1,11 @@
 import toast from "react-hot-toast";
 
+const API_URL = import.meta.env.VITE_API_URL || "http://localhost:5000";
+
 /**
  * Robustly download PDF from Cloudinary or any URL.
  * Automatically injects Cloudinary's `fl_attachment` flag when applicable
- * and uses blob fallback and direct link download to guarantee 100% success.
+ * and uses blob fallback, backend proxy, and direct link download to guarantee 100% success.
  */
 export async function downloadPDF(fileUrl, fileName = "paper") {
     if (!fileUrl) {
@@ -15,7 +17,34 @@ export async function downloadPDF(fileUrl, fileName = "paper") {
     const toastId = toast.loading("Starting download...");
 
     try {
-        // If Cloudinary URL, construct attachment URL
+        const proxyUrl = `${API_URL}/api/pdf/view?url=${encodeURIComponent(fileUrl)}`;
+        const candidateFetchUrls = [fileUrl, proxyUrl];
+
+        // Try blob fetch first (direct or via authenticated proxy)
+        for (const targetUrl of candidateFetchUrls) {
+            try {
+                const response = await fetch(targetUrl);
+                if (response.ok) {
+                    const blob = await response.blob();
+                    if (blob && blob.size > 0) {
+                        const blobUrl = window.URL.createObjectURL(blob);
+                        const link = document.createElement("a");
+                        link.href = blobUrl;
+                        link.download = cleanFileName;
+                        document.body.appendChild(link);
+                        link.click();
+                        document.body.removeChild(link);
+                        window.URL.revokeObjectURL(blobUrl);
+                        toast.success("Download started!", { id: toastId });
+                        return true;
+                    }
+                }
+            } catch {
+                // Continue to next fallback
+            }
+        }
+
+        // Anchor trigger with fl_attachment URL
         let downloadUrl = fileUrl;
         if (fileUrl.includes("res.cloudinary.com") && fileUrl.includes("/upload/")) {
             if (!fileUrl.includes("fl_attachment")) {
@@ -23,27 +52,6 @@ export async function downloadPDF(fileUrl, fileName = "paper") {
             }
         }
 
-        // Try direct blob fetch first
-        try {
-            const response = await fetch(fileUrl, { mode: "cors" });
-            if (response.ok) {
-                const blob = await response.blob();
-                const blobUrl = window.URL.createObjectURL(blob);
-                const link = document.createElement("a");
-                link.href = blobUrl;
-                link.download = cleanFileName;
-                document.body.appendChild(link);
-                link.click();
-                document.body.removeChild(link);
-                window.URL.revokeObjectURL(blobUrl);
-                toast.success("Download started!", { id: toastId });
-                return true;
-            }
-        } catch {
-            // Blob fetch failed (e.g. strict CORS), continue to attachment URL / anchor click
-        }
-
-        // Anchor trigger with fl_attachment URL
         const link = document.createElement("a");
         link.href = downloadUrl;
         link.target = "_blank";

@@ -14,7 +14,7 @@ function PDFViewer({ fileUrl, title = "Document Preview", onClose }) {
 
     // Compute proxy inline stream URL & Google viewer URL
     const proxyUrl = `${API_URL}/api/pdf/view?url=${encodeURIComponent(fileUrl || "")}`;
-    const googleViewerUrl = `https://docs.google.com/gview?url=${encodeURIComponent(fileUrl || "")}&embedded=true`;
+    const googleViewerUrl = `https://docs.google.com/gview?url=${encodeURIComponent(proxyUrl)}&embedded=true`;
 
     // Fetch PDF as inline blob to prevent unwanted raw downloads and ensure 100% reliable view
     useEffect(() => {
@@ -31,7 +31,7 @@ function PDFViewer({ fileUrl, title = "Document Preview", onClose }) {
             setLoading(true);
             setError(null);
 
-            // Potential fetch candidate URLs to handle raw/image Cloudinary paths
+            // Potential fetch candidate URLs to handle raw/image Cloudinary paths & proxy
             const candidates = [
                 proxyUrl,
                 fileUrl,
@@ -62,7 +62,7 @@ function PDFViewer({ fileUrl, title = "Document Preview", onClose }) {
 
             if (isMounted) {
                 if (foundBlob) {
-                    objectUrl = URL.createObjectURL(foundBlob);
+                    objectUrl = window.URL.createObjectURL(foundBlob);
                     setBlobUrl(objectUrl);
                     setViewerMode("native");
                     setLoading(false);
