@@ -140,6 +140,38 @@ const requireAdmin = async (req, res, next) => {
   }
 };
 
+// Helper: Check whether the current request is from an authorized Administrator
+const isUserAdmin = async (req) => {
+  try {
+    if (!req.auth || !req.auth.userId) return false;
+    const sessionClaims = req.auth.sessionClaims || {};
+    if (sessionClaims.metadata?.role === "admin") return true;
+
+    const adminEmails = getAdminEmails();
+    let userEmail = (sessionClaims.email || sessionClaims.primary_email || req.headers["x-user-email"] || "").toLowerCase().trim();
+
+    if (!userEmail && req.auth.userId && typeof clerkClient !== "undefined" && clerkClient.users) {
+      try {
+        const clerkUser = await clerkClient.users.getUser(req.auth.userId);
+        userEmail = (
+          clerkUser.primaryEmailAddress?.emailAddress ||
+          clerkUser.emailAddresses?.[0]?.emailAddress ||
+          ""
+        ).toLowerCase().trim();
+      } catch (err) {
+        // ignore
+      }
+    }
+
+    if (userEmail && adminEmails.includes(userEmail)) {
+      return true;
+    }
+    return false;
+  } catch (err) {
+    return false;
+  }
+};
+
 // ── MongoDB ───────────────────────────────────────────────────────────────────
 mongoose.connect(process.env.MONGO_URL)
   .then(async () => {
@@ -992,6 +1024,10 @@ app.post("/api/upload", requireAuth(), upload.single("file"), async (req, res) =
 
     const result = await uploadToCloudinary(req.file.buffer);
 
+    // Auto-approve if uploaded by an Administrator
+    const isAdmin = await isUserAdmin(req);
+    const initialStatus = isAdmin ? "approved" : "pending";
+
     const pyq = await PYQ.create({
       title: title.trim(),
       universityId: universityId || null,
@@ -1011,7 +1047,11 @@ app.post("/api/upload", requireAuth(), upload.single("file"), async (req, res) =
       fileUrl: result.secure_url,
       fileSize: req.file.size || 0,
       uploadedBy: req.auth.userId,
-      status: "pending",
+      status: initialStatus,
+      ...(isAdmin && {
+        reviewedBy: req.auth.userId,
+        reviewedAt: new Date(),
+      }),
     });
 
     res.status(201).json(pyq);
@@ -1360,6 +1400,10 @@ app.post("/api/notes/upload", requireAuth(), upload.single("file"), async (req, 
 
     const result = await uploadToCloudinary(req.file.buffer);
 
+    // Auto-approve if uploaded by an Administrator
+    const isAdmin = await isUserAdmin(req);
+    const initialStatus = isAdmin ? "approved" : "pending";
+
     const note = await Note.create({
       title: title.trim(),
       subject: subject || "General",
@@ -1378,7 +1422,11 @@ app.post("/api/notes/upload", requireAuth(), upload.single("file"), async (req, 
       fileUrl: result.secure_url,
       fileSize: req.file.size || 0,
       uploadedBy: req.auth.userId,
-      status: "pending",
+      status: initialStatus,
+      ...(isAdmin && {
+        reviewedBy: req.auth.userId,
+        reviewedAt: new Date(),
+      }),
     });
 
     res.status(201).json(note);

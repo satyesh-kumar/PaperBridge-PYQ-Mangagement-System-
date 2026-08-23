@@ -182,10 +182,17 @@ export default function UploadPYQ() {
         try {
             setLoading(true);
             const token = await getToken();
+            const userEmail = user?.primaryEmailAddress?.emailAddress || user?.emailAddresses?.[0]?.emailAddress || "";
             const data = new FormData();
 
             data.append("file", file);
             data.append("university", "United University");
+
+            const uploadHeaders = {
+                Authorization: `Bearer ${token}`,
+                "Content-Type": "multipart/form-data",
+                ...(userEmail && { "x-user-email": userEmail }),
+            };
 
             if (isPyq) {
                 data.append("title", pyqForm.title.trim());
@@ -198,10 +205,7 @@ export default function UploadPYQ() {
                 data.append("branch", pyqForm.branch ? pyqForm.branch.trim() : "");
 
                 const res = await axios.post(`${API_URL}/api/upload`, data, {
-                    headers: {
-                        Authorization: `Bearer ${token}`,
-                        "Content-Type": "multipart/form-data",
-                    },
+                    headers: uploadHeaders,
                     onUploadProgress: (progressEvent) => {
                         const percent = Math.round((progressEvent.loaded * 100) / progressEvent.total);
                         setUploadProgress(percent);
@@ -212,6 +216,12 @@ export default function UploadPYQ() {
                     ...res.data,
                     itemType: "Question Paper",
                 });
+
+                if (res.data.status === "approved") {
+                    toast.success("Question paper approved and published instantly! 🚀");
+                } else {
+                    toast.success("Submitted for admin verification!");
+                }
             } else {
                 data.append("title", noteForm.title.trim());
                 data.append("course", noteForm.course);
@@ -222,10 +232,7 @@ export default function UploadPYQ() {
                 data.append("branch", noteForm.branch ? noteForm.branch.trim() : "");
 
                 const res = await axios.post(`${API_URL}/api/notes/upload`, data, {
-                    headers: {
-                        Authorization: `Bearer ${token}`,
-                        "Content-Type": "multipart/form-data",
-                    },
+                    headers: uploadHeaders,
                     onUploadProgress: (progressEvent) => {
                         const percent = Math.round((progressEvent.loaded * 100) / progressEvent.total);
                         setUploadProgress(percent);
@@ -236,9 +243,14 @@ export default function UploadPYQ() {
                     ...res.data,
                     itemType: "Study Notes",
                 });
+
+                if (res.data.status === "approved") {
+                    toast.success("Study material approved and published instantly! 🚀");
+                } else {
+                    toast.success("Submitted for admin verification!");
+                }
             }
 
-            toast.success("Submitted for admin verification!");
             setUploadProgress(0);
             setFile(null);
         } catch (err) {
@@ -615,17 +627,27 @@ export default function UploadPYQ() {
                                 <FaCheck />
                             </div>
                             <h3 className="text-lg font-serif font-bold text-[#0D1B2A] dark:text-[#FAF8F5] mb-2">
-                                Submission Received!
+                                {uploadedItem.status === "approved"
+                                    ? "Published Live Instantly! 🚀"
+                                    : "Submission Received!"}
                             </h3>
                             <p className="text-xs text-[#8C7862] dark:text-[#A8957E] mb-6 leading-relaxed">
-                                Your <strong className="text-[#0D1B2A] dark:text-[#FAF8F5]">{uploadedItem.title}</strong> has been submitted to the moderation queue. Once approved, it will be published to all students.
+                                {uploadedItem.status === "approved" ? (
+                                    <>
+                                        Your <strong className="text-[#0D1B2A] dark:text-[#FAF8F5]">{uploadedItem.title}</strong> is verified and published directly. It is now live across the library and search directory.
+                                    </>
+                                ) : (
+                                    <>
+                                        Your <strong className="text-[#0D1B2A] dark:text-[#FAF8F5]">{uploadedItem.title}</strong> has been submitted to the moderation queue. Once approved, it will be published to all students.
+                                    </>
+                                )}
                             </p>
                             <div className="flex flex-col sm:flex-row gap-3">
                                 <Link
-                                    to="/dashboard"
+                                    to={uploadType === "pyq" ? "/pyqs" : "/notes"}
                                     className="flex-1 py-2.5 px-4 rounded-full bg-[#0D1B2A] dark:bg-[#C89D5C] text-white dark:text-[#0D1B2A] text-xs font-bold shadow-sm text-center"
                                 >
-                                    View in My Library →
+                                    Browse Directory →
                                 </Link>
                                 <button
                                     onClick={() => {
