@@ -5,9 +5,34 @@ import axios from "axios";
 import { FaFilePdf, FaUpload, FaSearch, FaEye, FaClock, FaCheckCircle, FaTimesCircle, FaStickyNote, FaUniversity, FaUserGraduate, FaBookmark, FaTrash } from "react-icons/fa";
 import Navbar2 from "../components/Navbar2";
 import Footer from "../components/Footer";
+import PDFViewer from "../components/PDFViewer";
 import { getBookmarks, toggleBookmark } from "../utils/bookmarkHelper";
 
 const API_URL = import.meta.env.VITE_API_URL || "http://localhost:5000";
+
+const formatCourseBadge = (courseStr = "") => {
+    if (!courseStr) return "General";
+    const map = {
+        "B.Tech Computer Science": "B.Tech CSE",
+        "B.Tech Computer Science and Engineering": "B.Tech CSE",
+        "Bachelor of Computer Applications": "BCA",
+        "Master of Computer Applications": "MCA",
+        "Master of Business Administration": "MBA",
+        "Bachelor of Business Administration": "BBA",
+        "Diploma in Computer Science": "Diploma CS",
+        "Diploma in Engineering": "Diploma",
+    };
+    if (map[courseStr]) return map[courseStr];
+    return courseStr
+        .replace(/Computer Science and Engineering/gi, "CSE")
+        .replace(/Computer Science/gi, "CS")
+        .replace(/Information Technology/gi, "IT")
+        .replace(/Electronics & Communication/gi, "ECE")
+        .replace(/Mechanical Engineering/gi, "ME")
+        .replace(/Civil Engineering/gi, "CE")
+        .replace(/Bachelor of /gi, "B.")
+        .replace(/Master of /gi, "M.");
+};
 
 function StatCard({ icon, label, value }) {
     return (
@@ -33,6 +58,7 @@ function Dashboard() {
     const [allPapersCount, setAllPapersCount] = useState(0);
     const [allNotesCount, setAllNotesCount] = useState(0);
     const [loading, setLoading] = useState(true);
+    const [selectedPdf, setSelectedPdf] = useState(null);
 
     const [activeTab, setActiveTab] = useState("pyqs");
 
@@ -292,7 +318,7 @@ function Dashboard() {
                                                         {paper.title}
                                                     </h3>
                                                     <p className="text-[11px] text-[#8C7862] dark:text-[#A8957E] mb-4">
-                                                        {paper.universityId?.name || paper.university} • {paper.courseId?.name || paper.course}{paper.semester ? ` • Sem ${paper.semester}` : ""}
+                                                        {paper.universityId?.name || paper.university} • {formatCourseBadge(paper.courseId?.name || paper.course)}{paper.semester ? ` • Sem ${paper.semester}` : ""}
                                                     </p>
 
                                                     {status === "rejected" && paper.rejectionReason && (
@@ -302,14 +328,15 @@ function Dashboard() {
                                                     )}
                                                 </div>
 
-                                                <a
-                                                    href={paper.fileUrl}
-                                                    target="_blank"
-                                                    rel="noreferrer"
-                                                    className="flex items-center justify-center gap-1.5 w-full bg-[#FAF8F5] dark:bg-[#1C1916] hover:bg-[#F4EFEA] text-[#4A2E1B] dark:text-[#FAF8F5] border border-[#EAE2D8] dark:border-[#2E2822] py-2 px-3 rounded-full text-xs font-semibold transition"
+                                                <button
+                                                    onClick={() => setSelectedPdf({
+                                                        fileUrl: paper.fileUrl,
+                                                        title: `${paper.title} (${formatCourseBadge(paper.courseId?.name || paper.course)})`,
+                                                    })}
+                                                    className="flex items-center justify-center gap-1.5 w-full bg-[#FAF8F5] dark:bg-[#1C1916] hover:bg-[#F4EFEA] dark:hover:bg-[#24201C] text-[#4A2E1B] dark:text-[#FAF8F5] border border-[#EAE2D8] dark:border-[#2E2822] py-2 px-3 rounded-full text-xs font-semibold transition cursor-pointer shadow-2xs"
                                                 >
                                                     <FaEye className="text-xs text-[#8C6239] dark:text-[#E5C378]" /> View Paper
-                                                </a>
+                                                </button>
                                             </div>
                                         );
                                     })}
@@ -380,14 +407,15 @@ function Dashboard() {
                                                     )}
                                                 </div>
 
-                                                <a
-                                                    href={note.fileUrl}
-                                                    target="_blank"
-                                                    rel="noreferrer"
-                                                    className="flex items-center justify-center gap-1.5 w-full bg-[#FAF8F5] dark:bg-[#1C1916] hover:bg-[#F4EFEA] text-[#4A2E1B] dark:text-[#FAF8F5] border border-[#EAE2D8] dark:border-[#2E2822] py-2 px-3 rounded-full text-xs font-semibold transition"
+                                                <button
+                                                    onClick={() => setSelectedPdf({
+                                                        fileUrl: note.fileUrl,
+                                                        title: `${note.title} (${note.subject || "Study Notes"})`,
+                                                    })}
+                                                    className="flex items-center justify-center gap-1.5 w-full bg-[#FAF8F5] dark:bg-[#1C1916] hover:bg-[#F4EFEA] dark:hover:bg-[#24201C] text-[#4A2E1B] dark:text-[#FAF8F5] border border-[#EAE2D8] dark:border-[#2E2822] py-2 px-3 rounded-full text-xs font-semibold transition cursor-pointer shadow-2xs"
                                                 >
                                                     <FaEye className="text-xs text-[#8C6239] dark:text-[#E5C378]" /> View Study Notes
-                                                </a>
+                                                </button>
                                             </div>
                                         );
                                     })}
@@ -440,18 +468,19 @@ function Dashboard() {
                                                     {item.title}
                                                 </h3>
                                                 <p className="text-[11px] text-[#8C7862] dark:text-[#A8957E] mb-4">
-                                                    {item.university} • {item.course} {item.semester ? `• Sem ${item.semester}` : ""}
+                                                    {item.university} • {formatCourseBadge(item.course)} {item.semester ? `• Sem ${item.semester}` : ""}
                                                 </p>
                                             </div>
 
-                                            <a
-                                                href={item.fileUrl}
-                                                target="_blank"
-                                                rel="noreferrer"
-                                                className="flex items-center justify-center gap-1.5 w-full bg-[#FAF8F5] dark:bg-[#1C1916] hover:bg-[#F4EFEA] text-[#4A2E1B] dark:text-[#FAF8F5] border border-[#EAE2D8] dark:border-[#2E2822] py-2 px-3 rounded-full text-xs font-semibold transition"
+                                            <button
+                                                onClick={() => setSelectedPdf({
+                                                    fileUrl: item.fileUrl,
+                                                    title: item.title || "Saved Document",
+                                                })}
+                                                className="flex items-center justify-center gap-1.5 w-full bg-[#FAF8F5] dark:bg-[#1C1916] hover:bg-[#F4EFEA] dark:hover:bg-[#24201C] text-[#4A2E1B] dark:text-[#FAF8F5] border border-[#EAE2D8] dark:border-[#2E2822] py-2 px-3 rounded-full text-xs font-semibold transition cursor-pointer shadow-2xs"
                                             >
                                                 <FaEye className="text-xs text-[#8C6239] dark:text-[#E5C378]" /> View Document
-                                            </a>
+                                            </button>
                                         </div>
                                     ))}
                                 </div>
@@ -460,6 +489,15 @@ function Dashboard() {
                     )}
                 </div>
             </div>
+
+            {/* In-App PDF Previewer Modal */}
+            {selectedPdf && (
+                <PDFViewer
+                    fileUrl={selectedPdf.fileUrl}
+                    title={selectedPdf.title}
+                    onClose={() => setSelectedPdf(null)}
+                />
+            )}
 
             {/* FOOTER */}
             <Footer />
