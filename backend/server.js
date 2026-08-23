@@ -49,6 +49,7 @@ app.use(
     allowedHeaders: [
       "Content-Type",
       "Authorization",
+      "x-user-id",
       "x-user-email",
       "x-admin-email",
       "Accept",
@@ -56,10 +57,13 @@ app.use(
       "X-Requested-With",
       "Cache-Control",
       "Pragma",
+      "*",
     ],
     exposedHeaders: ["Content-Disposition", "Content-Type", "Content-Length"],
   })
 );
+
+app.options("*", cors());
 
 app.use(express.json());
 
