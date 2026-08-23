@@ -220,13 +220,15 @@ mongoose.connect(process.env.MONGO_URL)
   })
   .catch(err => console.log("MongoDB connection error:", err));
 
-// Helper for Cloudinary streaming upload
-const uploadToCloudinary = (fileBuffer) => {
+// Helper for Cloudinary streaming upload (Stored as raw with .pdf extension to guarantee 100% public delivery)
+const uploadToCloudinary = (fileBuffer, originalName = "document.pdf") => {
   return new Promise((resolve, reject) => {
+    const uniqueId = `paperbridge/${Date.now()}_${Math.random().toString(36).substring(2, 9)}.pdf`;
+    
     const stream = cloudinary.uploader.upload_stream(
       { 
-        folder: "paperbridge",
-        resource_type: "auto",
+        public_id: uniqueId,
+        resource_type: "raw",
         type: "upload",
         access_mode: "public",
       },
@@ -248,7 +250,7 @@ app.get("/", (req, res) => {
   });
 });
 
-// Inline PDF Viewer Proxy to guarantee inline rendering and resolve Cloudinary variations
+// Inline PDF Viewer Proxy with Cloudinary signing to guarantee inline rendering for all documents
 app.get("/api/pdf/view", async (req, res) => {
   try {
     let { url } = req.query;
@@ -256,18 +258,58 @@ app.get("/api/pdf/view", async (req, res) => {
       return res.status(400).json({ error: "Missing url parameter" });
     }
 
-    // Build URL variations to handle raw vs image vs pdf extension in Cloudinary
-    const variations = [
-      url,
-      url.replace("/image/upload/", "/raw/upload/"),
-      url.replace("/image/upload/", "/raw/upload/").replace(/\.pdf$/i, ""),
-      url.replace("/raw/upload/", "/image/upload/"),
-      url.replace(/\.pdf$/i, ""),
-      `${url}.pdf`,
-    ];
+    const candidateUrls = [];
+
+    // If Cloudinary URL, extract public ID and create signed URLs
+    if (url.includes("res.cloudinary.com")) {
+      const match = url.match(/\/upload\/(?:v\d+\/)?(.+?)(?:\.pdf)?$/i);
+      const publicId = match ? match[1] : null;
+
+      if (publicId) {
+        try {
+          const signedRawWithPdf = cloudinary.url(`${publicId}.pdf`, {
+            resource_type: "raw",
+            sign_url: true,
+            secure: true,
+            type: "upload",
+          });
+          candidateUrls.push(signedRawWithPdf);
+
+          const signedRawUrl = cloudinary.url(publicId, {
+            resource_type: "raw",
+            sign_url: true,
+            secure: true,
+            type: "upload",
+          });
+          candidateUrls.push(signedRawUrl);
+
+          const signedImageUrl = cloudinary.url(publicId, {
+            resource_type: "image",
+            format: "pdf",
+            sign_url: true,
+            secure: true,
+            type: "upload",
+          });
+          candidateUrls.push(signedImageUrl);
+        } catch (signErr) {
+          console.warn("Cloudinary URL signing warning:", signErr.message);
+        }
+      }
+
+      candidateUrls.push(
+        url,
+        url.replace("/image/upload/", "/raw/upload/"),
+        url.replace("/image/upload/", "/raw/upload/").replace(/\.pdf$/i, ""),
+        url.replace("/raw/upload/", "/image/upload/"),
+        url.replace(/\.pdf$/i, ""),
+        `${url}.pdf`
+      );
+    } else {
+      candidateUrls.push(url);
+    }
 
     let targetResponse = null;
-    for (const testUrl of variations) {
+    for (const testUrl of candidateUrls) {
       try {
         const resp = await fetch(testUrl);
         if (resp.ok) {
@@ -275,7 +317,21 @@ app.get("/api/pdf/view", async (req, res) => {
           break;
         }
       } catch {
-        // try next variation
+        // try next candidate
+      }
+    }
+
+    // Authenticated Cloudinary fetch fallback if public access returned 401/404
+    if ((!targetResponse || !targetResponse.ok) && process.env.CLOUDINARY_KEY && process.env.CLOUDINARY_SECRET) {
+      const authHeader = "Basic " + Buffer.from(`${process.env.CLOUDINARY_KEY}:${process.env.CLOUDINARY_SECRET}`).toString("base64");
+      for (const testUrl of candidateUrls.slice(0, 5)) {
+        try {
+          const resp = await fetch(testUrl, { headers: { Authorization: authHeader } });
+          if (resp.ok) {
+            targetResponse = resp;
+            break;
+          }
+        } catch {}
       }
     }
 
