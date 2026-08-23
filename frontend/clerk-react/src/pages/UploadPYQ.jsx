@@ -37,14 +37,10 @@ const FALLBACK_COURSES = [
 
 const EXAM_TYPES = [
     "End Semester",
-    "Mid Semester",
-    "Mid 1",
-    "Mid 2",
     "Mid Term 1",
     "Mid Term 2",
-    "Back Paper",
-    "Internal",
-    "Practical",
+    "Make-up",
+    "Summer",
     "Other",
 ];
 
@@ -304,8 +300,10 @@ export default function UploadPYQ() {
                 data.append("semester", pyqForm.semester);
                 data.append("subject", pyqForm.title.trim());
                 data.append("examType", pyqForm.examType);
+                const yearMatch = pyqForm.examYear.match(/\d{4}/);
+                const numericYear = yearMatch ? yearMatch[0] : new Date().getFullYear().toString();
                 data.append("academicYear", pyqForm.examYear);
-                data.append("year", pyqForm.examYear);
+                data.append("year", numericYear);
                 data.append("branch", pyqForm.branch ? pyqForm.branch.trim() : "");
 
                 const res = await axios.post(`${API_URL}/api/upload`, data, {
@@ -391,8 +389,8 @@ export default function UploadPYQ() {
                         type="button"
                         onClick={() => setUploadType("pyq")}
                         className={`py-3 rounded-xl text-xs font-bold flex items-center justify-center gap-2 transition cursor-pointer ${uploadType === "pyq"
-                                ? "bg-white dark:bg-[#24201C] text-[#0D1B2A] dark:text-[#FAF8F5] shadow-xs"
-                                : "text-[#8C7862] dark:text-[#A8957E] hover:text-[#0D1B2A]"
+                            ? "bg-white dark:bg-[#24201C] text-[#0D1B2A] dark:text-[#FAF8F5] shadow-xs"
+                            : "text-[#8C7862] dark:text-[#A8957E] hover:text-[#0D1B2A]"
                             }`}
                     >
                         <FaFilePdf className="text-sm text-[#C89D5C]" />
@@ -402,8 +400,8 @@ export default function UploadPYQ() {
                         type="button"
                         onClick={() => setUploadType("note")}
                         className={`py-3 rounded-xl text-xs font-bold flex items-center justify-center gap-2 transition cursor-pointer ${uploadType === "note"
-                                ? "bg-white dark:bg-[#24201C] text-[#0D1B2A] dark:text-[#FAF8F5] shadow-xs"
-                                : "text-[#8C7862] dark:text-[#A8957E] hover:text-[#0D1B2A]"
+                            ? "bg-white dark:bg-[#24201C] text-[#0D1B2A] dark:text-[#FAF8F5] shadow-xs"
+                            : "text-[#8C7862] dark:text-[#A8957E] hover:text-[#0D1B2A]"
                             }`}
                     >
                         <FaStickyNote className="text-sm text-sky-500" />
@@ -637,10 +635,10 @@ export default function UploadPYQ() {
                             <div
                                 {...getRootProps()}
                                 className={`border-2 border-dashed rounded-2xl p-8 text-center cursor-pointer transition-all duration-200 ${isDragActive
-                                        ? "border-[#8C6239] bg-[#FAF8F5] dark:bg-[#24201C]"
-                                        : file
-                                            ? "border-emerald-500/60 bg-emerald-50/20 dark:bg-emerald-950/20"
-                                            : "border-[#EAE2D8] dark:border-[#2E2822] hover:border-[#8C6239] bg-[#FAF8F5]/40 dark:bg-[#1C1916]/40"
+                                    ? "border-[#8C6239] bg-[#FAF8F5] dark:bg-[#24201C]"
+                                    : file
+                                        ? "border-emerald-500/60 bg-emerald-50/20 dark:bg-emerald-950/20"
+                                        : "border-[#EAE2D8] dark:border-[#2E2822] hover:border-[#8C6239] bg-[#FAF8F5]/40 dark:bg-[#1C1916]/40"
                                     }`}
                             >
                                 <input {...getInputProps()} />

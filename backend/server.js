@@ -1188,6 +1188,18 @@ app.post("/api/upload", requireAuth(), upload.single("file"), async (req, res) =
     const isAdmin = await isUserAdmin(req);
     const initialStatus = isAdmin ? "approved" : "pending";
 
+    // Parse 4-digit numeric year safely from inputs like "2024-25" or "2024"
+    let parsedYear = new Date().getFullYear();
+    const rawYear = year || academicYear;
+    if (rawYear) {
+      const match = String(rawYear).match(/\d{4}/);
+      if (match) {
+        parsedYear = parseInt(match[0], 10);
+      }
+    }
+
+    const parsedSemester = (semester && !isNaN(Number(semester))) ? Number(semester) : 1;
+
     const pyq = await PYQ.create({
       title: title.trim(),
       universityId: universityId || null,
@@ -1196,12 +1208,12 @@ app.post("/api/upload", requireAuth(), upload.single("file"), async (req, res) =
       subjectId: subjectId || null,
       university: resolvedUniName,
       course: resolvedCourseName,
-      semester: semester ? Number(semester) : 1,
-      subject: resolvedSubjectName,
+      semester: parsedSemester,
+      subject: resolvedSubjectName || title.trim(),
       subjectCode: resolvedSubjectCode,
       examType: examType || "End Semester",
-      academicYear: academicYear || `${year || new Date().getFullYear()}`,
-      year: year ? Number(year) : new Date().getFullYear(),
+      academicYear: academicYear || `${parsedYear}-${String(parsedYear + 1).slice(-2)}`,
+      year: parsedYear,
       branch: branch || "",
       description: description || "",
       fileUrl: result.secure_url,
@@ -1419,12 +1431,14 @@ app.put("/api/pyqs/:id", requireAuth(), async (req, res) => {
           ...(subjectId && { subjectId }),
           ...(university && { university }),
           ...(course && { course }),
-          ...(semester && { semester: Number(semester) }),
+          ...(semester !== undefined && { semester: !isNaN(Number(semester)) ? Number(semester) : 1 }),
           ...(subject && { subject }),
           ...(subjectCode && { subjectCode }),
           ...(examType && { examType }),
           ...(academicYear && { academicYear }),
-          ...(year && { year: Number(year) }),
+          ...(year && {
+            year: String(year).match(/\d{4}/) ? parseInt(String(year).match(/\d{4}/)[0], 10) : new Date().getFullYear(),
+          }),
           ...(branch !== undefined && { branch }),
           ...(status && { status }),
         },

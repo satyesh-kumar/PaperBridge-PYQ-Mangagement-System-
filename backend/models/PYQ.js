@@ -49,6 +49,7 @@ const pyqSchema = new mongoose.Schema(
     semester: {
       type: Number,
       default: 1,
+      set: (v) => (isNaN(Number(v)) ? 1 : Number(v)),
       index: true,
     },
     subject: {
@@ -78,6 +79,11 @@ const pyqSchema = new mongoose.Schema(
     year: {
       type: Number,
       default: () => new Date().getFullYear(),
+      set: (v) => {
+        if (typeof v === "number" && !isNaN(v)) return v;
+        const match = String(v).match(/\d{4}/);
+        return match ? parseInt(match[0], 10) : new Date().getFullYear();
+      },
       index: true,
     },
     branch: {

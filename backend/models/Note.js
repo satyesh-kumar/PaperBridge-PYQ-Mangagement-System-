@@ -36,7 +36,7 @@ const noteSchema = new mongoose.Schema(
     // Legacy / Direct String Fields
     subject: {
       type: String,
-      required: [true, "Subject is required"],
+      default: "General",
       trim: true,
       index: true,
     },
