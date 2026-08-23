@@ -514,7 +514,7 @@ function BrowsePYQ() {
                                     ref={searchInputRef}
                                     type="text"
                                     id="paper-search-input"
-                                    placeholder="Search by subject, code, course, year, or branch... (Press '/' to focus)"
+                                    placeholder="Search by paper title, code, course, year, or branch... (Press '/' to focus)"
                                     value={search}
                                     onChange={(e) => setSearch(e.target.value)}
                                     className="w-full bg-transparent outline-none text-[#1A1614] dark:text-[#FAF8F5] text-xs placeholder:text-[#A8957E] font-medium"
@@ -546,7 +546,7 @@ function BrowsePYQ() {
                                     <option value="oldest" className="dark:bg-[#161412]">Oldest Added</option>
                                     <option value="year-desc" className="dark:bg-[#161412]">Exam Year (Recent)</option>
                                     <option value="year-asc" className="dark:bg-[#161412]">Exam Year (Oldest)</option>
-                                    <option value="title-az" className="dark:bg-[#161412]">Subject (A to Z)</option>
+                                    <option value="title-az" className="dark:bg-[#161412]">Title (A to Z)</option>
                                 </select>
                             </div>
 
@@ -919,7 +919,7 @@ function BrowsePYQ() {
                             <table className="w-full text-left text-xs">
                                 <thead className="bg-[#FAF8F5] dark:bg-[#1C1916] border-b border-[#EAE2D8] dark:border-[#2E2822] text-[#8C7862] dark:text-[#A8957E] uppercase tracking-wider font-bold">
                                     <tr>
-                                        <th className="py-4 px-5">Subject / Title</th>
+                                        <th className="py-4 px-5">Paper Title</th>
                                         <th className="py-4 px-5">Course</th>
                                         <th className="py-4 px-5">Semester</th>
                                         <th className="py-4 px-5">Exam Type</th>

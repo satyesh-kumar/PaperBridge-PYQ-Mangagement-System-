@@ -445,7 +445,7 @@ function BrowseNotes() {
                                 <input
                                     ref={searchInputRef}
                                     type="text"
-                                    placeholder="Search notes by subject, unit, university, author (press '/' to focus)..."
+                                    placeholder="Search notes by title, unit, course, author (press '/' to focus)..."
                                     value={search}
                                     onChange={(e) => setSearch(e.target.value)}
                                     className="w-full bg-transparent outline-none text-[#1A1614] dark:text-[#FAF8F5] text-xs placeholder:text-[#A8957E] font-medium"
@@ -474,7 +474,6 @@ function BrowseNotes() {
                                 >
                                     <option value="newest" className="dark:bg-[#161412]">Newest Added</option>
                                     <option value="oldest" className="dark:bg-[#161412]">Oldest Added</option>
-                                    <option value="subject-az" className="dark:bg-[#161412]">Subject (A to Z)</option>
                                     <option value="title-az" className="dark:bg-[#161412]">Title (A to Z)</option>
                                 </select>
                             </div>
@@ -800,7 +799,7 @@ function BrowseNotes() {
                             <table className="w-full text-left text-xs">
                                 <thead className="bg-[#FAF8F5] dark:bg-[#1C1916] border-b border-[#EAE2D8] dark:border-[#2E2822] text-[#8C7862] dark:text-[#A8957E] uppercase tracking-wider font-bold">
                                     <tr>
-                                        <th className="py-4 px-5">Title & Subject</th>
+                                        <th className="py-4 px-5">Notes Title</th>
                                         <th className="py-4 px-5">Unit / Module</th>
                                         <th className="py-4 px-5">Course & Sem</th>
                                         <th className="py-4 px-5">University</th>

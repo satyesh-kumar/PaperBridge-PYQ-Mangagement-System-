@@ -374,7 +374,7 @@ function Home() {
                                 type="text"
                                 value={searchQuery}
                                 onChange={(e) => setSearchQuery(e.target.value)}
-                                placeholder="Search by course, subject, or keyword..."
+                                placeholder="Search by course, paper title, or keyword..."
                                 className="flex-1 bg-transparent border-none outline-none text-sm text-[#1A1614] dark:text-[#FAF8F5] placeholder-[#A8957E] font-medium px-2 py-2"
                             />
                             <button

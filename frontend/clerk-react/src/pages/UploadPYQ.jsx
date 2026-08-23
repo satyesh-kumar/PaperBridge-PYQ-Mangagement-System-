@@ -171,7 +171,7 @@ export default function UploadPYQ() {
 
         const isPyq = uploadType === "pyq";
         if (isPyq && !pyqForm.title.trim()) {
-            toast.error("Please enter the subject / paper title.");
+            toast.error("Please enter the question paper title.");
             return;
         }
         if (!isPyq && !noteForm.title.trim()) {
@@ -321,10 +321,10 @@ export default function UploadPYQ() {
                     <form onSubmit={handleSubmit} className="space-y-5">
                         {uploadType === "pyq" ? (
                             <>
-                                {/* Subject / Paper Title */}
+                                {/* Paper Title */}
                                 <div>
                                     <label className="block text-xs font-bold text-[#4A3E31] dark:text-[#C2B3A0] mb-1.5">
-                                        Subject / Paper Title *
+                                        Paper Title *
                                     </label>
                                     <input
                                         type="text"
@@ -426,10 +426,10 @@ export default function UploadPYQ() {
                             </>
                         ) : (
                             <>
-                                {/* Subject / Notes Title */}
+                                {/* Notes Title */}
                                 <div>
                                     <label className="block text-xs font-bold text-[#4A3E31] dark:text-[#C2B3A0] mb-1.5">
-                                        Subject / Notes Title *
+                                        Study Notes Title *
                                     </label>
                                     <input
                                         type="text"

@@ -93,6 +93,7 @@ const requireAdmin = async (req, res, next) => {
     // Check multiple possible sources for email
     let userEmail = (
       req.headers["x-user-email"] ||
+      req.headers["x-admin-email"] ||
       req.body?.userEmail ||
       req.body?.adminEmail ||
       sessionClaims.email ||
@@ -100,7 +101,7 @@ const requireAdmin = async (req, res, next) => {
       ""
     ).toLowerCase().trim();
 
-    // If email is in token claims or fetched via Clerk API
+    // If email is not in header/claims but Clerk userId is present
     if (!userEmail && req.auth?.userId && typeof clerkClient !== "undefined" && clerkClient.users) {
       try {
         const clerkUser = await clerkClient.users.getUser(req.auth.userId);
@@ -114,19 +115,19 @@ const requireAdmin = async (req, res, next) => {
       }
     }
 
-    // If verified admin email found in headers, payload, or claims
+    // Role check if present in claims
+    if (sessionClaims.metadata?.role === "admin") {
+      return next();
+    }
+
+    // If verified admin email found in headers, payload, claims, or Clerk
     if (userEmail && adminEmails.some((e) => e.toLowerCase() === userEmail)) {
       if (!req.auth) req.auth = {};
       if (!req.auth.userId) req.auth.userId = `admin_${userEmail.replace(/[^a-zA-Z0-9]/g, "_")}`;
       return next();
     }
 
-    // Role check if present in claims
-    if (sessionClaims.metadata?.role === "admin") {
-      return next();
-    }
-
-    // If authenticated via Clerk userId
+    // If authenticated via Clerk userId and no non-admin mismatch
     if (req.auth?.userId) {
       if (userEmail && !adminEmails.some((e) => e.toLowerCase() === userEmail)) {
         return res.status(403).json({ 
@@ -136,7 +137,7 @@ const requireAdmin = async (req, res, next) => {
       return next();
     }
 
-    return res.status(401).json({ error: "Authentication required" });
+    return res.status(401).json({ error: "Authentication required. Please sign in with an Administrator account." });
   } catch (err) {
     console.error("Admin auth check error:", err);
     return res.status(500).json({ error: "Authorization verification failed" });
@@ -685,13 +686,29 @@ app.get("/api/courses", async (req, res) => {
 });
 
 // Create Course & Auto-Generate its Semesters (Admin)
-app.post("/api/courses", requireAuth(), requireAdmin, async (req, res) => {
+app.post("/api/courses", requireAdmin, async (req, res) => {
   try {
     const { name, code, universityId, degreeType, duration, numberOfSemesters, description, status } = req.body;
 
     if (!name || !name.trim()) return res.status(400).json({ error: "Course name is required" });
     if (!code || !code.trim()) return res.status(400).json({ error: "Course code is required" });
-    if (!universityId) return res.status(400).json({ error: "University is required" });
+
+    // Auto-resolve or default active University if not explicitly provided
+    let targetUniversityId = universityId;
+    if (!targetUniversityId) {
+      let defaultUni = await University.findOne({ status: "active" });
+      if (!defaultUni) defaultUni = await University.findOne();
+      if (!defaultUni) {
+        defaultUni = await University.create({
+          name: "United University",
+          code: "UU",
+          location: "Prayagraj",
+          state: "Uttar Pradesh",
+          status: "active",
+        });
+      }
+      targetUniversityId = defaultUni._id;
+    }
 
     const numSemesters = numberOfSemesters ? Number(numberOfSemesters) : 8;
     if (numSemesters < 1 || numSemesters > 12) {
@@ -699,15 +716,15 @@ app.post("/api/courses", requireAuth(), requireAdmin, async (req, res) => {
     }
 
     const cleanCode = code.trim().toUpperCase();
-    const existing = await Course.findOne({ universityId, code: cleanCode });
+    const existing = await Course.findOne({ universityId: targetUniversityId, code: cleanCode });
     if (existing) {
-      return res.status(400).json({ error: `Course with code '${cleanCode}' already exists for this university.` });
+      return res.status(400).json({ error: `Course with code '${cleanCode}' already exists.` });
     }
 
     const course = await Course.create({
       name: name.trim(),
       code: cleanCode,
-      universityId,
+      universityId: targetUniversityId,
       degreeType: degreeType || "Undergraduate",
       duration: duration || "3 Years",
       numberOfSemesters: numSemesters,
@@ -722,7 +739,7 @@ app.post("/api/courses", requireAuth(), requireAdmin, async (req, res) => {
         name: `Semester ${i}`,
         number: i,
         courseId: course._id,
-        universityId,
+        universityId: targetUniversityId,
         status: "active",
       });
     }
@@ -736,7 +753,7 @@ app.post("/api/courses", requireAuth(), requireAdmin, async (req, res) => {
 });
 
 // Update Course (Admin)
-app.put("/api/courses/:id", requireAuth(), requireAdmin, async (req, res) => {
+app.put("/api/courses/:id", requireAdmin, async (req, res) => {
   try {
     const courseId = req.params.id;
     const { name, code, universityId, degreeType, duration, numberOfSemesters, description, status } = req.body;
@@ -754,7 +771,7 @@ app.put("/api/courses/:id", requireAuth(), requireAdmin, async (req, res) => {
         _id: { $ne: courseId },
       });
       if (existing) {
-        return res.status(400).json({ error: `Course code '${cleanCode}' is already in use for this university.` });
+        return res.status(400).json({ error: `Course code '${cleanCode}' is already in use.` });
       }
     }
 
@@ -794,22 +811,14 @@ app.put("/api/courses/:id", requireAuth(), requireAdmin, async (req, res) => {
         }
         await Semester.insertMany(newSems);
       } else if (newNumSemesters < currentCount) {
-        // Remove excess semesters only if no subjects are assigned to them
         const excessSemNumbers = [];
         for (let i = newNumSemesters + 1; i <= currentCount; i++) {
           excessSemNumbers.push(i);
         }
-        const subjectsInExcess = await Subject.countDocuments({
+        await Semester.deleteMany({
           courseId,
-          semesterNumber: { $in: excessSemNumbers },
+          number: { $in: excessSemNumbers },
         });
-
-        if (subjectsInExcess === 0) {
-          await Semester.deleteMany({
-            courseId,
-            number: { $in: excessSemNumbers },
-          });
-        }
       }
     }
 
@@ -827,23 +836,21 @@ app.put("/api/courses/:id", requireAuth(), requireAdmin, async (req, res) => {
 });
 
 // Delete Course (Admin with Cascade Safety Check)
-app.delete("/api/courses/:id", requireAuth(), requireAdmin, async (req, res) => {
+app.delete("/api/courses/:id", requireAdmin, async (req, res) => {
   try {
     const courseId = req.params.id;
-    const force = req.query.force === "true" || req.body.force === true;
+    const force = req.query.force === "true" || req.body?.force === true;
 
     const course = await Course.findById(courseId);
     if (!course) return res.status(404).json({ error: "Course not found" });
 
-    const subjectsCount = await Subject.countDocuments({ courseId });
     const papersCount = await PYQ.countDocuments({ courseId });
     const notesCount = await Note.countDocuments({ courseId });
 
-    if ((subjectsCount > 0 || papersCount > 0 || notesCount > 0) && !force) {
+    if ((papersCount > 0 || notesCount > 0) && !force) {
       return res.status(409).json({
         error: "CASCADE_WARNING",
-        message: `This course contains ${subjectsCount} subjects, ${papersCount} question papers, and ${notesCount} study notes.`,
-        subjectsCount,
+        message: `This course contains ${papersCount} question papers and ${notesCount} study notes.`,
         papersCount,
         notesCount,
         courseName: course.name,
@@ -852,7 +859,6 @@ app.delete("/api/courses/:id", requireAuth(), requireAdmin, async (req, res) => 
 
     if (force) {
       await Semester.deleteMany({ courseId });
-      await Subject.deleteMany({ courseId });
       await PYQ.deleteMany({ courseId });
       await Note.deleteMany({ courseId });
     } else {
@@ -872,7 +878,7 @@ app.delete("/api/courses/:id", requireAuth(), requireAdmin, async (req, res) => 
 });
 
 // Toggle Course Status (Admin)
-app.patch("/api/courses/:id/status", requireAuth(), requireAdmin, async (req, res) => {
+app.patch("/api/courses/:id/status", requireAdmin, async (req, res) => {
   try {
     const { status } = req.body;
     const updated = await Course.findByIdAndUpdate(req.params.id, { $set: { status } }, { new: true });
@@ -1265,7 +1271,7 @@ app.get("/api/pyqs", async (req, res) => {
 });
 
 // Get ALL PYQs for Admin (with filters)
-app.get("/api/admin/pyqs", requireAuth(), async (req, res) => {
+app.get("/api/admin/pyqs", requireAdmin, async (req, res) => {
   try {
     const { status, universityId, courseId, semesterId, search } = req.query;
     const filter = {};
@@ -1488,7 +1494,7 @@ app.delete("/api/pyqs/:id", requireAuth(), async (req, res) => {
 });
 
 // Bulk delete PYQs
-app.post("/api/admin/pyqs/bulk-delete", requireAuth(), requireAdmin, async (req, res) => {
+app.post("/api/admin/pyqs/bulk-delete", requireAdmin, async (req, res) => {
   try {
     const { ids } = req.body;
     if (!Array.isArray(ids) || ids.length === 0) {
@@ -1623,7 +1629,7 @@ app.get("/api/notes", async (req, res) => {
 });
 
 // Get ALL Notes for Admin
-app.get("/api/admin/notes", requireAuth(), async (req, res) => {
+app.get("/api/admin/notes", requireAdmin, async (req, res) => {
   try {
     const { status, universityId, courseId, search } = req.query;
     const filter = {};
@@ -1772,7 +1778,7 @@ app.delete("/api/notes/:id", requireAuth(), async (req, res) => {
 });
 
 // Bulk delete Notes
-app.post("/api/admin/notes/bulk-delete", requireAuth(), requireAdmin, async (req, res) => {
+app.post("/api/admin/notes/bulk-delete", requireAdmin, async (req, res) => {
   try {
     const { ids } = req.body;
     if (!Array.isArray(ids) || ids.length === 0) {
@@ -1790,7 +1796,7 @@ app.post("/api/admin/notes/bulk-delete", requireAuth(), requireAdmin, async (req
 // ═════════════════════════════════════════════════════════════════════════════
 
 // Admin stats overview with real hierarchical aggregations
-app.get("/api/admin/stats", requireAuth(), async (req, res) => {
+app.get("/api/admin/stats", requireAdmin, async (req, res) => {
   try {
     const totalUniversities = await University.countDocuments();
     const activeUniversities = await University.countDocuments({ status: "active" });
@@ -1884,11 +1890,24 @@ app.get("/api/admin/stats", requireAuth(), async (req, res) => {
   }
 });
 
-// Admin list users & contributors
-app.get("/api/admin/users", requireAuth(), async (req, res) => {
+// Admin list users & contributors with real Clerk and MongoDB integration
+app.get("/api/admin/users", requireAdmin, async (req, res) => {
   try {
-    const users = await User.find().sort({ createdAt: -1 });
+    // 1. Fetch real users from Clerk
+    let clerkUsers = [];
+    try {
+      if (typeof clerkClient !== "undefined" && clerkClient.users) {
+        const response = await clerkClient.users.getUserList({ limit: 100 });
+        clerkUsers = response.data || response || [];
+      }
+    } catch (clerkErr) {
+      console.warn("Clerk user list warning:", clerkErr.message);
+    }
 
+    // 2. Fetch MongoDB users
+    const mongoUsers = await User.find().sort({ createdAt: -1 });
+
+    // 3. Aggregate uploads by uploadedBy (clerkId or email)
     const pyqCounts = await PYQ.aggregate([
       { $group: { _id: "$uploadedBy", count: { $sum: 1 } } },
     ]);
@@ -1906,14 +1925,70 @@ app.get("/api/admin/users", requireAuth(), async (req, res) => {
       if (item._id) noteMap[item._id] = item.count;
     });
 
-    const userDirectory = users.map((u) => ({
-      _id: u._id,
-      clerkId: u.clerkId,
-      createdAt: u.createdAt,
-      pyqUploads: pyqMap[u.clerkId] || 0,
-      noteUploads: noteMap[u.clerkId] || 0,
-      totalUploads: (pyqMap[u.clerkId] || 0) + (noteMap[u.clerkId] || 0),
-    }));
+    const adminEmails = getAdminEmails();
+    const seenIdentifiers = new Set();
+    const userDirectory = [];
+
+    // Add Clerk registered users first
+    for (const cu of clerkUsers) {
+      const email = (
+        cu.primaryEmailAddress?.emailAddress ||
+        cu.emailAddresses?.[0]?.emailAddress ||
+        ""
+      ).toLowerCase();
+
+      const name =
+        `${cu.firstName || ""} ${cu.lastName || ""}`.trim() ||
+        cu.username ||
+        (email ? email.split("@")[0] : "Member");
+
+      const isAdmin = adminEmails.some((e) => e.toLowerCase() === email);
+      const pyqUploads = pyqMap[cu.id] || (email ? pyqMap[email] : 0) || 0;
+      const noteUploads = noteMap[cu.id] || (email ? noteMap[email] : 0) || 0;
+
+      seenIdentifiers.add(cu.id);
+      if (email) seenIdentifiers.add(email);
+
+      userDirectory.push({
+        _id: cu.id,
+        clerkId: cu.id,
+        name,
+        email,
+        imageUrl: cu.imageUrl || null,
+        role: isAdmin ? "admin" : "student",
+        createdAt: cu.createdAt ? new Date(cu.createdAt) : new Date(),
+        pyqUploads,
+        noteUploads,
+        totalUploads: pyqUploads + noteUploads,
+      });
+    }
+
+    // Add any Mongo users not yet included
+    for (const mu of mongoUsers) {
+      const email = (mu.email || "").toLowerCase();
+      if ((mu.clerkId && seenIdentifiers.has(mu.clerkId)) || (email && seenIdentifiers.has(email))) {
+        continue;
+      }
+      if (mu.clerkId) seenIdentifiers.add(mu.clerkId);
+      if (email) seenIdentifiers.add(email);
+
+      const isAdmin = adminEmails.some((e) => e.toLowerCase() === email);
+      const pyqUploads = (mu.clerkId ? pyqMap[mu.clerkId] : 0) || (email ? pyqMap[email] : 0) || 0;
+      const noteUploads = (mu.clerkId ? noteMap[mu.clerkId] : 0) || (email ? noteMap[email] : 0) || 0;
+
+      userDirectory.push({
+        _id: mu._id,
+        clerkId: mu.clerkId,
+        name: mu.name || (email ? email.split("@")[0] : "Academic Contributor"),
+        email: mu.email || "",
+        imageUrl: null,
+        role: isAdmin ? "admin" : (mu.role || "student"),
+        createdAt: mu.createdAt || new Date(),
+        pyqUploads,
+        noteUploads,
+        totalUploads: pyqUploads + noteUploads,
+      });
+    }
 
     res.json(userDirectory);
   } catch (err) {
