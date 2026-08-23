@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useMemo, useCallback } from "react";
 import axios from "axios";
 import { Link, useNavigate } from "react-router-dom";
-import { useAuth } from "@clerk/react";
+import { useAuth, useUser } from "@clerk/react";
 import {
     FaShieldAlt,
     FaUniversity,
@@ -98,6 +98,7 @@ const DEGREE_TYPES = [
 
 export default function AdminPanel() {
     const { getToken } = useAuth();
+    const { user } = useUser();
     const { userEmail } = useIsAdmin();
     const navigate = useNavigate();
 

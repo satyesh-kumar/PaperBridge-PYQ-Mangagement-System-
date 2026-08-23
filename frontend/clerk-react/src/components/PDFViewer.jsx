@@ -5,17 +5,6 @@ import { PaperAirplaneIcon } from "./PaperBridgeLogo";
 
 const API_URL = import.meta.env.VITE_API_URL || "http://localhost:5000";
 
-const getGoogleSafePdfUrl = (url = "") => {
-    if (!url) return "";
-    let clean = url;
-    if (clean.includes("res.cloudinary.com")) {
-        if (!clean.endsWith(".pdf")) {
-            clean = `${clean}.pdf`;
-        }
-    }
-    return clean;
-};
-
 function PDFViewer({ fileUrl, title = "Document Preview", onClose }) {
     // Mode: 'native' (blob / proxy inline) | 'google' (Google Docs viewer)
     const [viewerMode, setViewerMode] = useState("native");
@@ -23,12 +12,11 @@ function PDFViewer({ fileUrl, title = "Document Preview", onClose }) {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
 
-    // Compute proxy inline stream URL
+    // Compute proxy inline stream URL & Google viewer URL
     const proxyUrl = `${API_URL}/api/pdf/view?url=${encodeURIComponent(fileUrl || "")}`;
-    const safeGoogleTargetUrl = getGoogleSafePdfUrl(fileUrl);
-    const googleViewerUrl = `https://docs.google.com/gview?url=${encodeURIComponent(safeGoogleTargetUrl)}&embedded=true`;
+    const googleViewerUrl = `https://docs.google.com/gview?url=${encodeURIComponent(fileUrl || "")}&embedded=true`;
 
-    // Fetch PDF as inline blob to prevent unwanted raw downloads
+    // Fetch PDF as inline blob to prevent unwanted raw downloads and ensure 100% reliable view
     useEffect(() => {
         let isMounted = true;
         let objectUrl = null;
@@ -43,32 +31,38 @@ function PDFViewer({ fileUrl, title = "Document Preview", onClose }) {
             setLoading(true);
             setError(null);
 
-            try {
-                // Try fetching via backend inline proxy first (guarantees correct Content-Type without forced attachment)
-                let response = await fetch(proxyUrl);
-                
-                // Fallback to direct fetch if proxy fails
-                if (!response.ok) {
-                    response = await fetch(fileUrl, { mode: "cors" });
+            // Potential fetch candidate URLs to handle raw/image Cloudinary paths
+            const candidates = [
+                proxyUrl,
+                fileUrl,
+                fileUrl.replace(/\.pdf$/i, ""),
+            ];
+
+            let foundBlob = null;
+
+            for (const targetUrl of candidates) {
+                try {
+                    const response = await fetch(targetUrl);
+                    if (response.ok) {
+                        const rawBlob = await response.blob();
+                        if (rawBlob && rawBlob.size > 0) {
+                            foundBlob = new Blob([rawBlob], { type: "application/pdf" });
+                            break;
+                        }
+                    }
+                } catch {
+                    // Try next candidate URL
                 }
+            }
 
-                if (!response.ok) {
-                    throw new Error(`Failed to load document (${response.status})`);
-                }
-
-                const rawBlob = await response.blob();
-                const pdfBlob = new Blob([rawBlob], { type: "application/pdf" });
-                objectUrl = URL.createObjectURL(pdfBlob);
-
-                if (isMounted) {
+            if (isMounted) {
+                if (foundBlob) {
+                    objectUrl = URL.createObjectURL(foundBlob);
                     setBlobUrl(objectUrl);
                     setViewerMode("native");
                     setLoading(false);
-                }
-            } catch (err) {
-                console.warn("Direct blob load failed, falling back to Google Cloud Reader:", err);
-                if (isMounted) {
-                    // Fall back to Google viewer mode with safe .pdf target URL
+                } else {
+                    // Fallback to Google viewer or direct link if blob could not be fetched
                     setViewerMode("google");
                     setLoading(false);
                 }
