@@ -7,13 +7,10 @@ import {
     FaTrash,
     FaFilePdf,
     FaUpload,
-    FaLock,
     FaBook,
     FaCalendarAlt,
     FaGraduationCap,
     FaStickyNote,
-    FaUniversity,
-    FaInfoCircle,
     FaCheck,
     FaSpinner,
     FaLayerGroup,
@@ -27,24 +24,34 @@ import axios from "axios";
 
 const API_URL = import.meta.env.VITE_API_URL || "http://localhost:5000";
 
-const ACADEMIC_YEARS = [
-    "2026-27",
-    "2025-26",
-    "2024-25",
-    "2023-24",
-    "2022-23",
-    "2021-22",
-    "2020-21",
-    "2019-20",
-    "2018-19",
-    "2017-18",
-    "2016-17",
-    "2015-16",
+const COURSES = [
+    "B.Tech",
+    "BCA",
+    "MCA",
+    "MBA",
+    "BBA",
+    "Diploma",
+    "B.Sc",
+    "B.Com",
+    "Other",
+];
+
+const SEMESTERS = [
+    { value: "1", label: "Semester 1" },
+    { value: "2", label: "Semester 2" },
+    { value: "3", label: "Semester 3" },
+    { value: "4", label: "Semester 4" },
+    { value: "5", label: "Semester 5" },
+    { value: "6", label: "Semester 6" },
+    { value: "7", label: "Semester 7" },
+    { value: "8", label: "Semester 8" },
 ];
 
 const EXAM_TYPES = [
     "End Semester",
     "Mid Semester",
+    "Mid 1",
+    "Mid 2",
     "Mid Term 1",
     "Mid Term 2",
     "Back Paper",
@@ -53,32 +60,32 @@ const EXAM_TYPES = [
     "Other",
 ];
 
+const EXAM_YEARS = [
+    "2026",
+    "2025",
+    "2024",
+    "2023",
+    "2022",
+    "2021",
+    "2020",
+    "2019",
+    "2018",
+    "2017",
+    "2016",
+    "2015",
+];
+
 const UNITS = [
+    "Complete Syllabus",
     "Unit 1",
     "Unit 2",
     "Unit 3",
     "Unit 4",
     "Unit 5",
-    "Complete Syllabus",
     "Formula Sheet",
     "Lab Manual",
+    "Handwritten Notes",
     "Other",
-];
-
-const FALLBACK_UNIVERSITIES = [
-    { _id: "uni_uu", name: "United University", code: "UU", location: "Prayagraj, UP" },
-    { _id: "uni_au", name: "University of Allahabad", code: "AU", location: "Prayagraj, UP" },
-    { _id: "uni_aktu", name: "Dr. A.P.J. Abdul Kalam Technical University", code: "AKTU", location: "Lucknow, UP" },
-    { _id: "uni_du", name: "University of Delhi", code: "DU", location: "New Delhi" },
-];
-
-const FALLBACK_COURSES = [
-    { _id: "course_btech", name: "B.Tech Computer Science", code: "B.Tech CSE", numberOfSemesters: 8 },
-    { _id: "course_bca", name: "Bachelor of Computer Applications", code: "BCA", numberOfSemesters: 6 },
-    { _id: "course_mca", name: "Master of Computer Applications", code: "MCA", numberOfSemesters: 4 },
-    { _id: "course_mba", name: "Master of Business Administration", code: "MBA", numberOfSemesters: 4 },
-    { _id: "course_bba", name: "Bachelor of Business Administration", code: "BBA", numberOfSemesters: 6 },
-    { _id: "course_diploma", name: "Diploma in Engineering", code: "Diploma", numberOfSemesters: 6 },
 ];
 
 export default function UploadPYQ() {
@@ -88,41 +95,24 @@ export default function UploadPYQ() {
     // Mode: 'pyq' | 'note'
     const [uploadType, setUploadType] = useState("pyq");
 
-    // Dynamic Hierarchy Options
-    const [universities, setUniversities] = useState(FALLBACK_UNIVERSITIES);
-    const [courses, setCourses] = useState(FALLBACK_COURSES);
-    const [semesters, setSemesters] = useState(
-        [1, 2, 3, 4, 5, 6, 7, 8].map((n) => ({ _id: `sem_${n}`, number: n, name: `Semester ${n}` }))
-    );
-    const [subjects, setSubjects] = useState([]);
-
-    const [hierarchyLoading, setHierarchyLoading] = useState(false);
-
-    // Selected Hierarchy IDs
-    const [selectedUniId, setSelectedUniId] = useState(FALLBACK_UNIVERSITIES[0]._id);
-    const [selectedCourseId, setSelectedCourseId] = useState(FALLBACK_COURSES[0]._id);
-    const [selectedSemesterId, setSelectedSemesterId] = useState("sem_1");
-    const [selectedSubjectId, setSelectedSubjectId] = useState("");
-
     // PYQ Form State
     const [pyqForm, setPyqForm] = useState({
         title: "",
-        subjectName: "",
-        subjectCode: "",
+        course: "B.Tech",
+        semester: "1",
         examType: "End Semester",
-        academicYear: "2024-25",
+        examYear: "2026",
         branch: "",
-        description: "",
     });
 
     // Notes Form State
     const [noteForm, setNoteForm] = useState({
         title: "",
-        subjectName: "",
+        course: "B.Tech",
+        semester: "1",
         unit: "Complete Syllabus",
-        branch: "",
         author: "",
-        description: "",
+        branch: "",
     });
 
     const [file, setFile] = useState(null);
@@ -131,116 +121,29 @@ export default function UploadPYQ() {
     const [uploadedItem, setUploadedItem] = useState(null);
     const [uploadProgress, setUploadProgress] = useState(0);
 
-    // Initial Load: Universities
-    useEffect(() => {
-        const fetchUniversities = async () => {
-            try {
-                const res = await axios.get(`${API_URL}/api/universities`, { timeout: 8000 });
-                const activeUnis = res.data;
-                if (Array.isArray(activeUnis) && activeUnis.length > 0) {
-                    setUniversities(activeUnis);
-                    setSelectedUniId(activeUnis[0]._id);
-                }
-            } catch {
-                // Fallback already pre-populated, silent graceful degradation
-            }
-        };
-        fetchUniversities();
-    }, []);
-
-    // When University changes -> fetch Courses
-    useEffect(() => {
-        if (!selectedUniId) return;
-
-        const fetchCourses = async () => {
-            try {
-                const res = await axios.get(`${API_URL}/api/courses?universityId=${selectedUniId}`, { timeout: 8000 });
-                const fetchedCourses = res.data;
-                if (Array.isArray(fetchedCourses) && fetchedCourses.length > 0) {
-                    setCourses(fetchedCourses);
-                    setSelectedCourseId(fetchedCourses[0]._id);
-                    return;
-                }
-            } catch {
-                // Ignore and use fallback
-            }
-
-            // Fallback courses
-            setCourses(FALLBACK_COURSES);
-            setSelectedCourseId(FALLBACK_COURSES[0]._id);
-        };
-        fetchCourses();
-    }, [selectedUniId]);
-
-    // When Course changes -> fetch Semesters
-    useEffect(() => {
-        if (!selectedCourseId) return;
-
-        const matchedCourse = courses.find((c) => c._id === selectedCourseId);
-        const count = matchedCourse?.numberOfSemesters || 8;
-
-        const fetchSemesters = async () => {
-            try {
-                const res = await axios.get(`${API_URL}/api/semesters?courseId=${selectedCourseId}`, { timeout: 8000 });
-                const fetchedSemesters = res.data;
-                if (Array.isArray(fetchedSemesters) && fetchedSemesters.length > 0) {
-                    setSemesters(fetchedSemesters);
-                    setSelectedSemesterId(fetchedSemesters[0]._id);
-                    return;
-                }
-            } catch {
-                // Fallback
-            }
-
-            // Generate fallback semesters based on configured numberOfSemesters
-            const autoSems = Array.from({ length: count }, (_, i) => ({
-                _id: `sem_${i + 1}`,
-                number: i + 1,
-                name: `Semester ${i + 1}`,
-            }));
-            setSemesters(autoSems);
-            setSelectedSemesterId(autoSems[0]._id);
-        };
-        fetchSemesters();
-    }, [selectedCourseId, courses]);
-
-    // When Course or Semester changes -> fetch Subjects
-    useEffect(() => {
-        if (!selectedCourseId || !selectedSemesterId) {
-            setSubjects([]);
-            setSelectedSubjectId("");
+    // Dropzone setup
+    const onDrop = (acceptedFiles, fileRejections) => {
+        if (fileRejections && fileRejections.length > 0) {
+            toast.error("Please upload a valid PDF document (under 50MB).");
             return;
         }
-
-        const fetchSubjects = async () => {
-            try {
-                const res = await axios.get(
-                    `${API_URL}/api/subjects?courseId=${selectedCourseId}&semesterId=${selectedSemesterId}`,
-                    { timeout: 8000 }
-                );
-                const fetchedSubjects = res.data;
-                if (Array.isArray(fetchedSubjects) && fetchedSubjects.length > 0) {
-                    setSubjects(fetchedSubjects);
-                    setSelectedSubjectId(fetchedSubjects[0]._id);
-                    const s = fetchedSubjects[0];
-                    if (!pyqForm.title) {
-                        setPyqForm((prev) => ({
-                            ...prev,
-                            title: `${s.name} ${prev.examType || "End Semester"} Paper`,
-                            subjectName: s.name,
-                            subjectCode: s.code,
-                        }));
-                    }
-                    return;
-                }
-            } catch {
-                // fallback
+        if (acceptedFiles && acceptedFiles.length > 0) {
+            const selected = acceptedFiles[0];
+            if (selected.type !== "application/pdf" && !selected.name.endsWith(".pdf")) {
+                toast.error("Only PDF files are supported.");
+                return;
             }
-            setSubjects([]);
-            setSelectedSubjectId("");
-        };
-        fetchSubjects();
-    }, [selectedCourseId, selectedSemesterId]);
+            setFile(selected);
+            toast.success(`Attached: ${selected.name}`);
+        }
+    };
+
+    const { getRootProps, getInputProps, isDragActive } = useDropzone({
+        onDrop,
+        accept: { "application/pdf": [".pdf"] },
+        maxFiles: 1,
+        maxSize: 50 * 1024 * 1024,
+    });
 
     // Confetti on success
     useEffect(() => {
@@ -253,19 +156,14 @@ export default function UploadPYQ() {
         }
     }, [uploadedItem]);
 
-    const onDrop = (acceptedFiles) => {
-        setUploadProgress(0);
-        setFile(acceptedFiles[0]);
-    };
-
-    const { getRootProps, getInputProps, isDragActive } = useDropzone({
-        accept: { "application/pdf": [".pdf"] },
-        maxFiles: 1,
-        onDrop,
-    });
-
     const handleSubmit = async (e) => {
         e.preventDefault();
+
+        if (!isSignedIn) {
+            toast.error("Please sign in to upload academic materials.");
+            return;
+        }
+
         if (!file) {
             toast.error("Please select a PDF document to upload.");
             return;
@@ -273,7 +171,7 @@ export default function UploadPYQ() {
 
         const isPyq = uploadType === "pyq";
         if (isPyq && !pyqForm.title.trim()) {
-            toast.error("Please enter the question paper title.");
+            toast.error("Please enter the subject / paper title.");
             return;
         }
         if (!isPyq && !noteForm.title.trim()) {
@@ -281,35 +179,23 @@ export default function UploadPYQ() {
             return;
         }
 
-        const selectedUniObj = universities.find((u) => u._id === selectedUniId);
-        const selectedCourseObj = courses.find((c) => c._id === selectedCourseId);
-        const selectedSemesterObj = semesters.find((s) => s._id === selectedSemesterId);
-        const selectedSubjectObj = subjects.find((s) => s._id === selectedSubjectId);
-
         try {
             setLoading(true);
             const token = await getToken();
             const data = new FormData();
 
             data.append("file", file);
-            data.append("universityId", selectedUniId || "");
-            data.append("courseId", selectedCourseId || "");
-            data.append("semesterId", selectedSemesterId || "");
-            data.append("subjectId", selectedSubjectId || "");
-
-            data.append("university", selectedUniObj ? selectedUniObj.name : "United University");
-            data.append("course", selectedCourseObj ? selectedCourseObj.name : "General");
-            data.append("semester", selectedSemesterObj ? String(selectedSemesterObj.number) : "1");
-            data.append("subject", selectedSubjectObj ? selectedSubjectObj.name : pyqForm.subjectName || "General");
-            data.append("subjectCode", selectedSubjectObj ? selectedSubjectObj.code : pyqForm.subjectCode || "");
+            data.append("university", "United University");
 
             if (isPyq) {
                 data.append("title", pyqForm.title.trim());
+                data.append("course", pyqForm.course);
+                data.append("semester", pyqForm.semester);
+                data.append("subject", pyqForm.title.trim());
                 data.append("examType", pyqForm.examType);
-                data.append("academicYear", pyqForm.academicYear);
-                data.append("year", pyqForm.academicYear.split("-")[0] || "2025");
-                data.append("branch", pyqForm.branch || "");
-                data.append("description", pyqForm.description || "");
+                data.append("academicYear", pyqForm.examYear);
+                data.append("year", pyqForm.examYear);
+                data.append("branch", pyqForm.branch ? pyqForm.branch.trim() : "");
 
                 const res = await axios.post(`${API_URL}/api/upload`, data, {
                     headers: {
@@ -328,10 +214,12 @@ export default function UploadPYQ() {
                 });
             } else {
                 data.append("title", noteForm.title.trim());
+                data.append("course", noteForm.course);
+                data.append("semester", noteForm.semester);
+                data.append("subject", noteForm.title.trim());
                 data.append("unit", noteForm.unit);
                 data.append("author", noteForm.author || (user?.fullName || "Student"));
-                data.append("branch", noteForm.branch || "");
-                data.append("description", noteForm.description || "");
+                data.append("branch", noteForm.branch ? noteForm.branch.trim() : "");
 
                 const res = await axios.post(`${API_URL}/api/notes/upload`, data, {
                     headers: {
@@ -365,37 +253,23 @@ export default function UploadPYQ() {
         <div className="min-h-screen bg-[#FAF8F5] dark:bg-[#0F0E0D] text-[#1A1614] dark:text-[#F5F2EC] flex flex-col font-sans transition-colors duration-300">
             <Navbar2 />
 
-            <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-10 w-full flex-1">
-                {/* Header Title */}
-                <div className="text-center mb-8">
-                    <div className="inline-flex items-center gap-2 px-3.5 py-1 rounded-full bg-[#F4EFEA] dark:bg-[#1C1916] border border-[#DDD2C4] dark:border-[#2E2822] text-[#8C6239] dark:text-[#E5C378] text-xs font-semibold mb-3">
-                        <FaUpload className="text-[10px]" />
-                        <span>Academic Repository Vault</span>
-                    </div>
-                    <h1 className="text-3xl sm:text-4xl font-serif font-bold text-[#0D1B2A] dark:text-[#FAF8F5] tracking-tight mb-2">
-                        Contribute Academic Material
-                    </h1>
-                    <p className="text-xs sm:text-sm text-[#6B5B49] dark:text-[#C2B3A0] max-w-lg mx-auto leading-relaxed">
-                        Upload previous year examination papers and study notes with dynamic university and semester categorization.
-                    </p>
-                </div>
-
+            <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-10 w-full flex-1">
                 {/* Tab Selector: Question Paper vs Study Notes */}
-                <div className="flex items-center justify-center gap-3 mb-8">
+                <div className="flex items-center justify-center gap-2 mb-8 bg-[#F4EFEA] dark:bg-[#1C1916] p-1 rounded-full max-w-sm mx-auto border border-[#EAE2D8] dark:border-[#2E2822]">
                     <button
                         type="button"
                         onClick={() => {
                             setUploadType("pyq");
                             setUploadedItem(null);
                         }}
-                        className={`inline-flex items-center gap-2 px-6 py-3 rounded-full text-xs font-bold transition shadow-xs cursor-pointer ${
+                        className={`flex-1 py-2.5 px-4 rounded-full text-xs font-bold transition flex items-center justify-center gap-2 cursor-pointer ${
                             uploadType === "pyq"
-                                ? "bg-[#0D1B2A] text-white dark:bg-[#C89D5C] dark:text-[#0D1B2A]"
-                                : "bg-white dark:bg-[#161412] text-[#6B5B49] dark:text-[#C2B3A0] border border-[#EAE2D8] dark:border-[#2E2822] hover:bg-[#F4EFEA]"
+                                ? "bg-[#0D1B2A] text-white dark:bg-[#C89D5C] dark:text-[#0D1B2A] shadow-sm"
+                                : "text-[#6B5B49] dark:text-[#C2B3A0] hover:text-[#0D1B2A]"
                         }`}
                     >
-                        <FaFilePdf className="text-sm" />
-                        <span>Question Paper (PYQ)</span>
+                        <FaBook className="text-xs" />
+                        <span>Question Paper</span>
                     </button>
 
                     <button
@@ -404,368 +278,376 @@ export default function UploadPYQ() {
                             setUploadType("note");
                             setUploadedItem(null);
                         }}
-                        className={`inline-flex items-center gap-2 px-6 py-3 rounded-full text-xs font-bold transition shadow-xs cursor-pointer ${
+                        className={`flex-1 py-2.5 px-4 rounded-full text-xs font-bold transition flex items-center justify-center gap-2 cursor-pointer ${
                             uploadType === "note"
-                                ? "bg-[#0D1B2A] text-white dark:bg-[#C89D5C] dark:text-[#0D1B2A]"
-                                : "bg-white dark:bg-[#161412] text-[#6B5B49] dark:text-[#C2B3A0] border border-[#EAE2D8] dark:border-[#2E2822] hover:bg-[#F4EFEA]"
+                                ? "bg-[#0D1B2A] text-white dark:bg-[#C89D5C] dark:text-[#0D1B2A] shadow-sm"
+                                : "text-[#6B5B49] dark:text-[#C2B3A0] hover:text-[#0D1B2A]"
                         }`}
                     >
-                        <FaStickyNote className="text-sm" />
-                        <span>Study Notes & Summaries</span>
+                        <FaStickyNote className="text-xs" />
+                        <span>Study Notes</span>
                     </button>
                 </div>
 
-                {/* Main Form Container */}
+                {/* Main Card Container */}
                 <div className="bg-white dark:bg-[#161412] border border-[#EAE2D8] dark:border-[#2E2822] rounded-3xl p-6 sm:p-10 shadow-sm">
-                    {hierarchyLoading ? (
-                        <div className="py-16 text-center">
-                            <FaSpinner className="text-3xl text-[#C89D5C] animate-spin mx-auto mb-3" />
-                            <p className="text-xs text-[#8C7862]">Loading academic hierarchy...</p>
-                        </div>
-                    ) : (
-                        <form onSubmit={handleSubmit} className="space-y-6">
-                            
-                            {/* ── STEP 1: HIERARCHY SELECTION (Dependent Dropdowns) ── */}
-                            <div className="p-5 rounded-2xl bg-[#FAF8F5] dark:bg-[#1C1916] border border-[#EAE2D8] dark:border-[#2E2822] space-y-4">
-                                <div className="flex items-center gap-2 text-xs font-serif font-bold text-[#0D1B2A] dark:text-[#FAF8F5]">
-                                    <FaUniversity className="text-[#C89D5C]" />
-                                    <span>Academic Hierarchy Selection</span>
+                    {/* Header Title */}
+                    <div className="text-center mb-8">
+                        <h1 className="text-2xl sm:text-3xl font-serif font-bold text-[#0D1B2A] dark:text-[#FAF8F5] tracking-tight mb-1.5">
+                            {uploadType === "pyq" ? "Upload Previous Year Paper" : "Upload Study Notes & Material"}
+                        </h1>
+                        <p className="text-xs sm:text-sm text-[#8C7862] dark:text-[#A8957E]">
+                            {uploadType === "pyq"
+                                ? "Share semester and mid-term exam papers with fellow students"
+                                : "Share handwritten unit notes, lecture summaries, and formula sheets"}
+                        </p>
+                    </div>
+
+                    <form onSubmit={handleSubmit} className="space-y-5">
+                        {uploadType === "pyq" ? (
+                            <>
+                                {/* Subject / Paper Title */}
+                                <div>
+                                    <label className="block text-xs font-bold text-[#4A3E31] dark:text-[#C2B3A0] mb-1.5">
+                                        Subject / Paper Title *
+                                    </label>
+                                    <input
+                                        type="text"
+                                        required
+                                        value={pyqForm.title}
+                                        onChange={(e) => setPyqForm({ ...pyqForm, title: e.target.value })}
+                                        placeholder="e.g. Data Structures & Algorithms End Sem 2024"
+                                        className="w-full px-4 py-2.5 bg-white dark:bg-[#1C1916] border border-[#EAE2D8] dark:border-[#2E2822] rounded-xl text-xs text-[#0D1B2A] dark:text-[#FAF8F5] font-medium placeholder:text-[#A8957E] focus:outline-none focus:border-[#8C6239] transition"
+                                    />
                                 </div>
 
+                                {/* Row: Course & Semester */}
                                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                                    {/* University Dropdown */}
                                     <div>
-                                        <label className="block text-[11px] font-bold uppercase tracking-wider text-[#6B5B49] dark:text-[#C2B3A0] mb-1">
-                                            1. University / Institution *
+                                        <label className="block text-xs font-bold text-[#4A3E31] dark:text-[#C2B3A0] mb-1.5">
+                                            Course
                                         </label>
                                         <select
-                                            required
-                                            value={selectedUniId}
-                                            onChange={(e) => setSelectedUniId(e.target.value)}
-                                            className="w-full px-4 py-2.5 bg-white dark:bg-[#161412] border border-[#DDD2C4] dark:border-[#2E2822] rounded-full text-xs text-[#0D1B2A] dark:text-[#FAF8F5] focus:outline-hidden focus:border-[#C89D5C]"
+                                            value={pyqForm.course}
+                                            onChange={(e) => setPyqForm({ ...pyqForm, course: e.target.value })}
+                                            className="w-full px-4 py-2.5 bg-white dark:bg-[#1C1916] border border-[#EAE2D8] dark:border-[#2E2822] rounded-xl text-xs text-[#0D1B2A] dark:text-[#FAF8F5] font-medium focus:outline-none focus:border-[#8C6239] transition"
                                         >
-                                            {universities.map((u) => (
-                                                <option key={u._id} value={u._id}>
-                                                    {u.name} ({u.code})
+                                            {COURSES.map((c) => (
+                                                <option key={c} value={c} className="dark:bg-[#161412]">
+                                                    {c}
                                                 </option>
                                             ))}
                                         </select>
                                     </div>
 
-                                    {/* Course Dropdown */}
                                     <div>
-                                        <label className="block text-[11px] font-bold uppercase tracking-wider text-[#6B5B49] dark:text-[#C2B3A0] mb-1">
-                                            2. Course / Program *
+                                        <label className="block text-xs font-bold text-[#4A3E31] dark:text-[#C2B3A0] mb-1.5">
+                                            Semester
                                         </label>
                                         <select
-                                            required
-                                            value={selectedCourseId}
-                                            onChange={(e) => setSelectedCourseId(e.target.value)}
-                                            className="w-full px-4 py-2.5 bg-white dark:bg-[#161412] border border-[#DDD2C4] dark:border-[#2E2822] rounded-full text-xs text-[#0D1B2A] dark:text-[#FAF8F5] focus:outline-hidden focus:border-[#C89D5C]"
+                                            value={pyqForm.semester}
+                                            onChange={(e) => setPyqForm({ ...pyqForm, semester: e.target.value })}
+                                            className="w-full px-4 py-2.5 bg-white dark:bg-[#1C1916] border border-[#EAE2D8] dark:border-[#2E2822] rounded-xl text-xs text-[#0D1B2A] dark:text-[#FAF8F5] font-medium focus:outline-none focus:border-[#8C6239] transition"
                                         >
-                                            {courses.length === 0 ? (
-                                                <option value="">No courses available</option>
-                                            ) : (
-                                                courses.map((c) => (
-                                                    <option key={c._id} value={c._id}>
-                                                        {c.name} ({c.code})
-                                                    </option>
-                                                ))
-                                            )}
+                                            {SEMESTERS.map((s) => (
+                                                <option key={s.value} value={s.value} className="dark:bg-[#161412]">
+                                                    {s.label}
+                                                </option>
+                                            ))}
                                         </select>
                                     </div>
                                 </div>
 
+                                {/* Row: Exam Type & Exam Year */}
                                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                                    {/* Semester Dropdown (Dynamic exact number of semesters) */}
                                     <div>
-                                        <label className="block text-[11px] font-bold uppercase tracking-wider text-[#6B5B49] dark:text-[#C2B3A0] mb-1">
-                                            3. Semester ({semesters.length} configured) *
+                                        <label className="block text-xs font-bold text-[#4A3E31] dark:text-[#C2B3A0] mb-1.5">
+                                            Exam Type
                                         </label>
                                         <select
-                                            required
-                                            value={selectedSemesterId}
-                                            onChange={(e) => setSelectedSemesterId(e.target.value)}
-                                            className="w-full px-4 py-2.5 bg-white dark:bg-[#161412] border border-[#DDD2C4] dark:border-[#2E2822] rounded-full text-xs text-[#0D1B2A] dark:text-[#FAF8F5] focus:outline-hidden focus:border-[#C89D5C]"
+                                            value={pyqForm.examType}
+                                            onChange={(e) => setPyqForm({ ...pyqForm, examType: e.target.value })}
+                                            className="w-full px-4 py-2.5 bg-white dark:bg-[#1C1916] border border-[#EAE2D8] dark:border-[#2E2822] rounded-xl text-xs text-[#0D1B2A] dark:text-[#FAF8F5] font-medium focus:outline-none focus:border-[#8C6239] transition"
                                         >
-                                            {semesters.length === 0 ? (
-                                                <option value="">No semesters configured</option>
-                                            ) : (
-                                                semesters.map((s) => (
-                                                    <option key={s._id} value={s._id}>
-                                                        {s.name} (Semester {s.number})
-                                                    </option>
-                                                ))
-                                            )}
+                                            {EXAM_TYPES.map((t) => (
+                                                <option key={t} value={t} className="dark:bg-[#161412]">
+                                                    {t}
+                                                </option>
+                                            ))}
                                         </select>
                                     </div>
 
-                                    {/* Subject Dropdown */}
                                     <div>
-                                        <label className="block text-[11px] font-bold uppercase tracking-wider text-[#6B5B49] dark:text-[#C2B3A0] mb-1">
-                                            4. Subject Curriculum *
+                                        <label className="block text-xs font-bold text-[#4A3E31] dark:text-[#C2B3A0] mb-1.5">
+                                            Exam Year
                                         </label>
                                         <select
-                                            value={selectedSubjectId}
-                                            onChange={(e) => {
-                                                setSelectedSubjectId(e.target.value);
-                                                const s = subjects.find((sub) => sub._id === e.target.value);
-                                                if (s) {
-                                                    setPyqForm((prev) => ({
-                                                        ...prev,
-                                                        title: `${s.name} ${prev.examType} Paper`,
-                                                        subjectName: s.name,
-                                                        subjectCode: s.code,
-                                                    }));
-                                                    setNoteForm((prev) => ({
-                                                        ...prev,
-                                                        title: `${s.name} Notes`,
-                                                        subjectName: s.name,
-                                                    }));
-                                                }
-                                            }}
-                                            className="w-full px-4 py-2.5 bg-white dark:bg-[#161412] border border-[#DDD2C4] dark:border-[#2E2822] rounded-full text-xs text-[#0D1B2A] dark:text-[#FAF8F5] focus:outline-hidden focus:border-[#C89D5C]"
+                                            value={pyqForm.examYear}
+                                            onChange={(e) => setPyqForm({ ...pyqForm, examYear: e.target.value })}
+                                            className="w-full px-4 py-2.5 bg-white dark:bg-[#1C1916] border border-[#EAE2D8] dark:border-[#2E2822] rounded-xl text-xs text-[#0D1B2A] dark:text-[#FAF8F5] font-medium focus:outline-none focus:border-[#8C6239] transition"
                                         >
-                                            {subjects.length === 0 ? (
-                                                <option value="">Other / General Subject</option>
-                                            ) : (
-                                                subjects.map((s) => (
-                                                    <option key={s._id} value={s._id}>
-                                                        {s.name} ({s.code})
-                                                    </option>
-                                                ))
-                                            )}
+                                            {EXAM_YEARS.map((yr) => (
+                                                <option key={yr} value={yr} className="dark:bg-[#161412]">
+                                                    {yr}
+                                                </option>
+                                            ))}
                                         </select>
                                     </div>
                                 </div>
-                            </div>
 
-                            {/* ── STEP 2: DOCUMENT DETAILS ── */}
-                            {uploadType === "pyq" ? (
-                                <div className="space-y-4">
-                                    <div>
-                                        <label className="block text-xs font-bold text-[#4A3E31] dark:text-[#C2B3A0] mb-1">
-                                            Paper Title *
-                                        </label>
-                                        <input
-                                            type="text"
-                                            required
-                                            value={pyqForm.title}
-                                            onChange={(e) => setPyqForm({ ...pyqForm, title: e.target.value })}
-                                            placeholder="e.g. Operating Systems End Semester 2024-25"
-                                            className="w-full px-4 py-2.5 bg-[#FAF8F5] dark:bg-[#1C1916] border border-[#DDD2C4] dark:border-[#2E2822] rounded-full text-xs text-[#0D1B2A] dark:text-[#FAF8F5] focus:outline-hidden focus:border-[#C89D5C]"
-                                        />
-                                    </div>
-
-                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                                        <div>
-                                            <label className="block text-xs font-bold text-[#4A3E31] dark:text-[#C2B3A0] mb-1">
-                                                Exam Type *
-                                            </label>
-                                            <select
-                                                value={pyqForm.examType}
-                                                onChange={(e) => setPyqForm({ ...pyqForm, examType: e.target.value })}
-                                                className="w-full px-4 py-2.5 bg-[#FAF8F5] dark:bg-[#1C1916] border border-[#DDD2C4] dark:border-[#2E2822] rounded-full text-xs text-[#0D1B2A] dark:text-[#FAF8F5] focus:outline-hidden"
-                                            >
-                                                {EXAM_TYPES.map((t) => (
-                                                    <option key={t} value={t}>
-                                                        {t}
-                                                    </option>
-                                                ))}
-                                            </select>
-                                        </div>
-
-                                        <div>
-                                            <label className="block text-xs font-bold text-[#4A3E31] dark:text-[#C2B3A0] mb-1">
-                                                Academic Year / Exam Year *
-                                            </label>
-                                            <select
-                                                required
-                                                value={pyqForm.academicYear}
-                                                onChange={(e) => setPyqForm({ ...pyqForm, academicYear: e.target.value })}
-                                                className="w-full px-4 py-2.5 bg-[#FAF8F5] dark:bg-[#1C1916] border border-[#DDD2C4] dark:border-[#2E2822] rounded-full text-xs text-[#0D1B2A] dark:text-[#FAF8F5] focus:outline-hidden focus:border-[#C89D5C]"
-                                            >
-                                                <option value="" disabled>Select Academic Year</option>
-                                                {ACADEMIC_YEARS.map((yr) => (
-                                                    <option key={yr} value={yr}>
-                                                        {yr}
-                                                    </option>
-                                                ))}
-                                            </select>
-                                        </div>
-                                    </div>
-                                </div>
-                            ) : (
-                                <div className="space-y-4">
-                                    <div>
-                                        <label className="block text-xs font-bold text-[#4A3E31] dark:text-[#C2B3A0] mb-1">
-                                            Study Notes Title *
-                                        </label>
-                                        <input
-                                            type="text"
-                                            required
-                                            value={noteForm.title}
-                                            onChange={(e) => setNoteForm({ ...noteForm, title: e.target.value })}
-                                            placeholder="e.g. Data Structures & Algorithms Complete Handwritten Kit"
-                                            className="w-full px-4 py-2.5 bg-[#FAF8F5] dark:bg-[#1C1916] border border-[#DDD2C4] dark:border-[#2E2822] rounded-full text-xs text-[#0D1B2A] dark:text-[#FAF8F5] focus:outline-hidden focus:border-[#C89D5C]"
-                                        />
-                                    </div>
-
-                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                                        <div>
-                                            <label className="block text-xs font-bold text-[#4A3E31] dark:text-[#C2B3A0] mb-1">
-                                                Unit / Scope *
-                                            </label>
-                                            <select
-                                                value={noteForm.unit}
-                                                onChange={(e) => setNoteForm({ ...noteForm, unit: e.target.value })}
-                                                className="w-full px-4 py-2.5 bg-[#FAF8F5] dark:bg-[#1C1916] border border-[#DDD2C4] dark:border-[#2E2822] rounded-full text-xs text-[#0D1B2A] dark:text-[#FAF8F5] focus:outline-hidden"
-                                            >
-                                                {UNITS.map((u) => (
-                                                    <option key={u} value={u}>
-                                                        {u}
-                                                    </option>
-                                                ))}
-                                            </select>
-                                        </div>
-
-                                        <div>
-                                            <label className="block text-xs font-bold text-[#4A3E31] dark:text-[#C2B3A0] mb-1">
-                                                Author / Contributor
-                                            </label>
-                                            <input
-                                                type="text"
-                                                value={noteForm.author}
-                                                onChange={(e) => setNoteForm({ ...noteForm, author: e.target.value })}
-                                                placeholder={user?.fullName || "Prof. / Student Name"}
-                                                className="w-full px-4 py-2.5 bg-[#FAF8F5] dark:bg-[#1C1916] border border-[#DDD2C4] dark:border-[#2E2822] rounded-full text-xs text-[#0D1B2A] dark:text-[#FAF8F5] focus:outline-hidden focus:border-[#C89D5C]"
-                                            />
-                                        </div>
-                                    </div>
-                                </div>
-                            )}
-
-                            {/* ── STEP 3: PDF DROPZONE ── */}
-                            <div>
-                                <label className="block text-xs font-bold text-[#4A3E31] dark:text-[#C2B3A0] mb-2">
-                                    Attach PDF Document *
-                                </label>
-                                <div
-                                    {...getRootProps()}
-                                    className={`border-2 border-dashed rounded-3xl p-8 text-center cursor-pointer transition-all duration-200 ${
-                                        isDragActive
-                                            ? "border-[#C89D5C] bg-[#FAF8F5] dark:bg-[#24201C]"
-                                            : file
-                                            ? "border-emerald-500/60 bg-emerald-50/20 dark:bg-emerald-950/20"
-                                            : "border-[#DDD2C4] dark:border-[#2E2822] hover:border-[#C89D5C] bg-[#FAF8F5]/50 dark:bg-[#1C1916]/50"
-                                    }`}
-                                >
-                                    <input {...getInputProps()} />
-                                    {file ? (
-                                        <div className="flex flex-col items-center">
-                                            <div className="w-12 h-12 rounded-2xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 flex items-center justify-center text-2xl mb-2">
-                                                <FaFilePdf />
-                                            </div>
-                                            <span className="font-bold text-xs text-[#0D1B2A] dark:text-[#FAF8F5] max-w-sm truncate">
-                                                {file.name}
-                                            </span>
-                                            <span className="text-[11px] text-[#8C7862] mt-0.5">
-                                                {(file.size / (1024 * 1024)).toFixed(2)} MB • Ready to upload
-                                            </span>
-                                            <div className="flex items-center gap-3 mt-3">
-                                                <button
-                                                    type="button"
-                                                    onClick={(e) => {
-                                                        e.stopPropagation();
-                                                        setPreviewOpen(true);
-                                                    }}
-                                                    className="px-3 py-1 bg-white dark:bg-[#24201C] border border-[#DDD2C4] dark:border-[#2E2822] rounded-full text-xs font-semibold"
-                                                >
-                                                    <FaEye className="inline mr-1 text-[10px]" /> Local Preview
-                                                </button>
-                                                <button
-                                                    type="button"
-                                                    onClick={(e) => {
-                                                        e.stopPropagation();
-                                                        setFile(null);
-                                                    }}
-                                                    className="px-3 py-1 bg-rose-500/10 text-rose-600 rounded-full text-xs font-semibold"
-                                                >
-                                                    <FaTrash className="inline mr-1 text-[10px]" /> Remove
-                                                </button>
-                                            </div>
-                                        </div>
-                                    ) : (
-                                        <div className="flex flex-col items-center">
-                                            <MdDriveFolderUpload className="text-4xl text-[#C89D5C] mb-2" />
-                                            <p className="text-xs font-bold text-[#0D1B2A] dark:text-[#FAF8F5]">
-                                                Click or Drag & Drop PDF here
-                                            </p>
-                                            <p className="text-[11px] text-[#8C7862] mt-1">
-                                                PDF up to 50MB with clear readable questions
-                                            </p>
-                                        </div>
-                                    )}
-                                </div>
-                            </div>
-
-                            {/* Progress bar */}
-                            {uploadProgress > 0 && uploadProgress < 100 && (
-                                <div className="w-full bg-[#EAE2D8] dark:bg-[#24201C] rounded-full h-2 overflow-hidden">
-                                    <div
-                                        className="bg-[#C89D5C] h-full transition-all duration-300"
-                                        style={{ width: `${uploadProgress}%` }}
+                                {/* Branch (optional) */}
+                                <div>
+                                    <label className="block text-xs font-bold text-[#4A3E31] dark:text-[#C2B3A0] mb-1.5">
+                                        Branch (optional)
+                                    </label>
+                                    <input
+                                        type="text"
+                                        value={pyqForm.branch}
+                                        onChange={(e) => setPyqForm({ ...pyqForm, branch: e.target.value })}
+                                        placeholder="e.g. CSE, ECE, Mechanical..."
+                                        className="w-full px-4 py-2.5 bg-white dark:bg-[#1C1916] border border-[#EAE2D8] dark:border-[#2E2822] rounded-xl text-xs text-[#0D1B2A] dark:text-[#FAF8F5] font-medium placeholder:text-[#A8957E] focus:outline-none focus:border-[#8C6239] transition"
                                     />
                                 </div>
-                            )}
+                            </>
+                        ) : (
+                            <>
+                                {/* Subject / Notes Title */}
+                                <div>
+                                    <label className="block text-xs font-bold text-[#4A3E31] dark:text-[#C2B3A0] mb-1.5">
+                                        Subject / Notes Title *
+                                    </label>
+                                    <input
+                                        type="text"
+                                        required
+                                        value={noteForm.title}
+                                        onChange={(e) => setNoteForm({ ...noteForm, title: e.target.value })}
+                                        placeholder="e.g. Data Structures & Algorithms Unit 1-5 Handwritten Kit"
+                                        className="w-full px-4 py-2.5 bg-white dark:bg-[#1C1916] border border-[#EAE2D8] dark:border-[#2E2822] rounded-xl text-xs text-[#0D1B2A] dark:text-[#FAF8F5] font-medium placeholder:text-[#A8957E] focus:outline-none focus:border-[#8C6239] transition"
+                                    />
+                                </div>
 
-                            {/* Submit Button */}
-                            <button
-                                type="submit"
-                                disabled={loading || !file}
-                                className="w-full py-3.5 px-6 rounded-full bg-[#0D1B2A] hover:bg-[#1E293B] dark:bg-[#C89D5C] dark:hover:bg-[#E5C378] text-[#FAF8F5] dark:text-[#0D1B2A] text-xs font-bold shadow-md transition flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
+                                {/* Row: Course & Semester */}
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                    <div>
+                                        <label className="block text-xs font-bold text-[#4A3E31] dark:text-[#C2B3A0] mb-1.5">
+                                            Course
+                                        </label>
+                                        <select
+                                            value={noteForm.course}
+                                            onChange={(e) => setNoteForm({ ...noteForm, course: e.target.value })}
+                                            className="w-full px-4 py-2.5 bg-white dark:bg-[#1C1916] border border-[#EAE2D8] dark:border-[#2E2822] rounded-xl text-xs text-[#0D1B2A] dark:text-[#FAF8F5] font-medium focus:outline-none focus:border-[#8C6239] transition"
+                                        >
+                                            {COURSES.map((c) => (
+                                                <option key={c} value={c} className="dark:bg-[#161412]">
+                                                    {c}
+                                                </option>
+                                            ))}
+                                        </select>
+                                    </div>
+
+                                    <div>
+                                        <label className="block text-xs font-bold text-[#4A3E31] dark:text-[#C2B3A0] mb-1.5">
+                                            Semester
+                                        </label>
+                                        <select
+                                            value={noteForm.semester}
+                                            onChange={(e) => setNoteForm({ ...noteForm, semester: e.target.value })}
+                                            className="w-full px-4 py-2.5 bg-white dark:bg-[#1C1916] border border-[#EAE2D8] dark:border-[#2E2822] rounded-xl text-xs text-[#0D1B2A] dark:text-[#FAF8F5] font-medium focus:outline-none focus:border-[#8C6239] transition"
+                                        >
+                                            {SEMESTERS.map((s) => (
+                                                <option key={s.value} value={s.value} className="dark:bg-[#161412]">
+                                                    {s.label}
+                                                </option>
+                                            ))}
+                                        </select>
+                                    </div>
+                                </div>
+
+                                {/* Row: Unit & Author */}
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                    <div>
+                                        <label className="block text-xs font-bold text-[#4A3E31] dark:text-[#C2B3A0] mb-1.5">
+                                            Unit / Module
+                                        </label>
+                                        <select
+                                            value={noteForm.unit}
+                                            onChange={(e) => setNoteForm({ ...noteForm, unit: e.target.value })}
+                                            className="w-full px-4 py-2.5 bg-white dark:bg-[#1C1916] border border-[#EAE2D8] dark:border-[#2E2822] rounded-xl text-xs text-[#0D1B2A] dark:text-[#FAF8F5] font-medium focus:outline-none focus:border-[#8C6239] transition"
+                                        >
+                                            {UNITS.map((u) => (
+                                                <option key={u} value={u} className="dark:bg-[#161412]">
+                                                    {u}
+                                                </option>
+                                            ))}
+                                        </select>
+                                    </div>
+
+                                    <div>
+                                        <label className="block text-xs font-bold text-[#4A3E31] dark:text-[#C2B3A0] mb-1.5">
+                                            Author / Contributor
+                                        </label>
+                                        <input
+                                            type="text"
+                                            value={noteForm.author}
+                                            onChange={(e) => setNoteForm({ ...noteForm, author: e.target.value })}
+                                            placeholder={user?.fullName || "Prof. / Student Name"}
+                                            className="w-full px-4 py-2.5 bg-white dark:bg-[#1C1916] border border-[#EAE2D8] dark:border-[#2E2822] rounded-xl text-xs text-[#0D1B2A] dark:text-[#FAF8F5] font-medium placeholder:text-[#A8957E] focus:outline-none focus:border-[#8C6239] transition"
+                                        />
+                                    </div>
+                                </div>
+
+                                {/* Branch (optional) */}
+                                <div>
+                                    <label className="block text-xs font-bold text-[#4A3E31] dark:text-[#C2B3A0] mb-1.5">
+                                        Branch (optional)
+                                    </label>
+                                    <input
+                                        type="text"
+                                        value={noteForm.branch}
+                                        onChange={(e) => setNoteForm({ ...noteForm, branch: e.target.value })}
+                                        placeholder="e.g. CSE, ECE, Mechanical..."
+                                        className="w-full px-4 py-2.5 bg-white dark:bg-[#1C1916] border border-[#EAE2D8] dark:border-[#2E2822] rounded-xl text-xs text-[#0D1B2A] dark:text-[#FAF8F5] font-medium placeholder:text-[#A8957E] focus:outline-none focus:border-[#8C6239] transition"
+                                    />
+                                </div>
+                            </>
+                        )}
+
+                        {/* PDF File Dropzone */}
+                        <div className="pt-2">
+                            <div
+                                {...getRootProps()}
+                                className={`border-2 border-dashed rounded-2xl p-8 text-center cursor-pointer transition-all duration-200 ${
+                                    isDragActive
+                                        ? "border-[#8C6239] bg-[#FAF8F5] dark:bg-[#24201C]"
+                                        : file
+                                        ? "border-emerald-500/60 bg-emerald-50/20 dark:bg-emerald-950/20"
+                                        : "border-[#EAE2D8] dark:border-[#2E2822] hover:border-[#8C6239] bg-[#FAF8F5]/40 dark:bg-[#1C1916]/40"
+                                }`}
                             >
-                                {loading ? (
-                                    <>
-                                        <FaSpinner className="animate-spin text-sm" />
-                                        <span>Uploading to Academic Repository...</span>
-                                    </>
+                                <input {...getInputProps()} />
+                                {file ? (
+                                    <div className="flex flex-col items-center">
+                                        <div className="w-12 h-12 rounded-2xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 flex items-center justify-center text-2xl mb-2">
+                                            <FaFilePdf />
+                                        </div>
+                                        <span className="font-bold text-xs text-[#0D1B2A] dark:text-[#FAF8F5] max-w-sm truncate">
+                                            {file.name}
+                                        </span>
+                                        <span className="text-[11px] text-[#8C7862] mt-0.5">
+                                            {(file.size / (1024 * 1024)).toFixed(2)} MB • Ready to upload
+                                        </span>
+                                        <div className="flex items-center gap-3 mt-3">
+                                            <button
+                                                type="button"
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    setPreviewOpen(true);
+                                                }}
+                                                className="px-3 py-1 bg-white dark:bg-[#24201C] border border-[#DDD2C4] dark:border-[#2E2822] rounded-full text-xs font-semibold"
+                                            >
+                                                <FaEye className="inline mr-1 text-[10px]" /> Local Preview
+                                            </button>
+                                            <button
+                                                type="button"
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    setFile(null);
+                                                }}
+                                                className="px-3 py-1 bg-rose-500/10 text-rose-600 rounded-full text-xs font-semibold"
+                                            >
+                                                <FaTrash className="inline mr-1 text-[10px]" /> Remove
+                                            </button>
+                                        </div>
+                                    </div>
                                 ) : (
-                                    <>
-                                        <FaUpload className="text-xs" />
-                                        <span>Submit for Admin Verification ↗</span>
-                                    </>
+                                    <div className="flex flex-col items-center">
+                                        <div className="w-10 h-10 rounded-xl bg-[#F4EFEA] dark:bg-[#24201C] text-[#8C6239] dark:text-[#E5C378] flex items-center justify-center text-xl mb-2">
+                                            <MdDriveFolderUpload />
+                                        </div>
+                                        <p className="text-xs font-bold text-[#0D1B2A] dark:text-[#FAF8F5]">
+                                            Upload PDF Document
+                                        </p>
+                                        <p className="text-[11px] text-[#8C7862] dark:text-[#A8957E] mt-0.5">
+                                            Drag and drop PDF file here, or click to browse
+                                        </p>
+                                    </div>
                                 )}
-                            </button>
-                        </form>
-                    )}
+                            </div>
+                        </div>
+
+                        {/* Progress Bar */}
+                        {uploadProgress > 0 && uploadProgress < 100 && (
+                            <div className="w-full bg-[#EAE2D8] dark:bg-[#24201C] rounded-full h-2 overflow-hidden">
+                                <div
+                                    className="bg-[#8C6239] dark:bg-[#E5C378] h-full transition-all duration-300"
+                                    style={{ width: `${uploadProgress}%` }}
+                                />
+                            </div>
+                        )}
+
+                        {/* Submit Button */}
+                        <button
+                            type="submit"
+                            disabled={loading || !file}
+                            className="w-full py-3.5 px-6 rounded-xl bg-[#0D1B2A] hover:bg-[#1E293B] dark:bg-[#C89D5C] dark:hover:bg-[#E5C378] text-[#FAF8F5] dark:text-[#0D1B2A] text-xs font-bold shadow-md transition flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 mt-2"
+                        >
+                            {loading ? (
+                                <>
+                                    <FaSpinner className="animate-spin text-sm" />
+                                    <span>Uploading to PaperBridge Vault...</span>
+                                </>
+                            ) : (
+                                <span>
+                                    {uploadType === "pyq"
+                                        ? "Submit Question Paper for Review"
+                                        : "Submit Study Notes for Review"}
+                                </span>
+                            )}
+                        </button>
+                    </form>
                 </div>
 
-                {/* Success Confirmation Modal */}
+                {/* Success Modal */}
                 {uploadedItem && (
                     <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
                         <div className="bg-white dark:bg-[#161412] border border-[#EAE2D8] dark:border-[#2E2822] rounded-3xl p-8 max-w-md w-full text-center shadow-2xl animate-in fade-in zoom-in-95">
                             <div className="w-16 h-16 rounded-full bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 flex items-center justify-center text-3xl mx-auto mb-4 border border-emerald-500/30">
                                 <FaCheck />
                             </div>
-                            <h3 className="text-xl font-serif font-bold text-[#0D1B2A] dark:text-[#FAF8F5] mb-2">
-                                Submission Successful!
+                            <h3 className="text-lg font-serif font-bold text-[#0D1B2A] dark:text-[#FAF8F5] mb-2">
+                                Submission Received!
                             </h3>
-                            <p className="text-xs text-[#6B5B49] dark:text-[#C2B3A0] leading-relaxed mb-6">
-                                Your <span className="font-semibold text-[#0D1B2A] dark:text-white">{uploadedItem.itemType}</span> titled{" "}
-                                <span className="italic font-serif">"{uploadedItem.title}"</span> has been submitted to the moderation queue. It will go live once verified by our admin team.
+                            <p className="text-xs text-[#8C7862] dark:text-[#A8957E] mb-6 leading-relaxed">
+                                Your <strong className="text-[#0D1B2A] dark:text-[#FAF8F5]">{uploadedItem.title}</strong> has been submitted to the moderation queue. Once approved, it will be published to all students.
                             </p>
-
-                            <div className="flex items-center justify-center gap-3">
+                            <div className="flex flex-col sm:flex-row gap-3">
                                 <Link
                                     to="/dashboard"
-                                    className="px-5 py-2.5 bg-[#0D1B2A] dark:bg-[#C89D5C] text-white dark:text-[#0D1B2A] rounded-full text-xs font-bold transition"
+                                    className="flex-1 py-2.5 px-4 rounded-full bg-[#0D1B2A] dark:bg-[#C89D5C] text-white dark:text-[#0D1B2A] text-xs font-bold shadow-sm text-center"
                                 >
-                                    View in My Library
+                                    View in My Library →
                                 </Link>
                                 <button
-                                    onClick={() => setUploadedItem(null)}
-                                    className="px-5 py-2.5 bg-[#FAF8F5] dark:bg-[#24201C] border border-[#DDD2C4] dark:border-[#2E2822] text-[#0D1B2A] dark:text-[#FAF8F5] rounded-full text-xs font-bold"
+                                    onClick={() => {
+                                        setUploadedItem(null);
+                                        setPyqForm({
+                                            title: "",
+                                            course: "B.Tech",
+                                            semester: "1",
+                                            examType: "End Semester",
+                                            examYear: "2026",
+                                            branch: "",
+                                        });
+                                        setNoteForm({
+                                            title: "",
+                                            course: "B.Tech",
+                                            semester: "1",
+                                            unit: "Complete Syllabus",
+                                            author: "",
+                                            branch: "",
+                                        });
+                                    }}
+                                    className="flex-1 py-2.5 px-4 rounded-full bg-[#FAF8F5] dark:bg-[#1C1916] text-[#6B5B49] dark:text-[#C2B3A0] border border-[#DDD2C4] dark:border-[#2E2822] text-xs font-bold text-center"
                                 >
                                     Upload Another
                                 </button>
@@ -774,11 +656,11 @@ export default function UploadPYQ() {
                     </div>
                 )}
 
-                {/* Local PDF preview modal */}
+                {/* Local PDF Preview Modal */}
                 {previewOpen && file && (
-                    <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
-                        <div className="bg-white dark:bg-[#161412] border border-[#EAE2D8] dark:border-[#2E2822] rounded-3xl shadow-xl w-full h-[85vh] max-w-4xl flex flex-col overflow-hidden">
-                            <div className="flex items-center justify-between border-b border-[#EAE2D8] dark:border-[#2E2822] px-5 py-3 bg-[#FAF8F5] dark:bg-[#1C1916]">
+                    <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-xs flex items-center justify-center p-4">
+                        <div className="bg-white dark:bg-[#161412] border border-[#EAE2D8] dark:border-[#2E2822] rounded-3xl w-full max-w-4xl h-[85vh] flex flex-col overflow-hidden shadow-2xl">
+                            <div className="flex items-center justify-between px-6 py-4 border-b border-[#EAE2D8] dark:border-[#2E2822] bg-[#FAF8F5] dark:bg-[#1C1916]">
                                 <span className="font-bold text-xs text-[#1A1614] dark:text-[#FAF8F5] truncate">{file.name}</span>
                                 <button onClick={() => setPreviewOpen(false)} className="text-[#8C7862] hover:text-[#1A1614] dark:hover:text-white text-xs cursor-pointer">✕</button>
                             </div>
