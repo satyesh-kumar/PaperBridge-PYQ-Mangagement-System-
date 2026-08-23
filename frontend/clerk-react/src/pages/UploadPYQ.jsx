@@ -27,6 +27,21 @@ import axios from "axios";
 
 const API_URL = import.meta.env.VITE_API_URL || "http://localhost:5000";
 
+const ACADEMIC_YEARS = [
+    "2026-27",
+    "2025-26",
+    "2024-25",
+    "2023-24",
+    "2022-23",
+    "2021-22",
+    "2020-21",
+    "2019-20",
+    "2018-19",
+    "2017-18",
+    "2016-17",
+    "2015-16",
+];
+
 const EXAM_TYPES = [
     "End Semester",
     "Mid Semester",
@@ -564,14 +579,19 @@ export default function UploadPYQ() {
                                             <label className="block text-xs font-bold text-[#4A3E31] dark:text-[#C2B3A0] mb-1">
                                                 Academic Year / Exam Year *
                                             </label>
-                                            <input
-                                                type="text"
+                                            <select
                                                 required
                                                 value={pyqForm.academicYear}
                                                 onChange={(e) => setPyqForm({ ...pyqForm, academicYear: e.target.value })}
-                                                placeholder="e.g. 2024-25 or 2025"
-                                                className="w-full px-4 py-2.5 bg-[#FAF8F5] dark:bg-[#1C1916] border border-[#DDD2C4] dark:border-[#2E2822] rounded-full text-xs font-mono text-[#0D1B2A] dark:text-[#FAF8F5] focus:outline-hidden focus:border-[#C89D5C]"
-                                            />
+                                                className="w-full px-4 py-2.5 bg-[#FAF8F5] dark:bg-[#1C1916] border border-[#DDD2C4] dark:border-[#2E2822] rounded-full text-xs text-[#0D1B2A] dark:text-[#FAF8F5] focus:outline-hidden focus:border-[#C89D5C]"
+                                            >
+                                                <option value="" disabled>Select Academic Year</option>
+                                                {ACADEMIC_YEARS.map((yr) => (
+                                                    <option key={yr} value={yr}>
+                                                        {yr}
+                                                    </option>
+                                                ))}
+                                            </select>
                                         </div>
                                     </div>
                                 </div>

@@ -43,7 +43,6 @@ import Navbar2 from "../components/Navbar2";
 import Footer from "../components/Footer";
 import PaperBridgeLogo from "../components/PaperBridgeLogo";
 import PDFViewer from "../components/PDFViewer";
-import GooglePagination from "../components/GooglePagination";
 import { downloadPDF } from "../utils/downloadHelper";
 import { useTheme } from "../context/ThemeContext";
 import { toggleBookmark, isBookmarked } from "../utils/bookmarkHelper";
@@ -137,16 +136,6 @@ function Home() {
     const [savedPaperIds, setSavedPaperIds] = useState([]);
     const [homePage, setHomePage] = useState(1);
     const homePageSize = 8;
-
-    const categoryScrollRef = useRef(null);
-    const papersScrollRef = useRef(null);
-
-    const scrollContainer = (ref, direction) => {
-        if (ref.current) {
-            const offset = direction === "left" ? -360 : 360;
-            ref.current.scrollBy({ left: offset, behavior: "smooth" });
-        }
-    };
 
     // Reactive bookmark sync
     useEffect(() => {
@@ -331,22 +320,22 @@ function Home() {
                         {/* Live Pill Badge */}
                         <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-[#F4EFEA] dark:bg-[#1C1916] border border-[#DDD2C4] dark:border-[#2E2822] text-[#8C6239] dark:text-[#E5C378] text-xs font-semibold mb-6 shadow-2xs">
                             <span className="w-2 h-2 rounded-full bg-[#8C6239] dark:bg-[#E5C378] animate-pulse" />
-                            <span>Fast Access to Past Papers</span>
+                            <span>University PYQ & Study Notes Vault</span>
                             <span className="text-[#DDD2C4] dark:text-[#3D3730]">·</span>
-                            <span className="font-medium text-[#6B5B49] dark:text-[#C2B3A0]">United University Vault</span>
+                            <span className="font-medium text-[#6B5B49] dark:text-[#C2B3A0]">Free PDF Downloads</span>
                         </div>
 
                         {/* Grand Editorial Headline */}
                         <h1 className="text-4xl sm:text-5xl lg:text-6xl font-serif font-medium tracking-tight text-[#1A1614] dark:text-[#FAF8F5] leading-[1.12] mb-5">
-                            Your Bridge to <br />
+                            Find & Download Your <br />
                             <span className="text-[#8C6239] dark:text-[#E5C378] italic">
-                                Academic Success.
+                                University Exam Papers.
                             </span>
                         </h1>
 
                         {/* Subtitle explaining what it does & how it helps */}
                         <p className="text-[#6B5B49] dark:text-[#C2B3A0] text-sm sm:text-base max-w-xl leading-relaxed mb-7 font-normal">
-                            Find, preview, and download verified previous year question papers, unit-wise handwritten summaries, and professor notes across all university courses. Prepare smarter and ace your semester exams.
+                            Instant access to verified previous year question papers (PYQs), unit-wise handwritten study notes, and syllabus formula sheets across B.Tech, MCA, BCA, MBA & all university courses.
                         </p>
 
                         {/* Luxury Pill Search Bar */}
@@ -389,12 +378,12 @@ function Home() {
                         </div>
                     </div>
 
-                    {/* Right Column: Editorial Arch Window Visual with Open Book */}
+                    {/* Right Column: University Library Exam Preparation & Study Visual */}
                     <div className="lg:col-span-5 flex justify-center lg:justify-end z-10">
                         <div className="relative w-full max-w-md aspect-[4/3] sm:aspect-[4/3] rounded-3xl overflow-hidden shadow-2xl border-4 border-white/60 dark:border-[#24201C] group">
                             <img
                                 src={resolvedTheme === "dark" ? "/hero_book_arch_dark.jpg" : "/hero_book_arch.jpg"}
-                                alt="PaperBridge Academic Open Book on Stone Pedestal"
+                                alt="PaperBridge University Students Exam Papers & Study Notes Repository"
                                 className="w-full h-full object-cover object-center transition-transform duration-700 group-hover:scale-105"
                             />
                             {/* Subtle Ambient Vignette Overlay */}
@@ -555,36 +544,18 @@ function Home() {
                                     </h2>
                                 </div>
                                 <div className="flex items-center gap-2">
-                                    {/* Flipkart style left & right scroll buttons */}
-                                    <button
-                                        onClick={() => scrollContainer(categoryScrollRef, "left")}
-                                        className="w-8 h-8 rounded-full bg-[#F4EFEA] dark:bg-[#24201C] hover:bg-[#EAE2D8] dark:hover:bg-[#2E2822] text-[#8C6239] dark:text-[#E5C378] flex items-center justify-center transition cursor-pointer shadow-2xs border border-[#EAE2D8] dark:border-[#2E2822]"
-                                        title="Slide Left"
-                                        aria-label="Slide Left"
-                                    >
-                                        <FaChevronLeft className="text-[10px]" />
-                                    </button>
-                                    <button
-                                        onClick={() => scrollContainer(categoryScrollRef, "right")}
-                                        className="w-8 h-8 rounded-full bg-[#F4EFEA] dark:bg-[#24201C] hover:bg-[#EAE2D8] dark:hover:bg-[#2E2822] text-[#8C6239] dark:text-[#E5C378] flex items-center justify-center transition cursor-pointer shadow-2xs border border-[#EAE2D8] dark:border-[#2E2822]"
-                                        title="Slide Right"
-                                        aria-label="Slide Right"
-                                    >
-                                        <FaChevronRight className="text-[10px]" />
-                                    </button>
                                     <Link
                                         to="/browse"
-                                        className="hidden sm:inline-flex items-center gap-1 text-xs font-bold text-[#8C6239] dark:text-[#E5C378] hover:text-[#4A2E1B] dark:hover:text-white transition px-3 py-1.5 rounded-full bg-[#F4EFEA] dark:bg-[#24201C] border border-[#EAE2D8] dark:border-[#2E2822]"
+                                        className="inline-flex items-center gap-1 text-xs font-bold text-[#8C6239] dark:text-[#E5C378] hover:text-[#4A2E1B] dark:hover:text-white transition px-3.5 py-1.5 rounded-full bg-[#F4EFEA] dark:bg-[#24201C] border border-[#EAE2D8] dark:border-[#2E2822]"
                                     >
-                                        <span>All</span>
+                                        <span>View All</span>
                                         <span>↗</span>
                                     </Link>
                                 </div>
                             </div>
 
-                            {/* Category Horizontal Shelf with smooth scrolling */}
+                            {/* Category Shelf */}
                             <div
-                                ref={categoryScrollRef}
                                 className="flex items-center gap-3.5 overflow-x-auto no-scrollbar scroll-smooth pb-2"
                             >
                                 {dynamicCategories.map((cat) => {
@@ -692,27 +663,9 @@ function Home() {
                         </div>
 
                         <div className="flex items-center gap-2 self-start sm:self-auto">
-                            {/* Flipkart style move left & right buttons */}
-                            <button
-                                onClick={() => scrollContainer(papersScrollRef, "left")}
-                                className="w-8 h-8 rounded-full bg-[#F4EFEA] dark:bg-[#24201C] hover:bg-[#EAE2D8] dark:hover:bg-[#2E2822] text-[#8C6239] dark:text-[#E5C378] flex items-center justify-center transition cursor-pointer shadow-2xs border border-[#EAE2D8] dark:border-[#2E2822]"
-                                title="Slide Papers Left"
-                                aria-label="Slide Papers Left"
-                            >
-                                <FaChevronLeft className="text-[10px]" />
-                            </button>
-                            <button
-                                onClick={() => scrollContainer(papersScrollRef, "right")}
-                                className="w-8 h-8 rounded-full bg-[#F4EFEA] dark:bg-[#24201C] hover:bg-[#EAE2D8] dark:hover:bg-[#2E2822] text-[#8C6239] dark:text-[#E5C378] flex items-center justify-center transition cursor-pointer shadow-2xs border border-[#EAE2D8] dark:border-[#2E2822]"
-                                title="Slide Papers Right"
-                                aria-label="Slide Papers Right"
-                            >
-                                <FaChevronRight className="text-[10px]" />
-                            </button>
-
                             <Link
                                 to="/browse"
-                                className="inline-flex items-center gap-1.5 px-4 py-2 rounded-full bg-[#4A2E1B] hover:bg-[#331F12] dark:bg-[#C5A059] dark:hover:bg-[#E5C378] text-white dark:text-[#0F0E0D] text-xs font-bold transition shadow-xs cursor-pointer ml-1"
+                                className="inline-flex items-center gap-1.5 px-4 py-2 rounded-full bg-[#4A2E1B] hover:bg-[#331F12] dark:bg-[#C5A059] dark:hover:bg-[#E5C378] text-white dark:text-[#0F0E0D] text-xs font-bold transition shadow-xs cursor-pointer"
                             >
                                 <span>View all ({papers.length})</span>
                                 <span>↗</span>
@@ -833,8 +786,7 @@ function Home() {
                 {!loading && !error && filteredPapers.length > 0 && (
                     <>
                         <div
-                            ref={papersScrollRef}
-                            className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5 overflow-x-auto no-scrollbar scroll-smooth"
+                            className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5"
                         >
                             {paginatedHomePapers.map((paper) => (
                                 <div
@@ -930,15 +882,33 @@ function Home() {
                             ))}
                         </div>
 
-                        {/* GOOGLE-STYLE LIGHTNING FAST PAGINATION */}
+                        {/* Clean Standard Pagination */}
                         {filteredPapers.length > homePageSize && (
-                            <GooglePagination
-                                currentPage={homePage}
-                                totalPages={homeTotalPages}
-                                onPageChange={(p) => setHomePage(p)}
-                                totalItems={filteredPapers.length}
-                                pageSize={homePageSize}
-                            />
+                            <div className="flex flex-col sm:flex-row items-center justify-between gap-4 mt-8 pt-6 border-t border-[#EAE2D8] dark:border-[#2E2822] text-xs">
+                                <span className="text-[#8C7862] dark:text-[#A8957E] font-medium">
+                                    Showing {(homePage - 1) * homePageSize + 1} to{" "}
+                                    {Math.min(homePage * homePageSize, filteredPapers.length)} of {filteredPapers.length} papers
+                                </span>
+                                <div className="flex items-center gap-2">
+                                    <button
+                                        onClick={() => setHomePage((p) => Math.max(1, p - 1))}
+                                        disabled={homePage === 1}
+                                        className="px-3.5 py-1.5 rounded-full bg-white dark:bg-[#161412] border border-[#EAE2D8] dark:border-[#2E2822] text-[#2B231B] dark:text-[#FAF8F5] hover:bg-[#FAF8F5] dark:hover:bg-[#24201C] disabled:opacity-40 disabled:cursor-not-allowed font-semibold transition cursor-pointer flex items-center gap-1 shadow-2xs"
+                                    >
+                                        <FaChevronLeft className="text-[10px]" /> Prev
+                                    </button>
+                                    <span className="px-3 py-1 rounded-full bg-[#F4EFEA] dark:bg-[#24201C] text-[#8C6239] dark:text-[#E5C378] font-bold text-xs">
+                                        Page {homePage} of {homeTotalPages}
+                                    </span>
+                                    <button
+                                        onClick={() => setHomePage((p) => Math.min(homeTotalPages, p + 1))}
+                                        disabled={homePage === homeTotalPages}
+                                        className="px-3.5 py-1.5 rounded-full bg-white dark:bg-[#161412] border border-[#EAE2D8] dark:border-[#2E2822] text-[#2B231B] dark:text-[#FAF8F5] hover:bg-[#FAF8F5] dark:hover:bg-[#24201C] disabled:opacity-40 disabled:cursor-not-allowed font-semibold transition cursor-pointer flex items-center gap-1 shadow-2xs"
+                                    >
+                                        Next <FaChevronRight className="text-[10px]" />
+                                    </button>
+                                </div>
+                            </div>
                         )}
                     </>
                 )}

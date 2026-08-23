@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useMemo, useRef } from "react";
 import axios from "axios";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import { useAuth, useClerk } from "@clerk/react";
 import {
     FaSearch,
@@ -25,7 +25,6 @@ import toast from "react-hot-toast";
 import Navbar2 from "../components/Navbar2";
 import Footer from "../components/Footer";
 import PDFViewer from "../components/PDFViewer";
-import GooglePagination from "../components/GooglePagination";
 import { downloadPDF } from "../utils/downloadHelper";
 
 const API_URL = import.meta.env.VITE_API_URL || "http://localhost:5000";
@@ -66,18 +65,19 @@ const FALLBACK_COURSES = [
 function BrowseNotes() {
     const { isSignedIn } = useAuth();
     const { openSignIn } = useClerk();
+    const [searchParams, setSearchParams] = useSearchParams();
 
     const [notes, setNotes] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState("");
 
     // Search and Filters
-    const [search, setSearch] = useState("");
-    const [debouncedSearch, setDebouncedSearch] = useState("");
-    const [courseFilter, setCourseFilter] = useState("All");
-    const [unitFilter, setUnitFilter] = useState("All");
-    const [semesterFilter, setSemesterFilter] = useState("");
-    const [universityFilter, setUniversityFilter] = useState("All");
+    const [search, setSearch] = useState(searchParams.get("q") || "");
+    const [debouncedSearch, setDebouncedSearch] = useState(searchParams.get("q") || "");
+    const [courseFilter, setCourseFilter] = useState(searchParams.get("course") || "All");
+    const [unitFilter, setUnitFilter] = useState(searchParams.get("unit") || "All");
+    const [semesterFilter, setSemesterFilter] = useState(searchParams.get("semester") || "");
+    const [universityFilter, setUniversityFilter] = useState(searchParams.get("university") || "All");
     const [sortBy, setSortBy] = useState("newest");
     const [viewMode, setViewMode] = useState("grid");
 
@@ -112,6 +112,49 @@ function BrowseNotes() {
         }, 250);
         return () => clearTimeout(timer);
     }, [search]);
+
+    // Sync state when URL searchParams change
+    useEffect(() => {
+        const qParam = searchParams.get("q") || "";
+        if (qParam !== search) {
+            setSearch(qParam);
+            setDebouncedSearch(qParam);
+        }
+        const uniParam = searchParams.get("university") || "All";
+        if (uniParam !== universityFilter) setUniversityFilter(uniParam);
+        const courseParam = searchParams.get("course") || "All";
+        if (courseParam !== courseFilter) setCourseFilter(courseParam);
+        const unitParam = searchParams.get("unit") || "All";
+        if (unitParam !== unitFilter) setUnitFilter(unitParam);
+        const semParam = searchParams.get("semester") || "";
+        if (semParam !== semesterFilter) setSemesterFilter(semParam);
+    }, [searchParams]);
+
+    // Synchronize URL parameters when filters change
+    useEffect(() => {
+        const params = {};
+        if (debouncedSearch) params.q = debouncedSearch;
+        if (universityFilter !== "All") params.university = universityFilter;
+        if (courseFilter !== "All") params.course = courseFilter;
+        if (unitFilter !== "All") params.unit = unitFilter;
+        if (semesterFilter) params.semester = semesterFilter;
+
+        const currentQ = searchParams.get("q") || "";
+        const currentUni = searchParams.get("university") || "All";
+        const currentCourse = searchParams.get("course") || "All";
+        const currentUnit = searchParams.get("unit") || "All";
+        const currentSem = searchParams.get("semester") || "";
+
+        if (
+            (debouncedSearch || "") !== currentQ ||
+            universityFilter !== currentUni ||
+            courseFilter !== currentCourse ||
+            unitFilter !== currentUnit ||
+            (semesterFilter || "") !== currentSem
+        ) {
+            setSearchParams(params, { replace: true });
+        }
+    }, [debouncedSearch, universityFilter, courseFilter, unitFilter, semesterFilter, searchParams, setSearchParams]);
 
     // Academic entities for dynamic filters
     const [universities, setUniversities] = useState(FALLBACK_UNIVERSITIES);
@@ -820,15 +863,39 @@ function BrowseNotes() {
                     </div>
                 )}
 
-                {/* GOOGLE-STYLE LIGHTNING FAST PAGINATION */}
+                {/* Standard Clean Pagination */}
                 {!loading && !error && filteredNotes.length > pageSize && (
-                    <GooglePagination
-                        currentPage={currentPage}
-                        totalPages={totalPages}
-                        onPageChange={(p) => setCurrentPage(p)}
-                        totalItems={filteredNotes.length}
-                        pageSize={pageSize}
-                    />
+                    <div className="flex flex-col sm:flex-row items-center justify-between gap-4 mt-8 pt-6 border-t border-[#EAE2D8] dark:border-[#2E2822] text-xs">
+                        <span className="text-[#8C7862] dark:text-[#A8957E] font-medium">
+                            Showing {(currentPage - 1) * pageSize + 1} to{" "}
+                            {Math.min(currentPage * pageSize, filteredNotes.length)} of {filteredNotes.length} notes
+                        </span>
+                        <div className="flex items-center gap-2">
+                            <button
+                                onClick={() => {
+                                    setCurrentPage((p) => Math.max(1, p - 1));
+                                    window.scrollTo({ top: 380, behavior: "smooth" });
+                                }}
+                                disabled={currentPage === 1}
+                                className="px-3.5 py-1.5 rounded-full bg-white dark:bg-[#161412] border border-[#EAE2D8] dark:border-[#2E2822] text-[#2B231B] dark:text-[#FAF8F5] hover:bg-[#FAF8F5] dark:hover:bg-[#24201C] disabled:opacity-40 disabled:cursor-not-allowed font-semibold transition cursor-pointer flex items-center gap-1 shadow-2xs"
+                            >
+                                <FaChevronLeft className="text-[10px]" /> Prev
+                            </button>
+                            <span className="px-3 py-1 rounded-full bg-[#F4EFEA] dark:bg-[#24201C] text-[#8C6239] dark:text-[#E5C378] font-bold text-xs">
+                                Page {currentPage} of {totalPages}
+                            </span>
+                            <button
+                                onClick={() => {
+                                    setCurrentPage((p) => Math.min(totalPages, p + 1));
+                                    window.scrollTo({ top: 380, behavior: "smooth" });
+                                }}
+                                disabled={currentPage === totalPages}
+                                className="px-3.5 py-1.5 rounded-full bg-white dark:bg-[#161412] border border-[#EAE2D8] dark:border-[#2E2822] text-[#2B231B] dark:text-[#FAF8F5] hover:bg-[#FAF8F5] dark:hover:bg-[#24201C] disabled:opacity-40 disabled:cursor-not-allowed font-semibold transition cursor-pointer flex items-center gap-1 shadow-2xs"
+                            >
+                                Next <FaChevronRight className="text-[10px]" />
+                            </button>
+                        </div>
+                    </div>
                 )}
             </main>
 

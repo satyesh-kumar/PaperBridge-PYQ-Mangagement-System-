@@ -61,6 +61,21 @@ const FALLBACK_COURSES = [
     { _id: "course_diploma", name: "Diploma in Engineering", code: "Diploma", numberOfSemesters: 6, degreeType: "Diploma", duration: "3 Years", status: "active" },
 ];
 
+const ACADEMIC_YEARS = [
+    "2026-27",
+    "2025-26",
+    "2024-25",
+    "2023-24",
+    "2022-23",
+    "2021-22",
+    "2020-21",
+    "2019-20",
+    "2018-19",
+    "2017-18",
+    "2016-17",
+    "2015-16",
+];
+
 const EXAM_TYPES = [
     "End Semester",
     "Mid Semester",
@@ -2507,13 +2522,18 @@ export default function AdminPanel() {
                                     <label className="block text-xs font-bold text-[#4A3E31] dark:text-[#C2B3A0] mb-1">
                                         Academic Year
                                     </label>
-                                    <input
-                                        type="text"
+                                    <select
                                         value={editPaperForm.academicYear}
                                         onChange={(e) => setEditPaperForm({ ...editPaperForm, academicYear: e.target.value })}
-                                        placeholder="2024-25"
                                         className="w-full px-4 py-2 bg-[#FAF8F5] dark:bg-[#1C1916] border border-[#DDD2C4] dark:border-[#2E2822] rounded-full text-xs text-[#0D1B2A] dark:text-[#FAF8F5] focus:outline-hidden"
-                                    />
+                                    >
+                                        <option value="" disabled>Select Year</option>
+                                        {ACADEMIC_YEARS.map((yr) => (
+                                            <option key={yr} value={yr}>
+                                                {yr}
+                                            </option>
+                                        ))}
+                                    </select>
                                 </div>
 
                                 <div>
