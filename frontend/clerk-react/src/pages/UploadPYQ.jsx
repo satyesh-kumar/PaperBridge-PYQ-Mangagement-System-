@@ -276,6 +276,13 @@ export default function UploadPYQ() {
 
         try {
             setLoading(true);
+            let token = "";
+            try {
+                token = await getToken();
+            } catch (tokenErr) {
+                console.warn("Could not retrieve Clerk token:", tokenErr);
+            }
+
             const userEmail = (user?.primaryEmailAddress?.emailAddress || user?.emailAddresses?.[0]?.emailAddress || "").toLowerCase().trim();
             const data = new FormData();
 
@@ -292,7 +299,7 @@ export default function UploadPYQ() {
             }
 
             const uploadHeaders = {
-                Authorization: `Bearer ${token}`,
+                ...(token ? { Authorization: `Bearer ${token}` } : {}),
                 "Content-Type": "multipart/form-data",
                 ...(user?.id && { "x-user-id": user.id }),
                 ...(userEmail && { "x-user-email": userEmail }),
