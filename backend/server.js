@@ -148,7 +148,16 @@ const isUserAdmin = async (req) => {
     if (sessionClaims.metadata?.role === "admin") return true;
 
     const adminEmails = getAdminEmails();
-    let userEmail = (sessionClaims.email || sessionClaims.primary_email || req.headers["x-user-email"] || "").toLowerCase().trim();
+    
+    // Check multiple possible sources for email
+    let userEmail = (
+      req.headers["x-user-email"] ||
+      req.body?.userEmail ||
+      req.body?.adminEmail ||
+      sessionClaims.email ||
+      sessionClaims.primary_email ||
+      ""
+    ).toLowerCase().trim();
 
     if (!userEmail && req.auth.userId && typeof clerkClient !== "undefined" && clerkClient.users) {
       try {
@@ -163,11 +172,12 @@ const isUserAdmin = async (req) => {
       }
     }
 
-    if (userEmail && adminEmails.includes(userEmail)) {
+    if (userEmail && adminEmails.some((e) => e.toLowerCase() === userEmail)) {
       return true;
     }
     return false;
   } catch (err) {
+    console.error("isUserAdmin verification error:", err);
     return false;
   }
 };

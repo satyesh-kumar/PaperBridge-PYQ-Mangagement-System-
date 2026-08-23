@@ -187,6 +187,9 @@ export default function UploadPYQ() {
 
             data.append("file", file);
             data.append("university", "United University");
+            if (userEmail) {
+                data.append("userEmail", userEmail);
+            }
 
             const uploadHeaders = {
                 Authorization: `Bearer ${token}`,
