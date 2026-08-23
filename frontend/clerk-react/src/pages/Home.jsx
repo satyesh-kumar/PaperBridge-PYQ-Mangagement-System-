@@ -116,6 +116,30 @@ const getCourseBadgeStyle = (course = "") => {
     return "bg-[#FAF8F5] dark:bg-[#1C1916] text-[#6B5B49] dark:text-[#C2B3A0] border-[#EAE2D8] dark:border-[#332E28]";
 };
 
+const formatCourseBadge = (courseStr = "") => {
+    if (!courseStr) return "General";
+    const map = {
+        "B.Tech Computer Science": "B.Tech CSE",
+        "B.Tech Computer Science and Engineering": "B.Tech CSE",
+        "Bachelor of Computer Applications": "BCA",
+        "Master of Computer Applications": "MCA",
+        "Master of Business Administration": "MBA",
+        "Bachelor of Business Administration": "BBA",
+        "Diploma in Computer Science": "Diploma CS",
+        "Diploma in Engineering": "Diploma",
+    };
+    if (map[courseStr]) return map[courseStr];
+    return courseStr
+        .replace(/Computer Science and Engineering/gi, "CSE")
+        .replace(/Computer Science/gi, "CS")
+        .replace(/Information Technology/gi, "IT")
+        .replace(/Electronics & Communication/gi, "ECE")
+        .replace(/Mechanical Engineering/gi, "ME")
+        .replace(/Civil Engineering/gi, "CE")
+        .replace(/Bachelor of /gi, "B.")
+        .replace(/Master of /gi, "M.");
+};
+
 function Home() {
     const { isSignedIn } = useAuth();
     const { openSignIn } = useClerk();
@@ -796,25 +820,31 @@ function Home() {
                                     <div>
                                         {/* Top Badges */}
                                         <div className="flex items-center justify-between gap-2 mb-3">
-                                            <span className={`px-2.5 py-0.5 rounded-full text-[11px] font-semibold border ${getCourseBadgeStyle(paper.courseId?.name || paper.course)}`}>
-                                                {paper.courseId?.name || paper.course || "General"}
-                                            </span>
+                                            <div className="flex items-center gap-1.5 min-w-0 overflow-hidden">
+                                                <span 
+                                                    title={paper.courseId?.name || paper.course}
+                                                    className={`px-2.5 py-0.5 rounded-full text-[11px] font-semibold border truncate max-w-[130px] inline-block shrink-0 ${getCourseBadgeStyle(paper.courseId?.name || paper.course)}`}
+                                                >
+                                                    {formatCourseBadge(paper.courseId?.code || paper.courseId?.name || paper.course || "General")}
+                                                </span>
 
-                                            <div className="flex items-center gap-1.5">
                                                 {paper.examType && (
-                                                    <span className={`px-2.5 py-0.5 rounded-full text-[11px] font-medium border capitalize ${getExamBadgeStyle(paper.examType)}`}>
+                                                    <span className={`px-2 py-0.5 rounded-full text-[10px] font-medium border capitalize whitespace-nowrap shrink-0 ${getExamBadgeStyle(paper.examType)}`}>
                                                         {paper.examType}
                                                     </span>
                                                 )}
+                                            </div>
+
+                                            <div className="flex items-center gap-1.5 shrink-0">
                                                 {(paper.academicYear || paper.year) && (
-                                                    <span className="text-[11px] font-semibold text-[#8C7862] dark:text-[#A8957E]">
+                                                    <span className="text-[10px] font-bold font-mono text-[#8C7862] dark:text-[#A8957E] bg-[#FAF8F5] dark:bg-[#1C1916] px-2 py-0.5 rounded-md border border-[#EAE2D8] dark:border-[#2E2822] whitespace-nowrap">
                                                         {paper.academicYear || paper.year}
                                                     </span>
                                                 )}
                                                 <button
                                                     type="button"
                                                     onClick={(e) => handleBookmark(paper, e)}
-                                                    className="p-1.5 rounded-full bg-[#FAF8F5] dark:bg-[#1C1916] text-[#8C6239] dark:text-[#E5C378] hover:scale-110 transition cursor-pointer border border-[#EAE2D8] dark:border-[#2E2822]"
+                                                    className="w-7 h-7 rounded-full bg-[#FAF8F5] dark:bg-[#1C1916] text-[#8C6239] dark:text-[#E5C378] hover:scale-110 transition cursor-pointer border border-[#EAE2D8] dark:border-[#2E2822] flex items-center justify-center shrink-0"
                                                     title={savedPaperIds.includes(paper._id) ? "Remove Bookmark" : "Save Paper"}
                                                 >
                                                     {savedPaperIds.includes(paper._id) ? (
@@ -830,13 +860,13 @@ function Home() {
                                         <h3
                                             title={paper.title}
                                             onClick={(e) => handlePreview(paper, e)}
-                                            className="text-sm font-serif font-bold text-[#1A1614] dark:text-[#FAF8F5] group-hover:text-[#8C6239] dark:group-hover:text-[#E5C378] transition cursor-pointer line-clamp-2 leading-snug mb-1"
+                                            className="text-sm font-serif font-bold text-[#1A1614] dark:text-[#FAF8F5] group-hover:text-[#8C6239] dark:group-hover:text-[#E5C378] transition cursor-pointer line-clamp-2 leading-snug mb-1 min-h-[2.5rem]"
                                         >
                                             {paper.title || "Untitled Question Paper"}
                                         </h3>
 
                                         {/* Metadata */}
-                                        <p className="text-xs text-[#8C7862] dark:text-[#A8957E] mb-4 font-medium truncate">
+                                        <p className="text-xs text-[#8C7862] dark:text-[#A8957E] mb-3.5 font-medium truncate">
                                             {paper.universityId?.name || paper.university || "University Vault"} • {paper.semester ? `Sem ${paper.semester}` : "All Sems"}
                                             {paper.branch ? ` • ${paper.branch}` : ""}
                                         </p>
@@ -844,9 +874,9 @@ function Home() {
                                         {/* Quick Preview Thumbnail Box */}
                                         <div
                                             onClick={(e) => handlePreview(paper, e)}
-                                            className="rounded-2xl border border-[#EAE2D8] dark:border-[#2E2822] bg-[#FAF8F5] dark:bg-[#1C1916] p-3.5 mb-4 cursor-pointer hover:bg-[#F4EFEA] dark:hover:bg-[#24201C] transition flex items-center justify-center gap-2"
+                                            className="rounded-2xl border border-[#EAE2D8] dark:border-[#2E2822] bg-[#FAF8F5] dark:bg-[#1C1916] p-3 mb-4 cursor-pointer hover:bg-[#F4EFEA] dark:hover:bg-[#24201C] transition flex items-center justify-center gap-2 group/prev shadow-2xs"
                                         >
-                                            <FaFilePdf className="text-red-500 text-base" />
+                                            <FaFilePdf className="text-red-500 text-base group-hover/prev:scale-110 transition-transform" />
                                             <span className="text-xs font-semibold text-[#6B5B49] dark:text-[#C2B3A0]">
                                                 {!isSignedIn ? "Sign in to preview" : "Click to preview"}
                                             </span>

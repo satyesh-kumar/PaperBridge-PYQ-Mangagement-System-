@@ -62,6 +62,30 @@ const FALLBACK_COURSES = [
     { _id: "course_diploma", name: "Diploma", code: "Diploma", numberOfSemesters: 6 },
 ];
 
+const formatCourseBadge = (courseStr = "") => {
+    if (!courseStr) return "General";
+    const map = {
+        "B.Tech Computer Science": "B.Tech CSE",
+        "B.Tech Computer Science and Engineering": "B.Tech CSE",
+        "Bachelor of Computer Applications": "BCA",
+        "Master of Computer Applications": "MCA",
+        "Master of Business Administration": "MBA",
+        "Bachelor of Business Administration": "BBA",
+        "Diploma in Computer Science": "Diploma CS",
+        "Diploma in Engineering": "Diploma",
+    };
+    if (map[courseStr]) return map[courseStr];
+    return courseStr
+        .replace(/Computer Science and Engineering/gi, "CSE")
+        .replace(/Computer Science/gi, "CS")
+        .replace(/Information Technology/gi, "IT")
+        .replace(/Electronics & Communication/gi, "ECE")
+        .replace(/Mechanical Engineering/gi, "ME")
+        .replace(/Civil Engineering/gi, "CE")
+        .replace(/Bachelor of /gi, "B.")
+        .replace(/Master of /gi, "M.");
+};
+
 function BrowseNotes() {
     const { isSignedIn } = useAuth();
     const { openSignIn } = useClerk();
@@ -678,25 +702,28 @@ function BrowseNotes() {
                                 <div>
                                     {/* Badges */}
                                     <div className="flex items-center justify-between gap-2 mb-3">
-                                        <span className="px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-[#F4EFEA] dark:bg-[#24201C] text-[#8C6239] dark:text-[#E5C378] border border-[#DDD2C4] dark:border-[#332E28]">
+                                        <span className="px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-[#F4EFEA] dark:bg-[#24201C] text-[#8C6239] dark:text-[#E5C378] border border-[#DDD2C4] dark:border-[#332E28] shrink-0">
                                             {note.unit || "Notes"}
                                         </span>
 
-                                        <span className="px-2.5 py-0.5 rounded-full text-[11px] font-medium bg-[#FAF8F5] dark:bg-[#1C1916] text-[#6B5B49] dark:text-[#C2B3A0] border border-[#EAE2D8] dark:border-[#2E2822]">
-                                            {note.course || "General"}
+                                        <span 
+                                            title={note.course}
+                                            className="px-2.5 py-0.5 rounded-full text-[11px] font-medium bg-[#FAF8F5] dark:bg-[#1C1916] text-[#6B5B49] dark:text-[#C2B3A0] border border-[#EAE2D8] dark:border-[#2E2822] truncate max-w-[130px]"
+                                        >
+                                            {formatCourseBadge(note.course || "General")}
                                         </span>
                                     </div>
 
                                     {/* Title & Subject */}
                                     <h3
                                         onClick={(e) => handlePreview(note, e)}
-                                        className="text-sm font-serif font-bold text-[#1A1614] dark:text-[#FAF8F5] group-hover:text-[#8C6239] dark:group-hover:text-[#E5C378] transition line-clamp-2 leading-snug mb-1 cursor-pointer"
+                                        className="text-sm font-serif font-bold text-[#1A1614] dark:text-[#FAF8F5] group-hover:text-[#8C6239] dark:group-hover:text-[#E5C378] transition line-clamp-2 leading-snug mb-1 cursor-pointer min-h-[2.5rem]"
                                         title={note.title}
                                     >
                                         {note.title}
                                     </h3>
 
-                                    <p className="text-xs font-semibold text-[#8C6239] dark:text-[#E5C378] mb-3">
+                                    <p className="text-xs font-semibold text-[#8C6239] dark:text-[#E5C378] mb-3 truncate">
                                         {note.subject}
                                     </p>
 
@@ -719,9 +746,9 @@ function BrowseNotes() {
                                     {/* Thumbnail Preview Box */}
                                     <div
                                         onClick={(e) => handlePreview(note, e)}
-                                        className="rounded-2xl border border-[#EAE2D8] dark:border-[#2E2822] bg-[#FAF8F5] dark:bg-[#1C1916] p-3.5 mb-4 cursor-pointer hover:bg-[#F4EFEA] dark:hover:bg-[#24201C] transition flex items-center justify-center gap-2"
+                                        className="rounded-2xl border border-[#EAE2D8] dark:border-[#2E2822] bg-[#FAF8F5] dark:bg-[#1C1916] p-3 mb-4 cursor-pointer hover:bg-[#F4EFEA] dark:hover:bg-[#24201C] transition flex items-center justify-center gap-2 group/prev shadow-2xs"
                                     >
-                                        <FaFilePdf className="text-red-500 text-base" />
+                                        <FaFilePdf className="text-red-500 text-base group-hover/prev:scale-110 transition-transform" />
                                         <span className="text-xs font-semibold text-[#6B5B49] dark:text-[#C2B3A0]">
                                             {!isSignedIn ? "Sign in to preview" : "Click to preview"}
                                         </span>
