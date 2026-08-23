@@ -514,28 +514,28 @@ function BrowseNotes() {
                             )}
                         </div>
                     </div>
-
                     {/* Course Filter Tabs */}
-                    <div className="mt-4 pt-4 border-t border-[#EAE2D8] dark:border-[#2E2822] flex items-center gap-2 overflow-x-auto no-scrollbar pb-1">
-                        <span className="text-xs font-bold text-[#8C7862] dark:text-[#A8957E] mr-2 flex items-center gap-1 shrink-0">
-                            Course:
+                    <div className="mt-4 pt-4 border-t border-[#EAE2D8] dark:border-[#2E2822] flex items-center gap-2 overflow-x-auto no-scrollbar scroll-smooth [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden py-1">
+                        <span className="text-xs font-bold text-[#8C7862] dark:text-[#A8957E] mr-1 flex items-center gap-1 shrink-0 select-none">
+                            <FaGraduationCap className="text-[#8C6239] dark:text-[#E5C378]" /> Course:
                         </span>
                         {availableCourses.map((item) => {
                             const active = courseFilter === item;
                             return (
                                 <button
                                     key={item}
+                                    title={item}
                                     onClick={() => {
                                         setCourseFilter(item);
                                         setCurrentPage(1);
                                     }}
-                                    className={`px-4 py-1.5 rounded-full text-xs font-semibold transition shrink-0 cursor-pointer ${
+                                    className={`px-3.5 py-1.5 rounded-full text-xs font-semibold transition shrink-0 cursor-pointer border whitespace-nowrap ${
                                         active
-                                            ? "bg-[#4A2E1B] text-white dark:bg-[#C5A059] dark:text-[#0F0E0D] shadow-xs"
-                                            : "bg-[#FAF8F5] dark:bg-[#1C1916] text-[#6B5B49] dark:text-[#C2B3A0] hover:bg-[#F4EFEA] dark:hover:bg-[#24201C]"
+                                            ? "bg-[#4A2E1B] text-white border-[#4A2E1B] dark:bg-[#C5A059] dark:text-[#0F0E0D] dark:border-[#C5A059] shadow-xs"
+                                            : "bg-[#FAF8F5] dark:bg-[#1C1916] text-[#6B5B49] dark:text-[#C2B3A0] border-[#EAE2D8] dark:border-[#2E2822] hover:bg-[#F4EFEA] dark:hover:bg-[#24201C] hover:border-[#8C6239]/30"
                                     }`}
                                 >
-                                    {item}
+                                    {item === "All" ? "All Courses" : formatCourseBadge(item)}
                                 </button>
                             );
                         })}
@@ -553,7 +553,7 @@ function BrowseNotes() {
                                     setUnitFilter(e.target.value);
                                     setCurrentPage(1);
                                 }}
-                                className="w-full bg-[#FAF8F5] dark:bg-[#1C1916] border border-[#EAE2D8] dark:border-[#2E2822] rounded-xl px-3 py-2 text-xs text-[#4A3E31] dark:text-[#FAF8F5] outline-none"
+                                className="w-full bg-[#FAF8F5] dark:bg-[#1C1916] border border-[#EAE2D8] dark:border-[#2E2822] rounded-xl px-3 py-2 text-xs text-[#4A3E31] dark:text-[#FAF8F5] font-medium outline-none focus:border-[#8C6239] transition"
                             >
                                 {UNITS.map((u) => (
                                     <option key={u.value} value={u.value} className="dark:bg-[#161412]">
@@ -573,7 +573,7 @@ function BrowseNotes() {
                                     setSemesterFilter(e.target.value);
                                     setCurrentPage(1);
                                 }}
-                                className="w-full bg-[#FAF8F5] dark:bg-[#1C1916] border border-[#EAE2D8] dark:border-[#2E2822] rounded-xl px-3 py-2 text-xs text-[#4A3E31] dark:text-[#FAF8F5] outline-none"
+                                className="w-full bg-[#FAF8F5] dark:bg-[#1C1916] border border-[#EAE2D8] dark:border-[#2E2822] rounded-xl px-3 py-2 text-xs text-[#4A3E31] dark:text-[#FAF8F5] font-medium outline-none focus:border-[#8C6239] transition"
                             >
                                 {SEMESTERS.map((s) => (
                                     <option key={s.value} value={s.value} className="dark:bg-[#161412]">
@@ -585,7 +585,7 @@ function BrowseNotes() {
 
                         <div>
                             <label className="block text-[10px] font-bold text-[#8C7862] dark:text-[#A8957E] uppercase tracking-wider mb-1">
-                                University / Institute
+                                University
                             </label>
                             <select
                                 value={universityFilter}
@@ -593,11 +593,12 @@ function BrowseNotes() {
                                     setUniversityFilter(e.target.value);
                                     setCurrentPage(1);
                                 }}
-                                className="w-full bg-[#FAF8F5] dark:bg-[#1C1916] border border-[#EAE2D8] dark:border-[#2E2822] rounded-xl px-3 py-2 text-xs text-[#4A3E31] dark:text-[#FAF8F5] outline-none"
+                                className="w-full bg-[#FAF8F5] dark:bg-[#1C1916] border border-[#EAE2D8] dark:border-[#2E2822] rounded-xl px-3 py-2 text-xs text-[#4A3E31] dark:text-[#FAF8F5] font-medium outline-none focus:border-[#8C6239] transition"
                             >
-                                {availableUniversities.map((uni) => (
-                                    <option key={uni} value={uni} className="dark:bg-[#161412]">
-                                        {uni === "All" ? "All Universities" : uni}
+                                <option value="All" className="dark:bg-[#161412]">All Universities</option>
+                                {universities.map((u) => (
+                                    <option key={u._id} value={u.name} className="dark:bg-[#161412]">
+                                        {u.name} ({u.code})
                                     </option>
                                 ))}
                             </select>
