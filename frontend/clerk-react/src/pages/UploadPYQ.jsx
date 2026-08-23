@@ -300,9 +300,6 @@ export default function UploadPYQ() {
 
             const uploadHeaders = {
                 ...(token ? { Authorization: `Bearer ${token}` } : {}),
-                "Content-Type": "multipart/form-data",
-                ...(user?.id && { "x-user-id": user.id }),
-                ...(userEmail && { "x-user-email": userEmail }),
             };
 
             if (isPyq) {

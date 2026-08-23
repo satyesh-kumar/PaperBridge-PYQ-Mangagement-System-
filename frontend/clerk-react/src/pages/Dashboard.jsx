@@ -106,20 +106,19 @@ function Dashboard() {
                     method: "POST",
                     headers: {
                         Authorization: `Bearer ${token}`,
-                        ...(userEmail ? { "x-user-email": userEmail } : {}),
+                        "Content-Type": "application/json",
                     },
+                    body: JSON.stringify({ email: userEmail, clerkId: userId, name: user?.fullName || "" }),
                 }).catch(() => {});
             }
 
             const authHeaders = {
                 ...(token ? { Authorization: `Bearer ${token}` } : {}),
-                ...(userId ? { "x-user-id": userId } : {}),
-                ...(userEmail ? { "x-user-email": userEmail } : {}),
             };
 
             const [myRes, notesRes, allRes, allNotesRes] = await Promise.all([
-                axios.get(`${API_URL}/api/my-pyqs?email=${encodeURIComponent(userEmail)}`, { headers: authHeaders, timeout: 20000 }).catch(() => ({ data: [] })),
-                axios.get(`${API_URL}/api/my-notes?email=${encodeURIComponent(userEmail)}`, { headers: authHeaders, timeout: 20000 }).catch(() => ({ data: [] })),
+                axios.get(`${API_URL}/api/my-pyqs?email=${encodeURIComponent(userEmail)}&userId=${encodeURIComponent(userId)}`, { headers: authHeaders, timeout: 20000 }).catch(() => ({ data: [] })),
+                axios.get(`${API_URL}/api/my-notes?email=${encodeURIComponent(userEmail)}&userId=${encodeURIComponent(userId)}`, { headers: authHeaders, timeout: 20000 }).catch(() => ({ data: [] })),
                 axios.get(`${API_URL}/api/pyqs`, { timeout: 20000 }).catch(() => ({ data: [] })),
                 axios.get(`${API_URL}/api/notes`, { timeout: 20000 }).catch(() => ({ data: [] })),
             ]);

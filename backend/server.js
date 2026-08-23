@@ -1346,7 +1346,7 @@ app.get("/api/admin/pyqs", requireAdmin, async (req, res) => {
 // Get papers uploaded by the authenticated user
 app.get("/api/my-pyqs", async (req, res) => {
   try {
-    const clerkId = req.auth?.userId || req.headers["x-user-id"];
+    const clerkId = req.auth?.userId || req.headers["x-user-id"] || req.query?.userId;
     const userEmail = (
       req.headers["x-user-email"] ||
       req.query?.email ||
@@ -1733,7 +1733,7 @@ app.get("/api/admin/notes", requireAdmin, async (req, res) => {
 // Get notes uploaded by the authenticated user
 app.get("/api/my-notes", async (req, res) => {
   try {
-    const clerkId = req.auth?.userId || req.headers["x-user-id"];
+    const clerkId = req.auth?.userId || req.headers["x-user-id"] || req.query?.userId;
     const userEmail = (
       req.headers["x-user-email"] ||
       req.query?.email ||
