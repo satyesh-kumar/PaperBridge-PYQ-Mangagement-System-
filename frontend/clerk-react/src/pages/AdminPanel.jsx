@@ -196,11 +196,11 @@ export default function AdminPanel() {
 
             return {
                 ...(token ? { Authorization: `Bearer ${token}` } : {}),
-                ...(email ? { "x-user-email": email, "x-admin-email": email } : {}),
+                ...(email ? { "x-user-email": email } : {}),
             };
         } catch {
             const email = userEmail || "";
-            return email ? { "x-user-email": email, "x-admin-email": email } : {};
+            return email ? { "x-user-email": email } : {};
         }
     }, [getToken, user, userEmail]);
 
