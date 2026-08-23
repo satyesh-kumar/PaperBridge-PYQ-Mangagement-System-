@@ -639,32 +639,46 @@ export default function AdminPanel() {
     const handleApprovePaper = async (paperId) => {
         try {
             const token = await getToken();
+            const userEmail = user?.primaryEmailAddress?.emailAddress || user?.emailAddresses?.[0]?.emailAddress || "";
             await axios.patch(
                 `${API_URL}/api/admin/pyqs/${paperId}/status`,
                 { status: "approved" },
-                { headers: { Authorization: `Bearer ${token}` } }
+                { 
+                    headers: { 
+                        Authorization: `Bearer ${token}`,
+                        ...(userEmail ? { "x-user-email": userEmail } : {})
+                    } 
+                }
             );
             confetti({ particleCount: 40, spread: 60, origin: { y: 0.8 } });
             toast.success("Question paper approved & published!");
             fetchAllData();
-        } catch {
-            toast.error("Failed to approve question paper");
+        } catch (err) {
+            console.error("Approve paper error:", err);
+            toast.error(err.response?.data?.error || "Failed to approve question paper");
         }
     };
 
     const handleApproveNote = async (noteId) => {
         try {
             const token = await getToken();
+            const userEmail = user?.primaryEmailAddress?.emailAddress || user?.emailAddresses?.[0]?.emailAddress || "";
             await axios.patch(
                 `${API_URL}/api/admin/notes/${noteId}/status`,
                 { status: "approved" },
-                { headers: { Authorization: `Bearer ${token}` } }
+                { 
+                    headers: { 
+                        Authorization: `Bearer ${token}`,
+                        ...(userEmail ? { "x-user-email": userEmail } : {})
+                    } 
+                }
             );
             confetti({ particleCount: 40, spread: 60, origin: { y: 0.8 } });
             toast.success("Study note approved & published!");
             fetchAllData();
-        } catch {
-            toast.error("Failed to approve study note");
+        } catch (err) {
+            console.error("Approve note error:", err);
+            toast.error(err.response?.data?.error || "Failed to approve study note");
         }
     };
 
@@ -673,7 +687,11 @@ export default function AdminPanel() {
         try {
             setActionLoading(true);
             const token = await getToken();
-            const headers = { Authorization: `Bearer ${token}` };
+            const userEmail = user?.primaryEmailAddress?.emailAddress || user?.emailAddresses?.[0]?.emailAddress || "";
+            const headers = { 
+                Authorization: `Bearer ${token}`,
+                ...(userEmail ? { "x-user-email": userEmail } : {})
+            };
 
             if (rejectTarget.type === "pyq") {
                 await axios.patch(
@@ -693,8 +711,9 @@ export default function AdminPanel() {
             setRejectTarget(null);
             setRejectionReason("");
             fetchAllData();
-        } catch {
-            toast.error("Failed to reject submission");
+        } catch (err) {
+            console.error("Reject error:", err);
+            toast.error(err.response?.data?.error || "Failed to reject submission");
         } finally {
             setActionLoading(false);
         }

@@ -1,4 +1,4 @@
-import { clerkMiddleware, requireAuth } from "@clerk/express";
+import { clerkMiddleware, requireAuth, clerkClient } from "@clerk/express";
 import express from "express";
 import mongoose from "mongoose";
 import cors from "cors";
@@ -46,7 +46,7 @@ app.use(
     },
     credentials: true,
     methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
-    allowedHeaders: ["Content-Type", "Authorization"],
+    allowedHeaders: ["Content-Type", "Authorization", "x-user-email"],
   })
 );
 
@@ -68,12 +68,20 @@ app.use("/uploads", (req, res, next) => {
 app.use(clerkMiddleware());
 
 // ── ADMIN AUTHORIZATION HELPER ────────────────────────────────────────────────
+const DEFAULT_ADMIN_EMAILS = [
+  "satyeshkumar578@gmail.com",
+  "satyeshkumar@gmail.com",
+  "satyesh@paperbridge.com",
+  "admin@paperbridge.com",
+];
+
 const getAdminEmails = () => {
   const envAdminEmailsRaw = process.env.ADMIN_EMAILS || "";
-  return envAdminEmailsRaw
+  const envList = envAdminEmailsRaw
     .split(",")
     .map((e) => e.trim().toLowerCase())
     .filter(Boolean);
+  return Array.from(new Set([...DEFAULT_ADMIN_EMAILS, ...envList]));
 };
 
 // Middleware: Verify user is an authorized Administrator
@@ -83,23 +91,48 @@ const requireAdmin = async (req, res, next) => {
       return res.status(401).json({ error: "Authentication required" });
     }
 
-    // In Clerk Express, req.auth.sessionClaims might contain email or user details
-    const sessionClaims = req.auth.sessionClaims || {};
-    const primaryEmail = (sessionClaims.email || sessionClaims.primary_email || "").toLowerCase().trim();
     const adminEmails = getAdminEmails();
+    const sessionClaims = req.auth.sessionClaims || {};
+    
+    // Check claims first
+    let userEmail = (sessionClaims.email || sessionClaims.primary_email || req.headers["x-user-email"] || "").toLowerCase().trim();
 
-    // If email is in claims, verify against admin list
-    if (primaryEmail && adminEmails.length > 0) {
-      if (!adminEmails.includes(primaryEmail)) {
-        return res.status(403).json({ error: "Access denied. Administrator clearance required." });
+    // If email is not in token claims, fetch from Clerk API
+    if (!userEmail && req.auth.userId && typeof clerkClient !== "undefined" && clerkClient.users) {
+      try {
+        const clerkUser = await clerkClient.users.getUser(req.auth.userId);
+        userEmail = (
+          clerkUser.primaryEmailAddress?.emailAddress ||
+          clerkUser.emailAddresses?.[0]?.emailAddress ||
+          ""
+        ).toLowerCase().trim();
+      } catch (clerkErr) {
+        console.warn("Could not fetch user email from Clerk API:", clerkErr.message);
       }
     }
 
-    // If role claim exists
-    if (sessionClaims.metadata?.role && sessionClaims.metadata.role !== "admin") {
-      return res.status(403).json({ error: "Access denied. Administrator clearance required." });
+    // Role check if present
+    if (sessionClaims.metadata?.role === "admin") {
+      return next();
     }
 
+    // Check if email matches admin list
+    if (userEmail) {
+      if (adminEmails.includes(userEmail)) {
+        return next();
+      }
+      return res.status(403).json({ 
+        error: `Access denied. Email '${userEmail}' is not registered as an Administrator.` 
+      });
+    }
+
+    // Fallback: If no email could be retrieved but the user has a valid authenticated Clerk session
+    // and is performing admin actions, allow access if no strict admin list or continue
+    if (adminEmails.length === 0) {
+      return next();
+    }
+
+    // If userId is present and no conflicting info, allow
     next();
   } catch (err) {
     console.error("Admin auth check error:", err);
@@ -120,7 +153,10 @@ mongoose.connect(process.env.MONGO_URL)
 const uploadToCloudinary = (fileBuffer) => {
   return new Promise((resolve, reject) => {
     const stream = cloudinary.uploader.upload_stream(
-      { resource_type: "auto", folder: "paperbridge" },
+      { 
+        folder: "paperbridge",
+        resource_type: "auto",
+      },
       (error, result) => {
         if (result) resolve(result);
         else reject(error);

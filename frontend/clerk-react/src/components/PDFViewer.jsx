@@ -5,6 +5,17 @@ import { PaperAirplaneIcon } from "./PaperBridgeLogo";
 
 const API_URL = import.meta.env.VITE_API_URL || "http://localhost:5000";
 
+const getGoogleSafePdfUrl = (url = "") => {
+    if (!url) return "";
+    let clean = url;
+    if (clean.includes("res.cloudinary.com")) {
+        if (!clean.endsWith(".pdf")) {
+            clean = `${clean}.pdf`;
+        }
+    }
+    return clean;
+};
+
 function PDFViewer({ fileUrl, title = "Document Preview", onClose }) {
     // Mode: 'native' (blob / proxy inline) | 'google' (Google Docs viewer)
     const [viewerMode, setViewerMode] = useState("native");
@@ -13,8 +24,9 @@ function PDFViewer({ fileUrl, title = "Document Preview", onClose }) {
     const [error, setError] = useState(null);
 
     // Compute proxy inline stream URL
-    const proxyUrl = `${API_URL}/api/pdf/view?url=${encodeURIComponent(fileUrl)}`;
-    const googleViewerUrl = `https://docs.google.com/gview?url=${encodeURIComponent(fileUrl)}&embedded=true`;
+    const proxyUrl = `${API_URL}/api/pdf/view?url=${encodeURIComponent(fileUrl || "")}`;
+    const safeGoogleTargetUrl = getGoogleSafePdfUrl(fileUrl);
+    const googleViewerUrl = `https://docs.google.com/gview?url=${encodeURIComponent(safeGoogleTargetUrl)}&embedded=true`;
 
     // Fetch PDF as inline blob to prevent unwanted raw downloads
     useEffect(() => {
@@ -50,12 +62,13 @@ function PDFViewer({ fileUrl, title = "Document Preview", onClose }) {
 
                 if (isMounted) {
                     setBlobUrl(objectUrl);
+                    setViewerMode("native");
                     setLoading(false);
                 }
             } catch (err) {
                 console.warn("Direct blob load failed, falling back to Google Cloud Reader:", err);
                 if (isMounted) {
-                    // Fall back to Google viewer mode automatically
+                    // Fall back to Google viewer mode with safe .pdf target URL
                     setViewerMode("google");
                     setLoading(false);
                 }
