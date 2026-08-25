@@ -63,7 +63,7 @@ app.use(
   })
 );
 
-app.options("*", cors());
+app.options(/(.*)/, cors());
 
 app.use(express.json());
 
@@ -1254,48 +1254,60 @@ app.post("/api/upload", requireAuth(), upload.single("file"), async (req, res) =
 app.get("/api/pyqs", async (req, res) => {
   try {
     const { universityId, courseId, semesterId, subjectId, course, semester, examType, year, search } = req.query;
-    const filter = {
-      $or: [
-        { status: "approved" },
-        { status: { $exists: false } },
-        { status: null },
-      ],
-    };
+    const conditions = [
+      {
+        $or: [
+          { status: "approved" },
+          { status: { $exists: false } },
+          { status: null },
+        ],
+      },
+    ];
 
-    if (universityId && universityId !== "all") filter.universityId = universityId;
-    if (courseId && courseId !== "all") filter.courseId = courseId;
-    if (semesterId && semesterId !== "all") filter.semesterId = semesterId;
-    if (subjectId && subjectId !== "all") filter.subjectId = subjectId;
+    if (universityId && universityId !== "all" && universityId !== "All") conditions.push({ universityId });
+    if (courseId && courseId !== "all" && courseId !== "All") conditions.push({ courseId });
+    if (semesterId && semesterId !== "all" && semesterId !== "All") conditions.push({ semesterId });
+    if (subjectId && subjectId !== "all" && subjectId !== "All") conditions.push({ subjectId });
 
     if (course && course !== "all" && course !== "All") {
-      filter.$or = [
-        ...(filter.$or || []),
-        { course: new RegExp(course, "i") },
-      ];
+      conditions.push({ course: new RegExp(course, "i") });
     }
     if (semester && semester !== "all" && semester !== "All") {
-      filter.semester = Number(semester);
+      conditions.push({ semester: Number(semester) });
     }
     if (examType && examType !== "all" && examType !== "All") {
-      filter.examType = new RegExp(examType, "i");
+      conditions.push({ examType: new RegExp(examType, "i") });
     }
     if (year && year !== "all" && year !== "All") {
-      filter.year = Number(year);
+      conditions.push({
+        $or: [
+          { year: Number(year) },
+          { academicYear: new RegExp(String(year), "i") },
+        ],
+      });
     }
 
-    if (search) {
-      filter.$and = [
-        {
-          $or: [
-            { title: { $regex: search, $options: "i" } },
-            { subject: { $regex: search, $options: "i" } },
-            { subjectCode: { $regex: search, $options: "i" } },
-            { course: { $regex: search, $options: "i" } },
-            { university: { $regex: search, $options: "i" } },
-          ],
-        },
+    if (search && search.trim()) {
+      const q = search.trim();
+      const numQ = Number(q);
+      const orSearch = [
+        { title: { $regex: q, $options: "i" } },
+        { subject: { $regex: q, $options: "i" } },
+        { subjectCode: { $regex: q, $options: "i" } },
+        { course: { $regex: q, $options: "i" } },
+        { university: { $regex: q, $options: "i" } },
+        { branch: { $regex: q, $options: "i" } },
+        { academicYear: { $regex: q, $options: "i" } },
+        { examType: { $regex: q, $options: "i" } },
       ];
+      if (!isNaN(numQ) && numQ > 0) {
+        if (numQ >= 1 && numQ <= 12) orSearch.push({ semester: numQ });
+        if (numQ >= 1990 && numQ <= 2099) orSearch.push({ year: numQ });
+      }
+      conditions.push({ $or: orSearch });
     }
+
+    const filter = conditions.length === 1 ? conditions[0] : { $and: conditions };
 
     const pyqs = await PYQ.find(filter)
       .populate("universityId", "name code")
@@ -1662,32 +1674,45 @@ app.post("/api/notes/upload", requireAuth(), upload.single("file"), async (req, 
 app.get("/api/notes", async (req, res) => {
   try {
     const { universityId, courseId, semesterId, subjectId, course, semester, unit, search } = req.query;
-    const filter = {
-      $or: [
-        { status: "approved" },
-        { status: { $exists: false } },
-        { status: null },
-      ],
-    };
+    const conditions = [
+      {
+        $or: [
+          { status: "approved" },
+          { status: { $exists: false } },
+          { status: null },
+        ],
+      },
+    ];
 
-    if (universityId && universityId !== "all") filter.universityId = universityId;
-    if (courseId && courseId !== "all") filter.courseId = courseId;
-    if (semesterId && semesterId !== "all") filter.semesterId = semesterId;
-    if (subjectId && subjectId !== "all") filter.subjectId = subjectId;
+    if (universityId && universityId !== "all" && universityId !== "All") conditions.push({ universityId });
+    if (courseId && courseId !== "all" && courseId !== "All") conditions.push({ courseId });
+    if (semesterId && semesterId !== "all" && semesterId !== "All") conditions.push({ semesterId });
+    if (subjectId && subjectId !== "all" && subjectId !== "All") conditions.push({ subjectId });
 
-    if (course && course !== "all" && course !== "All") filter.course = new RegExp(course, "i");
-    if (semester && semester !== "all" && semester !== "All") filter.semester = Number(semester);
-    if (unit && unit !== "all" && unit !== "All") filter.unit = new RegExp(unit, "i");
+    if (course && course !== "all" && course !== "All") conditions.push({ course: new RegExp(course, "i") });
+    if (semester && semester !== "all" && semester !== "All") conditions.push({ semester: Number(semester) });
+    if (unit && unit !== "all" && unit !== "All") conditions.push({ unit: new RegExp(unit, "i") });
 
-    if (search) {
-      filter.$or = [
-        ...(filter.$or || []),
-        { title: { $regex: search, $options: "i" } },
-        { subject: { $regex: search, $options: "i" } },
-        { author: { $regex: search, $options: "i" } },
-        { course: { $regex: search, $options: "i" } },
+    if (search && search.trim()) {
+      const q = search.trim();
+      const numQ = Number(q);
+      const orSearch = [
+        { title: { $regex: q, $options: "i" } },
+        { subject: { $regex: q, $options: "i" } },
+        { subjectCode: { $regex: q, $options: "i" } },
+        { author: { $regex: q, $options: "i" } },
+        { course: { $regex: q, $options: "i" } },
+        { university: { $regex: q, $options: "i" } },
+        { unit: { $regex: q, $options: "i" } },
+        { branch: { $regex: q, $options: "i" } },
       ];
+      if (!isNaN(numQ) && numQ >= 1 && numQ <= 12) {
+        orSearch.push({ semester: numQ });
+      }
+      conditions.push({ $or: orSearch });
     }
+
+    const filter = conditions.length === 1 ? conditions[0] : { $and: conditions };
 
     const notes = await Note.find(filter)
       .populate("universityId", "name code")
@@ -1697,6 +1722,7 @@ app.get("/api/notes", async (req, res) => {
 
     res.json(notes);
   } catch (err) {
+    console.error("Public Notes error:", err);
     res.status(500).json({ error: "Failed to fetch study notes" });
   }
 });

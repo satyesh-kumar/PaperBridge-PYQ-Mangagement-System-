@@ -74,7 +74,7 @@ export default function CommandPalette() {
         { id: "act_browse", title: "Browse Question Papers", type: "action", icon: FaFilePdf, path: "/browse" },
         { id: "act_notes", title: "Browse Study Notes & Summaries", type: "action", icon: FaStickyNote, path: "/notes" },
         { id: "act_upload", title: "Upload Academic Paper / Notes", type: "action", icon: FaUpload, path: "/upload" },
-        { id: "act_dash", title: "My Library & Bookmarks", type: "action", icon: FaBook, path: "/dashboard" },
+        { id: "act_dash", title: "Student Dashboard & Bookmarks", type: "action", icon: FaBook, path: "/dashboard" },
     ];
 
     // Filter results

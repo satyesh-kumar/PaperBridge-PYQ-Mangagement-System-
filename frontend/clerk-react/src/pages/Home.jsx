@@ -180,7 +180,7 @@ function Home() {
         e.stopPropagation();
         const saved = toggleBookmark(paper);
         if (saved) {
-            toast.success("Saved to My Library ⭐");
+            toast.success("Saved to Bookmarks ⭐");
         } else {
             toast("Removed from Bookmarks");
         }

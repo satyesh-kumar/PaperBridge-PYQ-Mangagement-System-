@@ -6,7 +6,6 @@ import {
     FaFilePdf,
     FaEye,
     FaDownload,
-    FaShareAlt,
     FaSearch,
     FaTimes,
     FaGraduationCap,
@@ -19,10 +18,11 @@ import {
     FaChevronRight,
     FaSpinner,
     FaBookOpen,
-    FaCheck,
     FaLock,
     FaBookmark,
     FaRegBookmark,
+    FaFilter,
+    FaUniversity,
 } from "react-icons/fa";
 import toast from "react-hot-toast";
 import Navbar2 from "../components/Navbar2";
@@ -34,7 +34,7 @@ import { toggleBookmark, isBookmarked } from "../utils/bookmarkHelper";
 const API_URL = import.meta.env.VITE_API_URL || "http://localhost:5000";
 
 const EXAM_TYPES = [
-    { label: "All Exams", value: "" },
+    { label: "All Exam Types", value: "" },
     { label: "End Semester", value: "End Semester" },
     { label: "Mid Semester", value: "Mid Semester" },
     { label: "Mid Term 1", value: "Mid Term 1" },
@@ -132,24 +132,25 @@ function BrowsePYQ() {
     const [universities, setUniversities] = useState(FALLBACK_UNIVERSITIES);
     const [courses, setCourses] = useState(FALLBACK_COURSES);
     const [semesters, setSemesters] = useState([]);
+    const [subjects, setSubjects] = useState([]);
 
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState("");
     const [selectedPdf, setSelectedPdf] = useState(null);
-    const [copiedId, setCopiedId] = useState(null);
     const [downloadingId, setDownloadingId] = useState(null);
+    const [savedIds, setSavedIds] = useState([]);
 
     const [isMobileFilterOpen, setIsMobileFilterOpen] = useState(false);
 
-    // Filters state
+    // Hierarchical Filters state
     const [search, setSearch] = useState(searchParams.get("q") || "");
     const [debouncedSearch, setDebouncedSearch] = useState(searchParams.get("q") || "");
     const [universityFilter, setUniversityFilter] = useState(searchParams.get("university") || "All");
     const [courseFilter, setCourseFilter] = useState(searchParams.get("course") || "All");
-    const [examFilter, setExamFilter] = useState(searchParams.get("exam") || "");
     const [semesterFilter, setSemesterFilter] = useState(searchParams.get("semester") || "");
+    const [subjectFilter, setSubjectFilter] = useState(searchParams.get("subject") || "All");
     const [yearFilter, setYearFilter] = useState(searchParams.get("year") || "");
-    const [branchFilter, setBranchFilter] = useState(searchParams.get("branch") || "");
+    const [examFilter, setExamFilter] = useState(searchParams.get("exam") || "");
     const [sortBy, setSortBy] = useState("newest");
     const [viewMode, setViewMode] = useState("grid");
 
@@ -157,45 +158,68 @@ function BrowsePYQ() {
     const [currentPage, setCurrentPage] = useState(1);
     const [pageSize, setPageSize] = useState(12);
 
-    // Load universities & courses
+    // Sync saved bookmarks
+    useEffect(() => {
+        const sync = () => {
+            try {
+                const b = JSON.parse(localStorage.getItem("paperbridge_bookmarks") || "[]");
+                setSavedIds(b.map((x) => x._id));
+            } catch {
+                setSavedIds([]);
+            }
+        };
+        sync();
+        window.addEventListener("paperbridge_bookmarks_updated", sync);
+        return () => window.removeEventListener("paperbridge_bookmarks_updated", sync);
+    }, []);
+
+    // Load universities, courses, subjects from backend
     useEffect(() => {
         const loadAcademicEntities = async () => {
             try {
-                const [uniRes, courseRes] = await Promise.all([
-                    axios.get(`${API_URL}/api/universities`, { timeout: 30000 }).catch(() => ({ data: [] })),
-                    axios.get(`${API_URL}/api/courses`, { timeout: 30000 }).catch(() => ({ data: [] })),
+                const [uniRes, courseRes, subRes] = await Promise.allSettled([
+                    axios.get(`${API_URL}/api/universities`, { timeout: 15000 }),
+                    axios.get(`${API_URL}/api/courses`, { timeout: 15000 }),
+                    axios.get(`${API_URL}/api/subjects`, { timeout: 15000 }),
                 ]);
-                if (Array.isArray(uniRes.data) && uniRes.data.length > 0) {
-                    setUniversities(uniRes.data);
+                if (uniRes.status === "fulfilled" && Array.isArray(uniRes.value.data) && uniRes.value.data.length > 0) {
+                    setUniversities(uniRes.value.data);
                 }
-                if (Array.isArray(courseRes.data) && courseRes.data.length > 0) {
-                    setCourses(courseRes.data);
+                if (courseRes.status === "fulfilled" && Array.isArray(courseRes.value.data) && courseRes.value.data.length > 0) {
+                    setCourses(courseRes.value.data);
+                }
+                if (subRes.status === "fulfilled" && Array.isArray(subRes.value.data)) {
+                    setSubjects(subRes.value.data);
                 }
             } catch {
-                // keep fallback
+                // keep fallbacks
             }
         };
         loadAcademicEntities();
     }, []);
 
-    // Fetch dynamic semesters when course changes
+    // Fetch papers from API
+    const fetchPapers = useCallback(async () => {
+        setLoading(true);
+        setError("");
+        try {
+            const res = await axios.get(`${API_URL}/api/pyqs`, { timeout: 20000 });
+            if (Array.isArray(res.data)) {
+                setPapers(res.data);
+            } else {
+                setPapers([]);
+            }
+        } catch (err) {
+            console.error("BrowsePYQ fetch error:", err);
+            setError("Something went wrong while loading question papers.");
+        } finally {
+            setLoading(false);
+        }
+    }, []);
+
     useEffect(() => {
-        if (courseFilter === "All") {
-            setSemesters([]);
-            return;
-        }
-        const matchedCourse = courses.find(
-            (c) => c.name?.toLowerCase() === courseFilter.toLowerCase() || c.code?.toLowerCase() === courseFilter.toLowerCase()
-        );
-        if (matchedCourse) {
-            axios
-                .get(`${API_URL}/api/semesters?courseId=${matchedCourse._id}`, { timeout: 30000 })
-                .then((res) => setSemesters(res.data || []))
-                .catch(() => setSemesters([]));
-        } else {
-            setSemesters([]);
-        }
-    }, [courseFilter, courses]);
+        fetchPapers();
+    }, [fetchPapers]);
 
     // Keyboard shortcut '/' to search
     useEffect(() => {
@@ -214,7 +238,7 @@ function BrowsePYQ() {
         const timer = setTimeout(() => {
             setDebouncedSearch(search);
             setCurrentPage(1);
-        }, 250);
+        }, 200);
         return () => clearTimeout(timer);
     }, [search]);
 
@@ -233,10 +257,10 @@ function BrowsePYQ() {
         if (examParam !== examFilter) setExamFilter(examParam);
         const semParam = searchParams.get("semester") || "";
         if (semParam !== semesterFilter) setSemesterFilter(semParam);
+        const subParam = searchParams.get("subject") || "All";
+        if (subParam !== subjectFilter) setSubjectFilter(subParam);
         const yrParam = searchParams.get("year") || "";
         if (yrParam !== yearFilter) setYearFilter(yrParam);
-        const brParam = searchParams.get("branch") || "";
-        if (brParam !== branchFilter) setBranchFilter(brParam);
     }, [searchParams]);
 
     // Synchronize URL parameters when filters change
@@ -245,80 +269,154 @@ function BrowsePYQ() {
         if (debouncedSearch) params.q = debouncedSearch;
         if (universityFilter !== "All") params.university = universityFilter;
         if (courseFilter !== "All") params.course = courseFilter;
-        if (examFilter) params.exam = examFilter;
         if (semesterFilter) params.semester = semesterFilter;
+        if (subjectFilter !== "All") params.subject = subjectFilter;
         if (yearFilter) params.year = yearFilter;
-        if (branchFilter) params.branch = branchFilter;
+        if (examFilter) params.exam = examFilter;
 
-        // Check if params actually changed before updating to prevent infinite loop
         const currentQ = searchParams.get("q") || "";
         const currentUni = searchParams.get("university") || "All";
         const currentCourse = searchParams.get("course") || "All";
-        const currentExam = searchParams.get("exam") || "";
         const currentSem = searchParams.get("semester") || "";
+        const currentSub = searchParams.get("subject") || "All";
         const currentYr = searchParams.get("year") || "";
-        const currentBr = searchParams.get("branch") || "";
+        const currentExam = searchParams.get("exam") || "";
 
         if (
             (debouncedSearch || "") !== currentQ ||
             universityFilter !== currentUni ||
             courseFilter !== currentCourse ||
-            (examFilter || "") !== currentExam ||
             (semesterFilter || "") !== currentSem ||
+            subjectFilter !== currentSub ||
             (yearFilter || "") !== currentYr ||
-            (branchFilter || "") !== currentBr
+            (examFilter || "") !== currentExam
         ) {
             setSearchParams(params, { replace: true });
         }
-    }, [debouncedSearch, universityFilter, courseFilter, examFilter, semesterFilter, yearFilter, branchFilter, searchParams, setSearchParams]);
+    }, [debouncedSearch, universityFilter, courseFilter, semesterFilter, subjectFilter, yearFilter, examFilter, searchParams, setSearchParams]);
 
-    // Fetch papers from API
-    const fetchPapers = useCallback(async () => {
-        setLoading(true);
-        setError("");
-        try {
-            const res = await axios.get(`${API_URL}/api/pyqs`, { timeout: 30000 });
-            if (Array.isArray(res.data)) {
-                setPapers(res.data);
-            } else {
-                setPapers([]);
+    // ── HIERARCHICAL FILTER CASCADES ─────────────────────────────────────────
+
+    // 1. Available Universities
+    const availableUniversities = useMemo(() => {
+        const list = [{ label: "All Universities", value: "All" }];
+        universities.forEach((u) => {
+            if (!list.some((item) => item.value === u.name || item.value === u.code)) {
+                list.push({ label: u.name, value: u.name, id: u._id, code: u.code });
             }
-        } catch (err) {
-            console.error("BrowsePYQ fetch error:", err);
-            setError("Unable to load question papers from the server repository.");
-        } finally {
-            setLoading(false);
-        }
-    }, []);
-
-    useEffect(() => {
-        fetchPapers();
-    }, [fetchPapers]);
-
-    // Dynamic Filter Option Lists
-    const availableCourses = useMemo(() => {
-        const list = ["All"];
-        courses.forEach((c) => {
-            if (!list.includes(c.name)) list.push(c.name);
-        });
-        // also include any legacy courses from papers
-        papers.forEach((p) => {
-            if (p.course && !list.includes(p.course)) list.push(p.course);
         });
         return list;
-    }, [courses, papers]);
+    }, [universities]);
 
+    // 2. Available Courses (Filtered by University if selected)
+    const availableCourses = useMemo(() => {
+        const list = [{ label: "All Courses", value: "All" }];
+        let filteredCoursesList = courses;
+
+        if (universityFilter !== "All") {
+            const selectedUni = universities.find(
+                (u) => u.name?.toLowerCase() === universityFilter.toLowerCase() || u.code?.toLowerCase() === universityFilter.toLowerCase()
+            );
+            if (selectedUni) {
+                filteredCoursesList = courses.filter(
+                    (c) => String(c.universityId?._id || c.universityId) === String(selectedUni._id)
+                );
+            }
+        }
+
+        filteredCoursesList.forEach((c) => {
+            if (!list.some((item) => item.value === c.name || item.value === c.code)) {
+                list.push({ label: c.name, value: c.name, id: c._id, code: c.code, numberOfSemesters: c.numberOfSemesters || 8 });
+            }
+        });
+
+        // Also include courses from papers for backward compatibility
+        papers.forEach((p) => {
+            const name = p.courseId?.name || p.course;
+            if (name && !list.some((item) => item.value === name)) {
+                list.push({ label: name, value: name, numberOfSemesters: 8 });
+            }
+        });
+
+        return list;
+    }, [courses, universityFilter, universities, papers]);
+
+    // 3. Available Semesters (Filtered by selected Course)
+    const availableSemesters = useMemo(() => {
+        const list = [{ label: "All Semesters", value: "" }];
+        let maxSem = 8;
+        if (courseFilter !== "All") {
+            const matched = availableCourses.find((c) => c.value === courseFilter);
+            if (matched && matched.numberOfSemesters) {
+                maxSem = matched.numberOfSemesters;
+            }
+        }
+        for (let i = 1; i <= maxSem; i++) {
+            list.push({ label: `Semester ${i}`, value: String(i) });
+        }
+        return list;
+    }, [courseFilter, availableCourses]);
+
+    // 4. Available Subjects (Filtered by Course & Semester)
+    const availableSubjects = useMemo(() => {
+        const list = [{ label: "All Subjects", value: "All" }];
+        const subSet = new Set();
+
+        subjects.forEach((s) => {
+            const cMatch = courseFilter === "All" || s.courseId?.name === courseFilter || s.courseId === courseFilter;
+            const sMatch = !semesterFilter || String(s.semesterNumber) === String(semesterFilter);
+            if (cMatch && sMatch && s.name && !subSet.has(s.name)) {
+                subSet.add(s.name);
+                list.push({ label: `${s.name}${s.code ? ` (${s.code})` : ""}`, value: s.name });
+            }
+        });
+
+        // Also add unique subjects from papers
+        papers.forEach((p) => {
+            const cMatch = courseFilter === "All" || (p.courseId?.name || p.course) === courseFilter;
+            const sMatch = !semesterFilter || String(p.semester) === String(semesterFilter);
+            const subName = p.subjectId?.name || p.subject;
+            if (cMatch && sMatch && subName && !subSet.has(subName)) {
+                subSet.add(subName);
+                list.push({ label: subName, value: subName });
+            }
+        });
+
+        return list;
+    }, [subjects, papers, courseFilter, semesterFilter]);
+
+    // 5. Available Academic Years
     const availableYears = useMemo(() => {
-        const years = new Set(papers.map((p) => p.academicYear || String(p.year)).filter(Boolean));
+        const years = new Set(papers.map((p) => p.academicYear || (p.year ? String(p.year) : null)).filter(Boolean));
+        if (years.size === 0) {
+            ["2025-26", "2024-25", "2023-24", "2022-23", "2021-22"].forEach((y) => years.add(y));
+        }
         return Array.from(years).sort((a, b) => b.localeCompare(a));
     }, [papers]);
 
-    const availableBranches = useMemo(() => {
-        const branches = new Set(papers.map((p) => p.branch).filter(Boolean));
-        return Array.from(branches).sort();
-    }, [papers]);
+    // ── CASCADE RESETS ON UPSTREAM CHANGES ───────────────────────────────────
+    const handleUniversityChange = (val) => {
+        setUniversityFilter(val);
+        setCourseFilter("All");
+        setSemesterFilter("");
+        setSubjectFilter("All");
+        setCurrentPage(1);
+    };
 
-    // Filter and Sort papers
+    const handleCourseChange = (val) => {
+        setCourseFilter(val);
+        setSemesterFilter("");
+        setSubjectFilter("All");
+        setCurrentPage(1);
+    };
+
+    const handleSemesterChange = (val) => {
+        setSemesterFilter(val);
+        setSubjectFilter("All");
+        setCurrentPage(1);
+    };
+
+    // ── MULTI-FIELD FILTER & SEARCH LOGIC ────────────────────────────────────
     const filteredPapers = useMemo(() => {
         let result = [...papers];
 
@@ -327,21 +425,26 @@ function BrowsePYQ() {
             result = result.filter((p) => {
                 const title = (p.title || "").toLowerCase();
                 const course = (p.courseId?.name || p.course || "").toLowerCase();
+                const courseCode = (p.courseId?.code || "").toLowerCase();
                 const subject = (p.subjectId?.name || p.subject || "").toLowerCase();
                 const subjectCode = (p.subjectId?.code || p.subjectCode || "").toLowerCase();
                 const uni = (p.universityId?.name || p.university || "").toLowerCase();
                 const branch = (p.branch || "").toLowerCase();
-                const year = String(p.academicYear || p.year || "");
+                const year = String(p.academicYear || p.year || "").toLowerCase();
                 const exam = (p.examType || "").toLowerCase();
+                const sem = `sem ${p.semester || 1}`;
+
                 return (
                     title.includes(query) ||
                     course.includes(query) ||
+                    courseCode.includes(query) ||
                     subject.includes(query) ||
                     subjectCode.includes(query) ||
                     uni.includes(query) ||
                     branch.includes(query) ||
                     year.includes(query) ||
-                    exam.includes(query)
+                    exam.includes(query) ||
+                    sem.includes(query)
                 );
             });
         }
@@ -361,17 +464,25 @@ function BrowsePYQ() {
                 return cName.includes(courseFilter.toLowerCase()) || cCode === courseFilter.toLowerCase();
             });
         }
-        if (examFilter) {
-            result = result.filter((p) => (p.examType || "").toLowerCase().includes(examFilter.toLowerCase()));
-        }
+
         if (semesterFilter) {
             result = result.filter((p) => String(p.semester) === String(semesterFilter));
         }
+
+        if (subjectFilter !== "All") {
+            result = result.filter((p) => {
+                const sName = (p.subjectId?.name || p.subject || "").toLowerCase();
+                const sCode = (p.subjectId?.code || p.subjectCode || "").toLowerCase();
+                return sName.includes(subjectFilter.toLowerCase()) || sCode.includes(subjectFilter.toLowerCase());
+            });
+        }
+
         if (yearFilter) {
             result = result.filter((p) => String(p.academicYear || p.year).includes(yearFilter));
         }
-        if (branchFilter) {
-            result = result.filter((p) => (p.branch || "").toLowerCase() === branchFilter.toLowerCase());
+
+        if (examFilter) {
+            result = result.filter((p) => (p.examType || "").toLowerCase().includes(examFilter.toLowerCase()));
         }
 
         // Sorting
@@ -385,7 +496,30 @@ function BrowsePYQ() {
         });
 
         return result;
-    }, [papers, debouncedSearch, courseFilter, examFilter, semesterFilter, yearFilter, branchFilter, sortBy]);
+    }, [papers, debouncedSearch, universityFilter, courseFilter, semesterFilter, subjectFilter, yearFilter, examFilter, sortBy]);
+
+    // Active filters count
+    const activeFiltersCount =
+        (debouncedSearch ? 1 : 0) +
+        (universityFilter !== "All" ? 1 : 0) +
+        (courseFilter !== "All" ? 1 : 0) +
+        (semesterFilter ? 1 : 0) +
+        (subjectFilter !== "All" ? 1 : 0) +
+        (yearFilter ? 1 : 0) +
+        (examFilter ? 1 : 0);
+
+    // Clear all filters
+    const clearAllFilters = () => {
+        setSearch("");
+        setDebouncedSearch("");
+        setUniversityFilter("All");
+        setCourseFilter("All");
+        setSemesterFilter("");
+        setSubjectFilter("All");
+        setYearFilter("");
+        setExamFilter("");
+        setCurrentPage(1);
+    };
 
     // Pagination calculations
     const totalPages = Math.ceil(filteredPapers.length / pageSize) || 1;
@@ -394,28 +528,19 @@ function BrowsePYQ() {
         return filteredPapers.slice(start, start + pageSize);
     }, [filteredPapers, currentPage, pageSize]);
 
-    // Clear filters
-    const clearAllFilters = () => {
-        setSearch("");
-        setCourseFilter("All");
-        setExamFilter("");
-        setSemesterFilter("");
-        setYearFilter("");
-        setBranchFilter("");
-        setCurrentPage(1);
+    // Actions
+    const handleBookmark = (paper, e) => {
+        e?.stopPropagation();
+        const saved = toggleBookmark(paper);
+        if (saved) {
+            toast.success("Saved to your Bookmarks ⭐");
+        } else {
+            toast("Removed from Bookmarks");
+        }
     };
 
-    const activeFiltersCount =
-        (search ? 1 : 0) +
-        (courseFilter !== "All" ? 1 : 0) +
-        (examFilter ? 1 : 0) +
-        (semesterFilter ? 1 : 0) +
-        (yearFilter ? 1 : 0) +
-        (branchFilter ? 1 : 0);
-
-    // Preview handler with auth guard
     const handlePreview = (paper, e) => {
-        if (e) e.stopPropagation();
+        e?.stopPropagation();
         if (!isSignedIn) {
             toast.error("Please sign in to view and preview question papers.", { icon: "🔒" });
             openSignIn?.();
@@ -423,282 +548,169 @@ function BrowsePYQ() {
         }
         setSelectedPdf({
             fileUrl: paper.fileUrl,
-            title: `${paper.title} (${paper.course || "PYQ"})`,
+            title: `${paper.title} (${formatCourseBadge(paper.courseId?.name || paper.course)})`,
         });
     };
 
-    // Download handler with auth guard
     const handleDownload = async (paper, e) => {
-        if (e) e.stopPropagation();
+        e?.stopPropagation();
         if (!isSignedIn) {
             toast.error("Please sign in to download question papers.", { icon: "🔒" });
             openSignIn?.();
             return;
         }
         if (!paper.fileUrl) {
-            toast.error("File download link is missing.");
+            toast.error("Paper file link is unavailable.");
             return;
         }
-
         setDownloadingId(paper._id);
-        await downloadPDF(paper.fileUrl, `${paper.title || "paper"}_${paper.course || ""}`);
+        await downloadPDF(paper.fileUrl, `${paper.title || "question_paper"}.pdf`);
         setDownloadingId(null);
-    };
-
-    // Share link handler
-    const handleShare = (paper, e) => {
-        if (e) e.stopPropagation();
-        const shareUrl = `${window.location.origin}/browse?q=${encodeURIComponent(paper.title || "")}`;
-        navigator.clipboard.writeText(shareUrl);
-        setCopiedId(paper._id);
-        toast.success("Paper link copied to clipboard!");
-        setTimeout(() => setCopiedId(null), 2000);
     };
 
     return (
         <div className="min-h-screen bg-[#FAF8F5] dark:bg-[#0F0E0D] text-[#1A1614] dark:text-[#F5F2EC] flex flex-col font-sans transition-colors duration-300">
             <Navbar2 />
 
-            {/* HEADER HERO */}
-            <header className="bg-white dark:bg-[#161412] border-b border-[#EAE2D8] dark:border-[#2E2822] py-10 px-4 sm:px-6 lg:px-8">
-                <div className="max-w-7xl mx-auto flex flex-col md:flex-row md:items-center md:justify-between gap-6">
-                    <div>
-                        <div className="inline-flex items-center gap-2 px-3.5 py-1 rounded-full bg-[#F4EFEA] dark:bg-[#24201C] border border-[#DDD2C4] dark:border-[#2E2822] text-[#8C6239] dark:text-[#E5C378] text-xs font-semibold mb-2 shadow-2xs">
-                            <FaBookOpen className="text-[#8C6239] dark:text-[#E5C378]" />
-                            Academic PYQ Archive
+            <main className="max-w-7xl mx-auto px-3.5 sm:px-6 lg:px-8 py-5 sm:py-8 w-full flex-1">
+                {/* Top Title & Search Hero Bar */}
+                <div className="bg-white dark:bg-[#161412] rounded-2xl sm:rounded-3xl border border-[#EAE2D8] dark:border-[#2E2822] p-4 sm:p-6 lg:p-8 shadow-xs mb-5 sm:mb-6">
+                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 sm:pb-6 border-b border-[#EAE2D8] dark:border-[#2E2822]">
+                        <div>
+                            <span className="text-[10px] sm:text-[11px] font-bold text-[#8C6239] dark:text-[#E5C378] tracking-widest uppercase">
+                                University Exam Vault
+                            </span>
+                            <h1 className="text-2xl sm:text-3xl lg:text-4xl font-serif font-bold text-[#1A1614] dark:text-[#FAF8F5] tracking-tight mt-0.5">
+                                Browse Question Papers
+                            </h1>
+                            <p className="text-xs sm:text-sm text-[#8C7862] dark:text-[#A8957E] mt-1">
+                                Search past semester examination papers by university, course, semester, and year.
+                            </p>
                         </div>
-                        <h1 className="text-3xl sm:text-4xl font-serif font-medium text-[#1A1614] dark:text-[#FAF8F5] tracking-tight">
-                            Browse Question Papers
-                        </h1>
-                        <p className="text-[#8C7862] dark:text-[#A8957E] text-xs sm:text-sm mt-1 max-w-2xl">
-                            Search, filter, preview, and download semester, mid-term, and makeup exam papers across United University departments.
-                        </p>
-                    </div>
 
-                    {/* Quick Stats */}
-                    <div className="flex items-center gap-3 shrink-0">
-                        <div className="bg-[#FAF8F5] dark:bg-[#1C1916] rounded-2xl border border-[#EAE2D8] dark:border-[#2E2822] px-4 py-2.5 text-center">
-                            <span className="block text-xl font-serif font-bold text-[#4A2E1B] dark:text-[#E5C378] leading-none">
-                                {papers.length}
-                            </span>
-                            <span className="text-[10px] font-semibold text-[#8C7862] dark:text-[#A8957E] uppercase tracking-wider">
-                                Total Papers
-                            </span>
-                        </div>
-                        <div className="bg-[#FAF8F5] dark:bg-[#1C1916] rounded-2xl border border-[#EAE2D8] dark:border-[#2E2822] px-4 py-2.5 text-center">
-                            <span className="block text-xl font-serif font-bold text-[#8C6239] dark:text-[#C5A059] leading-none">
-                                {availableCourses.length > 1 ? availableCourses.length - 1 : 0}
-                            </span>
-                            <span className="text-[10px] font-semibold text-[#8C7862] dark:text-[#A8957E] uppercase tracking-wider">
-                                Courses
-                            </span>
-                        </div>
-                        <Link
-                            to="/upload"
-                            className="hidden sm:inline-flex items-center gap-1.5 bg-[#4A2E1B] hover:bg-[#331F12] dark:bg-[#C5A059] dark:hover:bg-[#E5C378] text-white dark:text-[#0F0E0D] px-5 py-2.5 rounded-full text-xs font-bold shadow-xs transition"
-                        >
-                            + Upload Paper
-                        </Link>
-                    </div>
-                </div>
-            </header>
-            {/* MAIN CONTENT AREA */}
-            <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 w-full flex-1">
-                {/* SEARCH & FILTERS CARD */}
-                <div className="bg-white dark:bg-[#161412] border border-[#EAE2D8] dark:border-[#2E2822] rounded-3xl p-6 shadow-sm mb-8">
-                    {/* Top Row: Search Input + Sort + View Mode */}
-                    <div className="flex flex-col lg:flex-row gap-3 items-stretch lg:items-center justify-between">
-                        {/* Search Bar */}
-                        <div className="relative flex-1">
-                            <div className="flex items-center bg-[#FAF8F5] dark:bg-[#1C1916] border border-[#EAE2D8] dark:border-[#2E2822] rounded-full px-4 py-2.5 focus-within:border-[#8C6239] dark:focus-within:border-[#C5A059] transition">
-                                <FaSearch className="text-[#A8957E] mr-2.5 text-xs shrink-0" />
+                        {/* Search & Actions Bar */}
+                        <div className="flex items-center gap-2 w-full md:w-auto">
+                            {/* Live Search Input */}
+                            <div className="relative flex-1 md:w-72 sm:w-80">
+                                <FaSearch className="absolute left-3.5 top-1/2 -translate-y-1/2 text-xs text-[#8C6239] dark:text-[#E5C378] pointer-events-none" />
                                 <input
                                     ref={searchInputRef}
                                     type="text"
-                                    id="paper-search-input"
-                                    placeholder="Search by paper title, code, course, year, or branch... (Press '/' to focus)"
                                     value={search}
                                     onChange={(e) => setSearch(e.target.value)}
-                                    className="w-full bg-transparent outline-none text-[#1A1614] dark:text-[#FAF8F5] text-xs placeholder:text-[#A8957E] font-medium"
+                                    placeholder="Search title, subject, code, year..."
+                                    className="w-full pl-9 pr-8 py-2 rounded-full bg-[#FAF8F5] dark:bg-[#1C1916] border border-[#DDD2C4] dark:border-[#2E2822] text-xs text-[#1A1614] dark:text-[#FAF8F5] placeholder-[#8C7862] font-medium focus:outline-hidden focus:border-[#8C6239] dark:focus:border-[#C5A059] shadow-2xs min-h-[40px]"
                                 />
                                 {search && (
                                     <button
+                                        type="button"
                                         onClick={() => setSearch("")}
-                                        className="text-[#A8957E] hover:text-[#4A2E1B] dark:hover:text-white p-1 transition cursor-pointer"
+                                        className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[#8C7862] hover:text-[#1A1614] dark:hover:text-white p-1 text-xs cursor-pointer"
                                         title="Clear search"
                                     >
-                                        <FaTimes className="text-xs" />
+                                        <FaTimes />
                                     </button>
                                 )}
                             </div>
-                        </div>
 
-                        {/* Controls */}
-                        <div className="flex items-center gap-2 shrink-0 flex-wrap">
-                            {/* Mobile Filter Drawer Trigger */}
+                            {/* Mobile Filter Toggle Button */}
                             <button
                                 type="button"
                                 onClick={() => setIsMobileFilterOpen(true)}
-                                className="md:hidden px-3.5 py-2 bg-[#FAF8F5] dark:bg-[#1C1916] border border-[#EAE2D8] dark:border-[#2E2822] text-[#4A3E31] dark:text-[#EAE2D8] rounded-full text-xs font-bold transition flex items-center gap-1.5 shadow-2xs cursor-pointer min-h-[38px]"
+                                className="lg:hidden px-3.5 py-2 rounded-full bg-[#FAF8F5] dark:bg-[#1C1916] border border-[#DDD2C4] dark:border-[#2E2822] text-[#4A3E31] dark:text-[#FAF8F5] text-xs font-semibold flex items-center gap-1.5 shrink-0 shadow-2xs min-h-[40px] cursor-pointer"
                             >
+                                <FaFilter className="text-[10px] text-[#8C6239] dark:text-[#E5C378]" />
                                 <span>Filters</span>
                                 {activeFiltersCount > 0 && (
-                                    <span className="w-4 h-4 rounded-full bg-[#8C6239] dark:bg-[#C5A059] text-white text-[9px] flex items-center justify-center font-bold">
+                                    <span className="w-4 h-4 rounded-full bg-[#4A2E1B] text-white dark:bg-[#C5A059] dark:text-[#0D1B2A] text-[9px] font-bold flex items-center justify-center">
                                         {activeFiltersCount}
                                     </span>
                                 )}
                             </button>
-
-                            {/* Sort Dropdown */}
-                            <div className="flex items-center gap-1.5 bg-[#FAF8F5] dark:bg-[#1C1916] border border-[#EAE2D8] dark:border-[#2E2822] rounded-full px-3.5 py-2 text-xs font-semibold text-[#4A3E31] dark:text-[#EAE2D8] min-h-[38px]">
-                                <FaSortAmountDown className="text-[#8C6239] dark:text-[#E5C378]" />
-                                <span className="text-[#8C7862] dark:text-[#A8957E] hidden sm:inline">Sort:</span>
-                                <select
-                                    value={sortBy}
-                                    onChange={(e) => setSortBy(e.target.value)}
-                                    className="bg-transparent outline-none cursor-pointer font-semibold text-[#4A3E31] dark:text-[#EAE2D8]"
-                                >
-                                    <option value="newest" className="dark:bg-[#161412]">Newest Added</option>
-                                    <option value="oldest" className="dark:bg-[#161412]">Oldest Added</option>
-                                    <option value="year-desc" className="dark:bg-[#161412]">Exam Year (Recent)</option>
-                                    <option value="year-asc" className="dark:bg-[#161412]">Exam Year (Oldest)</option>
-                                    <option value="title-az" className="dark:bg-[#161412]">Title (A to Z)</option>
-                                </select>
-                            </div>
-
-                            {/* View Switcher: Grid / List */}
-                            <div className="flex items-center bg-[#F4EFEA] dark:bg-[#1C1916] p-1 rounded-full border border-[#EAE2D8] dark:border-[#2E2822] min-h-[38px]">
-                                <button
-                                    onClick={() => setViewMode("grid")}
-                                    className={`p-2 rounded-full transition cursor-pointer ${
-                                        viewMode === "grid"
-                                            ? "bg-white dark:bg-[#24201C] text-[#4A2E1B] dark:text-[#E5C378] shadow-2xs font-bold"
-                                            : "text-[#8C7862] hover:text-[#2B231B] dark:hover:text-white"
-                                    }`}
-                                    title="Grid View"
-                                >
-                                    <FaThLarge className="text-xs" />
-                                </button>
-                                <button
-                                    onClick={() => setViewMode("list")}
-                                    className={`p-2 rounded-full transition cursor-pointer ${
-                                        viewMode === "list"
-                                            ? "bg-white dark:bg-[#24201C] text-[#4A2E1B] dark:text-[#E5C378] shadow-2xs font-bold"
-                                            : "text-[#8C7862] hover:text-[#2B231B] dark:hover:text-white"
-                                    }`}
-                                    title="List View"
-                                >
-                                    <FaList className="text-xs" />
-                                </button>
-                            </div>
-
-                            {activeFiltersCount > 0 && (
-                                <button
-                                    onClick={clearAllFilters}
-                                    className="px-3.5 py-2 bg-rose-50 dark:bg-rose-950/60 hover:bg-rose-100 text-rose-700 dark:text-rose-300 rounded-full text-xs font-semibold transition flex items-center gap-1 cursor-pointer border border-rose-200 dark:border-rose-800 min-h-[38px]"
-                                >
-                                    <FaTimes className="text-[10px]" /> Clear ({activeFiltersCount})
-                                </button>
-                            )}
                         </div>
                     </div>
 
-                    {/* Desktop Filters Grid (Hidden on Mobile) */}
-                    <div className="hidden md:grid mt-4 pt-4 border-t border-[#EAE2D8] dark:border-[#2E2822] grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+                    {/* Desktop Hierarchical Cascading Filter Row (University → Course → Semester → Subject → Year → Exam Type) */}
+                    <div className="hidden lg:grid grid-cols-6 gap-3 pt-5">
+                        {/* 1. University Filter */}
                         <div>
                             <label className="block text-[10px] font-bold text-[#8C7862] dark:text-[#A8957E] uppercase tracking-wider mb-1">
-                                University
+                                1. University
                             </label>
                             <select
                                 value={universityFilter}
-                                onChange={(e) => {
-                                    setUniversityFilter(e.target.value);
-                                    setCurrentPage(1);
-                                }}
-                                className="w-full bg-[#FAF8F5] dark:bg-[#1C1916] border border-[#EAE2D8] dark:border-[#2E2822] rounded-xl px-3 py-2 text-xs text-[#4A3E31] dark:text-[#FAF8F5] font-medium outline-none focus:border-[#8C6239] transition"
+                                onChange={(e) => handleUniversityChange(e.target.value)}
+                                className="w-full px-3 py-2 rounded-xl bg-[#FAF8F5] dark:bg-[#1C1916] border border-[#EAE2D8] dark:border-[#2E2822] text-xs text-[#1A1614] dark:text-[#FAF8F5] font-semibold focus:outline-hidden focus:border-[#8C6239] cursor-pointer min-h-[38px]"
                             >
-                                <option value="All" className="dark:bg-[#161412]">All Universities</option>
-                                {universities.map((u) => (
-                                    <option key={u._id} value={u.name} className="dark:bg-[#161412]">
-                                        {u.name} ({u.code})
+                                {availableUniversities.map((u) => (
+                                    <option key={u.value} value={u.value}>
+                                        {u.label}
                                     </option>
                                 ))}
                             </select>
                         </div>
 
+                        {/* 2. Course Filter */}
                         <div>
-                            <label className="block text-[10px] font-bold text-[#8C7862] dark:text-[#A8957E] uppercase tracking-wider mb-1">
-                                Course / Program
+                            <label className="block text-[10px] font-bold text-[#8C6239] dark:text-[#A8957E] uppercase tracking-wider mb-1">
+                                2. Course
                             </label>
                             <select
                                 value={courseFilter}
-                                onChange={(e) => {
-                                    setCourseFilter(e.target.value);
-                                    setCurrentPage(1);
-                                }}
-                                className="w-full bg-[#FAF8F5] dark:bg-[#1C1916] border border-[#EAE2D8] dark:border-[#2E2822] rounded-xl px-3 py-2 text-xs text-[#4A3E31] dark:text-[#FAF8F5] font-medium outline-none focus:border-[#8C6239] transition"
+                                onChange={(e) => handleCourseChange(e.target.value)}
+                                className="w-full px-3 py-2 rounded-xl bg-[#FAF8F5] dark:bg-[#1C1916] border border-[#EAE2D8] dark:border-[#2E2822] text-xs text-[#1A1614] dark:text-[#FAF8F5] font-semibold focus:outline-hidden focus:border-[#8C6239] cursor-pointer min-h-[38px]"
                             >
-                                <option value="All" className="dark:bg-[#161412]">All Courses</option>
-                                {availableCourses.filter((c) => c !== "All").map((c) => (
-                                    <option key={c} value={c} className="dark:bg-[#161412]">
-                                        {formatCourseBadge(c)}
+                                {availableCourses.map((c) => (
+                                    <option key={c.value} value={c.value}>
+                                        {c.label}
                                     </option>
                                 ))}
                             </select>
                         </div>
 
+                        {/* 3. Semester Filter */}
                         <div>
-                            <label className="block text-[10px] font-bold text-[#8C7862] dark:text-[#A8957E] uppercase tracking-wider mb-1">
-                                Semester {semesters.length > 0 ? `(${semesters.length} sems)` : ""}
+                            <label className="block text-[10px] font-bold text-[#8C6239] dark:text-[#A8957E] uppercase tracking-wider mb-1">
+                                3. Semester
                             </label>
                             <select
                                 value={semesterFilter}
-                                onChange={(e) => {
-                                    setSemesterFilter(e.target.value);
-                                    setCurrentPage(1);
-                                }}
-                                className="w-full bg-[#FAF8F5] dark:bg-[#1C1916] border border-[#EAE2D8] dark:border-[#2E2822] rounded-xl px-3 py-2 text-xs text-[#4A3E31] dark:text-[#FAF8F5] font-medium outline-none focus:border-[#8C6239] transition"
+                                onChange={(e) => handleSemesterChange(e.target.value)}
+                                className="w-full px-3 py-2 rounded-xl bg-[#FAF8F5] dark:bg-[#1C1916] border border-[#EAE2D8] dark:border-[#2E2822] text-xs text-[#1A1614] dark:text-[#FAF8F5] font-semibold focus:outline-hidden focus:border-[#8C6239] cursor-pointer min-h-[38px]"
                             >
-                                <option value="" className="dark:bg-[#161412]">All Semesters</option>
-                                {semesters.length > 0 ? (
-                                    semesters.map((s) => (
-                                        <option key={s._id} value={String(s.number)} className="dark:bg-[#161412]">
-                                            {s.name}
-                                        </option>
-                                    ))
-                                ) : (
-                                    [1, 2, 3, 4, 5, 6, 7, 8].map((s) => (
-                                        <option key={s} value={String(s)} className="dark:bg-[#161412]">
-                                            Semester {s}
-                                        </option>
-                                    ))
-                                )}
-                            </select>
-                        </div>
-
-                        <div>
-                            <label className="block text-[10px] font-bold text-[#8C7862] dark:text-[#A8957E] uppercase tracking-wider mb-1">
-                                Exam Type
-                            </label>
-                            <select
-                                value={examFilter}
-                                onChange={(e) => {
-                                    setExamFilter(e.target.value);
-                                    setCurrentPage(1);
-                                }}
-                                className="w-full bg-[#FAF8F5] dark:bg-[#1C1916] border border-[#EAE2D8] dark:border-[#2E2822] rounded-xl px-3 py-2 text-xs text-[#4A3E31] dark:text-[#FAF8F5] font-medium outline-none focus:border-[#8C6239] transition"
-                            >
-                                {EXAM_TYPES.map((t) => (
-                                    <option key={t.value} value={t.value} className="dark:bg-[#161412]">
-                                        {t.label}
+                                {availableSemesters.map((s) => (
+                                    <option key={s.value} value={s.value}>
+                                        {s.label}
                                     </option>
                                 ))}
                             </select>
                         </div>
 
+                        {/* 4. Subject Filter */}
                         <div>
-                            <label className="block text-[10px] font-bold text-[#8C7862] dark:text-[#A8957E] uppercase tracking-wider mb-1">
-                                Exam Year
+                            <label className="block text-[10px] font-bold text-[#8C6239] dark:text-[#A8957E] uppercase tracking-wider mb-1">
+                                4. Subject
+                            </label>
+                            <select
+                                value={subjectFilter}
+                                onChange={(e) => {
+                                    setSubjectFilter(e.target.value);
+                                    setCurrentPage(1);
+                                }}
+                                className="w-full px-3 py-2 rounded-xl bg-[#FAF8F5] dark:bg-[#1C1916] border border-[#EAE2D8] dark:border-[#2E2822] text-xs text-[#1A1614] dark:text-[#FAF8F5] font-semibold focus:outline-hidden focus:border-[#8C6239] cursor-pointer min-h-[38px]"
+                            >
+                                {availableSubjects.map((sub) => (
+                                    <option key={sub.value} value={sub.value}>
+                                        {sub.label}
+                                    </option>
+                                ))}
+                            </select>
+                        </div>
+
+                        {/* 5. Year Filter */}
+                        <div>
+                            <label className="block text-[10px] font-bold text-[#8C6239] dark:text-[#A8957E] uppercase tracking-wider mb-1">
+                                5. Academic Year
                             </label>
                             <select
                                 value={yearFilter}
@@ -706,524 +718,567 @@ function BrowsePYQ() {
                                     setYearFilter(e.target.value);
                                     setCurrentPage(1);
                                 }}
-                                className="w-full bg-[#FAF8F5] dark:bg-[#1C1916] border border-[#EAE2D8] dark:border-[#2E2822] rounded-xl px-3 py-2 text-xs text-[#4A3E31] dark:text-[#FAF8F5] font-medium outline-none focus:border-[#8C6239] transition"
+                                className="w-full px-3 py-2 rounded-xl bg-[#FAF8F5] dark:bg-[#1C1916] border border-[#EAE2D8] dark:border-[#2E2822] text-xs text-[#1A1614] dark:text-[#FAF8F5] font-semibold focus:outline-hidden focus:border-[#8C6239] cursor-pointer min-h-[38px]"
                             >
-                                <option value="" className="dark:bg-[#161412]">All Years</option>
+                                <option value="">All Years</option>
                                 {availableYears.map((yr) => (
-                                    <option key={yr} value={yr} className="dark:bg-[#161412]">
+                                    <option key={yr} value={yr}>
                                         {yr}
                                     </option>
                                 ))}
                             </select>
                         </div>
+
+                        {/* 6. Exam Type */}
+                        <div>
+                            <label className="block text-[10px] font-bold text-[#8C6239] dark:text-[#A8957E] uppercase tracking-wider mb-1">
+                                6. Exam Type
+                            </label>
+                            <select
+                                value={examFilter}
+                                onChange={(e) => {
+                                    setExamFilter(e.target.value);
+                                    setCurrentPage(1);
+                                }}
+                                className="w-full px-3 py-2 rounded-xl bg-[#FAF8F5] dark:bg-[#1C1916] border border-[#EAE2D8] dark:border-[#2E2822] text-xs text-[#1A1614] dark:text-[#FAF8F5] font-semibold focus:outline-hidden focus:border-[#8C6239] cursor-pointer min-h-[38px]"
+                            >
+                                {EXAM_TYPES.map((ex) => (
+                                    <option key={ex.value} value={ex.value}>
+                                        {ex.label}
+                                    </option>
+                                ))}
+                            </select>
+                        </div>
+                    </div>
+
+                    {/* Active Filter Tags & Quick Reset */}
+                    {activeFiltersCount > 0 && (
+                        <div className="flex flex-wrap items-center gap-2 pt-4 mt-4 border-t border-[#EAE2D8] dark:border-[#2E2822] text-xs">
+                            <span className="text-[10px] font-bold text-[#8C7862] dark:text-[#A8957E] uppercase">
+                                Active Filters:
+                            </span>
+                            {universityFilter !== "All" && (
+                                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-[#FAF8F5] dark:bg-[#1C1916] text-[#4A3E31] dark:text-[#EAE2D8] border border-[#DDD2C4] dark:border-[#2E2822] text-[11px]">
+                                    Uni: {universityFilter}
+                                    <button type="button" onClick={() => handleUniversityChange("All")} className="hover:text-rose-500 cursor-pointer">×</button>
+                                </span>
+                            )}
+                            {courseFilter !== "All" && (
+                                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-[#FAF8F5] dark:bg-[#1C1916] text-[#4A3E31] dark:text-[#EAE2D8] border border-[#DDD2C4] dark:border-[#2E2822] text-[11px]">
+                                    Course: {courseFilter}
+                                    <button type="button" onClick={() => handleCourseChange("All")} className="hover:text-rose-500 cursor-pointer">×</button>
+                                </span>
+                            )}
+                            {semesterFilter && (
+                                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-[#FAF8F5] dark:bg-[#1C1916] text-[#4A3E31] dark:text-[#EAE2D8] border border-[#DDD2C4] dark:border-[#2E2822] text-[11px]">
+                                    Sem: {semesterFilter}
+                                    <button type="button" onClick={() => handleSemesterChange("")} className="hover:text-rose-500 cursor-pointer">×</button>
+                                </span>
+                            )}
+                            {subjectFilter !== "All" && (
+                                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-[#FAF8F5] dark:bg-[#1C1916] text-[#4A3E31] dark:text-[#EAE2D8] border border-[#DDD2C4] dark:border-[#2E2822] text-[11px]">
+                                    Subject: {subjectFilter}
+                                    <button type="button" onClick={() => setSubjectFilter("All")} className="hover:text-rose-500 cursor-pointer">×</button>
+                                </span>
+                            )}
+                            {yearFilter && (
+                                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-[#FAF8F5] dark:bg-[#1C1916] text-[#4A3E31] dark:text-[#EAE2D8] border border-[#DDD2C4] dark:border-[#2E2822] text-[11px]">
+                                    Year: {yearFilter}
+                                    <button type="button" onClick={() => setYearFilter("")} className="hover:text-rose-500 cursor-pointer">×</button>
+                                </span>
+                            )}
+                            {examFilter && (
+                                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-[#FAF8F5] dark:bg-[#1C1916] text-[#4A3E31] dark:text-[#EAE2D8] border border-[#DDD2C4] dark:border-[#2E2822] text-[11px]">
+                                    Exam: {examFilter}
+                                    <button type="button" onClick={() => setExamFilter("")} className="hover:text-rose-500 cursor-pointer">×</button>
+                                </span>
+                            )}
+                            <button
+                                type="button"
+                                onClick={clearAllFilters}
+                                className="text-[11px] font-bold text-[#8C6239] dark:text-[#E5C378] hover:underline ml-1 cursor-pointer"
+                            >
+                                Clear All
+                            </button>
+                        </div>
+                    )}
+                </div>
+
+                {/* Sub-header: Results Count, Sort & View Mode */}
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-5 px-1">
+                    <p className="text-xs sm:text-sm font-medium text-[#8C7862] dark:text-[#A8957E]">
+                        Showing <strong className="text-[#1A1614] dark:text-[#FAF8F5]">{filteredPapers.length}</strong> question papers
+                    </p>
+
+                    <div className="flex items-center gap-2 self-end sm:self-auto">
+                        {/* Sort selector */}
+                        <div className="flex items-center gap-1.5 bg-white dark:bg-[#161412] px-3 py-1.5 rounded-xl border border-[#EAE2D8] dark:border-[#2E2822] text-xs">
+                            <FaSortAmountDown className="text-[#8C6239] dark:text-[#E5C378] text-[11px]" />
+                            <select
+                                value={sortBy}
+                                onChange={(e) => setSortBy(e.target.value)}
+                                className="bg-transparent border-none outline-hidden text-xs text-[#1A1614] dark:text-[#FAF8F5] font-semibold cursor-pointer"
+                            >
+                                <option value="newest">Newest First</option>
+                                <option value="oldest">Oldest First</option>
+                                <option value="year-desc">Year: High to Low</option>
+                                <option value="year-asc">Year: Low to High</option>
+                                <option value="title-az">Title: A to Z</option>
+                            </select>
+                        </div>
+
+                        {/* View Switcher */}
+                        <div className="flex items-center bg-white dark:bg-[#161412] rounded-xl border border-[#EAE2D8] dark:border-[#2E2822] p-0.5">
+                            <button
+                                type="button"
+                                onClick={() => setViewMode("grid")}
+                                className={`p-2 rounded-lg text-xs transition cursor-pointer min-h-[34px] min-w-[34px] flex items-center justify-center ${
+                                    viewMode === "grid"
+                                        ? "bg-[#4A2E1B] text-white dark:bg-[#C5A059] dark:text-[#0D1B2A]"
+                                        : "text-[#8C7862] hover:text-[#1A1614] dark:hover:text-white"
+                                }`}
+                                title="Grid View"
+                                aria-label="Grid View"
+                            >
+                                <FaThLarge />
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => setViewMode("list")}
+                                className={`p-2 rounded-lg text-xs transition cursor-pointer min-h-[34px] min-w-[34px] flex items-center justify-center ${
+                                    viewMode === "list"
+                                        ? "bg-[#4A2E1B] text-white dark:bg-[#C5A059] dark:text-[#0D1B2A]"
+                                        : "text-[#8C7862] hover:text-[#1A1614] dark:hover:text-white"
+                                }`}
+                                title="List View"
+                                aria-label="List View"
+                            >
+                                <FaList />
+                            </button>
+                        </div>
                     </div>
                 </div>
 
-                {/* Mobile Slide-Over Filter Drawer Modal */}
-                {isMobileFilterOpen && (
-                    <div className="fixed inset-0 z-50 md:hidden flex justify-end">
-                        <div
-                            className="fixed inset-0 bg-black/60 backdrop-blur-xs animate-in fade-in"
-                            onClick={() => setIsMobileFilterOpen(false)}
-                        />
-                        <div className="relative w-4/5 max-w-xs bg-white dark:bg-[#161412] h-full shadow-2xl border-l border-[#EAE2D8] dark:border-[#2E2822] flex flex-col p-6 overflow-y-auto animate-in slide-in-from-right duration-200 z-10">
-                            <div className="flex items-center justify-between pb-4 border-b border-[#EAE2D8] dark:border-[#2E2822] mb-6">
-                                <h3 className="font-serif text-base font-bold text-[#1A1614] dark:text-[#FAF8F5]">
-                                    Filter Papers
-                                </h3>
-                                <button
-                                    onClick={() => setIsMobileFilterOpen(false)}
-                                    className="p-1.5 rounded-full bg-[#FAF8F5] dark:bg-[#1C1916] text-[#8C7862] hover:text-[#0D1B2A] cursor-pointer"
-                                >
-                                    <FaTimes />
-                                </button>
+                {/* LOADING STATE */}
+                {loading && (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                        {[...Array(8)].map((_, i) => (
+                            <div
+                                key={i}
+                                className="bg-white dark:bg-[#161412] rounded-3xl p-5 border border-[#EAE2D8] dark:border-[#2E2822] shadow-xs animate-pulse flex flex-col justify-between h-64"
+                            >
+                                <div>
+                                    <div className="flex justify-between items-center mb-3">
+                                        <div className="h-4 bg-[#EAE2D8] dark:bg-[#24201C] rounded w-1/3" />
+                                        <div className="h-4 bg-[#EAE2D8] dark:bg-[#24201C] rounded w-1/4" />
+                                    </div>
+                                    <div className="h-4 bg-[#EAE2D8] dark:bg-[#24201C] rounded w-3/4 mb-2" />
+                                    <div className="h-3 bg-[#EAE2D8] dark:bg-[#24201C] rounded w-1/2 mb-4" />
+                                </div>
+                                <div className="h-8 bg-[#EAE2D8] dark:bg-[#24201C] rounded-full" />
                             </div>
-
-                            <div className="space-y-4 flex-1">
-                                <div>
-                                    <label className="block text-[11px] font-bold text-[#8C7862] dark:text-[#A8957E] uppercase tracking-wider mb-1.5">
-                                        University
-                                    </label>
-                                    <select
-                                        value={universityFilter}
-                                        onChange={(e) => {
-                                            setUniversityFilter(e.target.value);
-                                            setCurrentPage(1);
-                                        }}
-                                        className="w-full bg-[#FAF8F5] dark:bg-[#1C1916] border border-[#EAE2D8] dark:border-[#2E2822] rounded-xl px-3 py-2.5 text-xs text-[#4A3E31] dark:text-[#FAF8F5] font-medium outline-none"
-                                    >
-                                        <option value="All">All Universities</option>
-                                        {universities.map((u) => (
-                                            <option key={u._id} value={u.name}>
-                                                {u.name} ({u.code})
-                                            </option>
-                                        ))}
-                                    </select>
-                                </div>
-
-                                <div>
-                                    <label className="block text-[11px] font-bold text-[#8C7862] dark:text-[#A8957E] uppercase tracking-wider mb-1.5">
-                                        Course / Program
-                                    </label>
-                                    <select
-                                        value={courseFilter}
-                                        onChange={(e) => {
-                                            setCourseFilter(e.target.value);
-                                            setCurrentPage(1);
-                                        }}
-                                        className="w-full bg-[#FAF8F5] dark:bg-[#1C1916] border border-[#EAE2D8] dark:border-[#2E2822] rounded-xl px-3 py-2.5 text-xs text-[#4A3E31] dark:text-[#FAF8F5] font-medium outline-none"
-                                    >
-                                        <option value="All">All Courses</option>
-                                        {availableCourses.filter((c) => c !== "All").map((c) => (
-                                            <option key={c} value={c}>
-                                                {formatCourseBadge(c)}
-                                            </option>
-                                        ))}
-                                    </select>
-                                </div>
-
-                                <div>
-                                    <label className="block text-[11px] font-bold text-[#8C7862] dark:text-[#A8957E] uppercase tracking-wider mb-1.5">
-                                        Semester
-                                    </label>
-                                    <select
-                                        value={semesterFilter}
-                                        onChange={(e) => {
-                                            setSemesterFilter(e.target.value);
-                                            setCurrentPage(1);
-                                        }}
-                                        className="w-full bg-[#FAF8F5] dark:bg-[#1C1916] border border-[#EAE2D8] dark:border-[#2E2822] rounded-xl px-3 py-2.5 text-xs text-[#4A3E31] dark:text-[#FAF8F5] font-medium outline-none"
-                                    >
-                                        <option value="">All Semesters</option>
-                                        {semesters.length > 0 ? (
-                                            semesters.map((s) => (
-                                                <option key={s._id} value={String(s.number)}>
-                                                    {s.name}
-                                                </option>
-                                            ))
-                                        ) : (
-                                            [1, 2, 3, 4, 5, 6, 7, 8].map((s) => (
-                                                <option key={s} value={String(s)}>
-                                                    Semester {s}
-                                                </option>
-                                            ))
-                                        )}
-                                    </select>
-                                </div>
-
-                                <div>
-                                    <label className="block text-[11px] font-bold text-[#8C7862] dark:text-[#A8957E] uppercase tracking-wider mb-1.5">
-                                        Exam Type
-                                    </label>
-                                    <select
-                                        value={examFilter}
-                                        onChange={(e) => {
-                                            setExamFilter(e.target.value);
-                                            setCurrentPage(1);
-                                        }}
-                                        className="w-full bg-[#FAF8F5] dark:bg-[#1C1916] border border-[#EAE2D8] dark:border-[#2E2822] rounded-xl px-3 py-2.5 text-xs text-[#4A3E31] dark:text-[#FAF8F5] font-medium outline-none"
-                                    >
-                                        {EXAM_TYPES.map((t) => (
-                                            <option key={t.value} value={t.value}>
-                                                {t.label}
-                                            </option>
-                                        ))}
-                                    </select>
-                                </div>
-
-                                <div>
-                                    <label className="block text-[11px] font-bold text-[#8C7862] dark:text-[#A8957E] uppercase tracking-wider mb-1.5">
-                                        Exam Year
-                                    </label>
-                                    <select
-                                        value={yearFilter}
-                                        onChange={(e) => {
-                                            setYearFilter(e.target.value);
-                                            setCurrentPage(1);
-                                        }}
-                                        className="w-full bg-[#FAF8F5] dark:bg-[#1C1916] border border-[#EAE2D8] dark:border-[#2E2822] rounded-xl px-3 py-2.5 text-xs text-[#4A3E31] dark:text-[#FAF8F5] font-medium outline-none"
-                                    >
-                                        <option value="">All Years</option>
-                                        {availableYears.map((yr) => (
-                                            <option key={yr} value={yr}>
-                                                {yr}
-                                            </option>
-                                        ))}
-                                    </select>
-                                </div>
-                            </div>
-
-                            <div className="pt-6 border-t border-[#EAE2D8] dark:border-[#2E2822] space-y-2">
-                                <button
-                                    type="button"
-                                    onClick={() => setIsMobileFilterOpen(false)}
-                                    className="w-full py-3 rounded-2xl bg-[#0D1B2A] hover:bg-[#1E293B] dark:bg-[#C89D5C] dark:hover:bg-[#E5C378] text-white dark:text-[#0D1B2A] text-xs font-bold transition min-h-[44px]"
-                                >
-                                    Apply Filters ({filteredPapers.length} Results)
-                                </button>
-                                {activeFiltersCount > 0 && (
-                                    <button
-                                        type="button"
-                                        onClick={() => {
-                                            clearAllFilters();
-                                            setIsMobileFilterOpen(false);
-                                        }}
-                                        className="w-full py-2.5 rounded-2xl bg-rose-50 dark:bg-rose-950/40 text-rose-700 dark:text-rose-300 text-xs font-semibold transition"
-                                    >
-                                        Reset All Filters
-                                    </button>
-                                )}
-                            </div>
-                        </div>
+                        ))}
                     </div>
                 )}
 
-                {/* GUEST ACCESS NOTIFICATION BANNER */}
-                {!isSignedIn && (
-                    <div className="mb-8 p-5 rounded-3xl bg-gradient-to-r from-[#2B1B10] via-[#4A2E1B] to-[#2B1B10] text-white flex flex-col sm:flex-row items-center justify-between gap-4 shadow-lg border border-[#8C6239]/40">
-                        <div className="flex items-center gap-4">
-                            <div className="w-10 h-10 rounded-2xl bg-white/10 text-[#E5C378] flex items-center justify-center text-base shrink-0 border border-white/10">
-                                <FaLock />
-                            </div>
-                            <div>
-                                <h4 className="text-sm font-bold text-white">
-                                    Sign in required to view & download question papers
-                                </h4>
-                                <p className="text-xs text-stone-300 mt-0.5">
-                                    Create a free student account or sign in to unlock instant PDF previews and direct downloads.
-                                </p>
-                            </div>
-                        </div>
+                {/* ERROR STATE */}
+                {!loading && error && (
+                    <div className="bg-white dark:bg-[#161412] border border-[#EAE2D8] dark:border-[#2E2822] rounded-3xl p-10 text-center shadow-xs max-w-md mx-auto my-8">
+                        <h3 className="text-base font-bold text-[#1A1614] dark:text-[#FAF8F5] mb-1">
+                            Unable to Load Question Papers
+                        </h3>
+                        <p className="text-xs text-[#8C7862] dark:text-[#A8957E] mb-5">{error}</p>
                         <button
-                            onClick={() => openSignIn?.()}
-                            className="shrink-0 px-5 py-2.5 bg-[#C5A059] hover:bg-[#E5C378] text-[#0F0E0D] font-bold rounded-full text-xs transition cursor-pointer shadow-md"
+                            type="button"
+                            onClick={fetchPapers}
+                            className="inline-flex items-center gap-1.5 bg-[#4A2E1B] hover:bg-[#331F12] text-white px-5 py-2.5 rounded-full text-xs font-semibold shadow-xs transition cursor-pointer"
                         >
-                            Sign In / Register Now ↗
+                            <FaRedo className="text-xs" /> Try Again
                         </button>
                     </div>
                 )}
 
-                {/* RESULTS HEADER */}
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6 px-1">
-                    <div className="flex items-center gap-2">
-                        <span className="text-sm font-serif font-bold text-[#1A1614] dark:text-[#FAF8F5]">
-                            {filteredPapers.length} Question Paper{filteredPapers.length === 1 ? "" : "s"} Found
-                        </span>
-                        {debouncedSearch && (
-                            <span className="text-xs text-[#8C7862] dark:text-[#A8957E]">
-                                for &ldquo;<span className="font-semibold text-[#8C6239] dark:text-[#E5C378]">{debouncedSearch}</span>&rdquo;
-                            </span>
-                        )}
-                    </div>
-
-                    <div className="flex items-center gap-1.5 text-xs text-[#8C7862] dark:text-[#A8957E] font-medium">
-                        <span>Show:</span>
-                        {[12, 24, 48].map((size) => (
-                            <button
-                                key={size}
-                                onClick={() => {
-                                    setPageSize(size);
-                                    setCurrentPage(1);
-                                }}
-                                className={`px-3 py-1 rounded-full transition cursor-pointer ${
-                                    pageSize === size
-                                        ? "bg-[#4A2E1B] text-white dark:bg-[#C5A059] dark:text-[#0F0E0D] font-bold"
-                                        : "bg-white dark:bg-[#161412] border border-[#EAE2D8] dark:border-[#2E2822] text-[#4A3E31] dark:text-[#FAF8F5] hover:bg-[#FAF8F5]"
-                                }`}
-                            >
-                                {size}
-                            </button>
-                        ))}
-                    </div>
-                </div>
-
-                {/* EMPTY RESULTS */}
+                {/* EMPTY STATE */}
                 {!loading && !error && filteredPapers.length === 0 && (
-                    <div className="bg-white dark:bg-[#161412] border border-[#EAE2D8] dark:border-[#2E2822] rounded-3xl p-12 text-center shadow-xs max-w-md mx-auto my-8">
-                        <div className="w-12 h-12 bg-[#F4EFEA] dark:bg-[#24201C] text-[#8C6239] dark:text-[#E5C378] rounded-2xl flex items-center justify-center mx-auto text-xl mb-3">
-                            <FaBookOpen />
+                    <div className="bg-white dark:bg-[#161412] border border-[#EAE2D8] dark:border-[#2E2822] rounded-3xl p-10 sm:p-14 text-center shadow-xs max-w-lg mx-auto my-8">
+                        <div className="w-14 h-14 bg-[#F4EFEA] dark:bg-[#24201C] text-[#8C6239] dark:text-[#E5C378] rounded-2xl flex items-center justify-center mx-auto text-2xl mb-4 border border-[#EAE2D8] dark:border-[#2E2822]">
+                            <FaFilePdf />
                         </div>
-                        <h3 className="text-base font-serif font-bold text-[#1A1614] dark:text-[#FAF8F5] mb-1">No Papers Found</h3>
-                        <p className="text-xs text-[#8C7862] dark:text-[#A8957E] mb-5">
-                            No question papers match your selected filters. Try clearing your search or upload a paper.
+                        <h3 className="text-lg font-serif font-bold text-[#1A1614] dark:text-[#FAF8F5] mb-1">
+                            No question papers found
+                        </h3>
+                        <p className="text-xs text-[#8C7862] dark:text-[#A8957E] mb-6 max-w-sm mx-auto leading-relaxed">
+                            Try changing your search query or relaxing your filters to see more previous year examination papers.
                         </p>
-                        <div className="flex items-center justify-center gap-2.5">
+                        <div className="flex items-center justify-center gap-3">
                             <button
+                                type="button"
                                 onClick={clearAllFilters}
-                                className="px-4 py-2 bg-[#F4EFEA] hover:bg-[#EAE2D8] dark:bg-[#24201C] dark:hover:bg-[#2E2822] text-[#4A3E31] dark:text-[#FAF8F5] rounded-full text-xs font-semibold transition cursor-pointer"
+                                className="px-5 py-2.5 bg-[#4A2E1B] hover:bg-[#331F12] dark:bg-[#C5A059] dark:hover:bg-[#E5C378] text-white dark:text-[#0D1B2A] text-xs font-bold rounded-full transition shadow-xs cursor-pointer min-h-[40px]"
                             >
-                                Clear Filters
+                                Clear All Filters
                             </button>
                             <Link
                                 to="/upload"
-                                className="px-5 py-2 bg-[#4A2E1B] dark:bg-[#C5A059] dark:text-[#0F0E0D] text-white rounded-full text-xs font-bold shadow-xs transition"
+                                className="px-5 py-2.5 bg-[#FAF8F5] dark:bg-[#1C1916] hover:bg-[#F4EFEA] text-[#4A3E31] dark:text-[#FAF8F5] border border-[#EAE2D8] dark:border-[#2E2822] text-xs font-bold rounded-full transition shadow-2xs min-h-[40px] flex items-center"
                             >
-                                Upload Paper ↗
+                                + Upload Paper
                             </Link>
                         </div>
                     </div>
                 )}
 
-                {/* GRID VIEW */}
-                {!loading && !error && filteredPapers.length > 0 && viewMode === "grid" && (
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
-                        {paginatedPapers.map((paper) => (
-                            <div
-                                key={paper._id}
-                                className="bg-white dark:bg-[#161412] rounded-3xl border border-[#EAE2D8] dark:border-[#2E2822] hover:border-[#8C6239] dark:hover:border-[#C5A059] p-5 shadow-sm hover:shadow-lg transition-all duration-200 flex flex-col justify-between group"
-                            >
-                                <div>
-                                    {/* Badges */}
-                                    <div className="flex items-center justify-between gap-2 mb-3">
-                                        <div className="flex items-center gap-1.5 min-w-0 overflow-hidden">
-                                            <span 
-                                                title={paper.course}
-                                                className={`px-2.5 py-0.5 rounded-full text-[11px] font-semibold border truncate max-w-[130px] inline-block shrink-0 ${getCourseBadgeStyle(paper.course)}`}
-                                            >
-                                                {formatCourseBadge(paper.course || "General")}
-                                            </span>
+                {/* PAPERS LIST / GRID */}
+                {!loading && !error && filteredPapers.length > 0 && (
+                    <>
+                        {viewMode === "grid" ? (
+                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 sm:gap-5">
+                                {paginatedPapers.map((paper) => {
+                                    const isSaved = savedIds.includes(paper._id);
+                                    return (
+                                        <div
+                                            key={paper._id}
+                                            className="bg-white dark:bg-[#161412] rounded-3xl border border-[#EAE2D8] dark:border-[#2E2822] hover:border-[#8C6239] dark:hover:border-[#C5A059] p-5 shadow-sm hover:shadow-md transition-all flex flex-col justify-between group"
+                                        >
+                                            <div>
+                                                {/* Card Header Badges */}
+                                                <div className="flex items-center justify-between gap-2 mb-3">
+                                                    <div className="flex items-center gap-1.5 min-w-0 overflow-hidden">
+                                                        <span
+                                                            title={paper.courseId?.name || paper.course}
+                                                            className={`px-2.5 py-0.5 rounded-full text-[11px] font-semibold border truncate max-w-[130px] inline-block shrink-0 ${getCourseBadgeStyle(paper.courseId?.name || paper.course)}`}
+                                                        >
+                                                            {formatCourseBadge(paper.courseId?.code || paper.courseId?.name || paper.course || "General")}
+                                                        </span>
+                                                        {paper.examType && (
+                                                            <span className={`px-2 py-0.5 rounded-full text-[10px] font-medium border capitalize whitespace-nowrap shrink-0 ${getExamBadgeStyle(paper.examType)}`}>
+                                                                {paper.examType}
+                                                            </span>
+                                                        )}
+                                                    </div>
 
-                                            {paper.examType && (
-                                                <span className={`px-2 py-0.5 rounded-full text-[10px] font-medium border capitalize whitespace-nowrap shrink-0 ${getExamBadgeStyle(paper.examType)}`}>
-                                                    {paper.examType}
-                                                </span>
-                                            )}
+                                                    <div className="flex items-center gap-1.5 shrink-0">
+                                                        {(paper.academicYear || paper.year) && (
+                                                            <span className="text-[10px] font-bold font-mono text-[#8C7862] dark:text-[#A8957E] bg-[#FAF8F5] dark:bg-[#1C1916] px-2 py-0.5 rounded-md border border-[#EAE2D8] dark:border-[#2E2822] whitespace-nowrap">
+                                                                {paper.academicYear || paper.year}
+                                                            </span>
+                                                        )}
+                                                        <button
+                                                            type="button"
+                                                            onClick={(e) => handleBookmark(paper, e)}
+                                                            className="w-7 h-7 rounded-full bg-[#FAF8F5] dark:bg-[#1C1916] text-[#8C6239] dark:text-[#E5C378] hover:scale-110 transition cursor-pointer border border-[#EAE2D8] dark:border-[#2E2822] flex items-center justify-center shrink-0"
+                                                            title={isSaved ? "Remove Bookmark" : "Save Paper"}
+                                                            aria-label="Bookmark"
+                                                        >
+                                                            {isSaved ? <FaBookmark className="text-amber-500" /> : <FaRegBookmark />}
+                                                        </button>
+                                                    </div>
+                                                </div>
+
+                                                {/* Title & Subject Info */}
+                                                <h3 className="font-serif font-bold text-[#1A1614] dark:text-[#FAF8F5] text-sm sm:text-base line-clamp-2 mb-1.5 group-hover:text-[#8C6239] dark:group-hover:text-[#E5C378] transition-colors">
+                                                    {paper.title}
+                                                </h3>
+
+                                                <p className="text-[11px] text-[#8C7862] dark:text-[#A8957E] mb-4 line-clamp-1">
+                                                    {paper.universityId?.name || paper.university} • Sem {paper.semester || 1}{paper.subjectCode ? ` • ${paper.subjectCode}` : ""}
+                                                </p>
+                                            </div>
+
+                                            {/* Card Action Buttons */}
+                                            <div className="grid grid-cols-2 gap-2 pt-3 border-t border-[#EAE2D8] dark:border-[#2E2822]">
+                                                <button
+                                                    type="button"
+                                                    onClick={(e) => handlePreview(paper, e)}
+                                                    className="flex items-center justify-center gap-1.5 bg-[#FAF8F5] dark:bg-[#1C1916] hover:bg-[#F4EFEA] dark:hover:bg-[#24201C] text-[#4A2E1B] dark:text-[#FAF8F5] border border-[#EAE2D8] dark:border-[#2E2822] py-2 px-3 rounded-full text-xs font-semibold transition cursor-pointer shadow-2xs min-h-[38px]"
+                                                >
+                                                    <FaEye className="text-xs text-[#8C6239] dark:text-[#E5C378]" />
+                                                    <span>Preview</span>
+                                                </button>
+                                                <button
+                                                    type="button"
+                                                    disabled={downloadingId === paper._id}
+                                                    onClick={(e) => handleDownload(paper, e)}
+                                                    className="flex items-center justify-center gap-1.5 bg-[#4A2E1B] hover:bg-[#331F12] dark:bg-[#C5A059] dark:hover:bg-[#E5C378] text-white dark:text-[#0D1B2A] py-2 px-3 rounded-full text-xs font-semibold transition cursor-pointer shadow-2xs min-h-[38px] disabled:opacity-50"
+                                                >
+                                                    {downloadingId === paper._id ? (
+                                                        <FaSpinner className="animate-spin text-xs" />
+                                                    ) : (
+                                                        <FaDownload className="text-xs" />
+                                                    )}
+                                                    <span>Download</span>
+                                                </button>
+                                            </div>
                                         </div>
-
-                                        <div className="flex items-center gap-1.5 shrink-0">
-                                            {(paper.academicYear || paper.year) && (
-                                                <span className="text-[10px] font-bold font-mono text-[#8C7862] dark:text-[#A8957E] bg-[#FAF8F5] dark:bg-[#1C1916] px-2 py-0.5 rounded-md border border-[#EAE2D8] dark:border-[#2E2822] whitespace-nowrap">
-                                                    {paper.academicYear || paper.year}
-                                                </span>
-                                            )}
-                                            <button
-                                                type="button"
-                                                onClick={(e) => {
-                                                    e.stopPropagation();
-                                                    const saved = toggleBookmark(paper);
-                                                    if (saved) toast.success("Saved to My Library ⭐");
-                                                    else toast("Removed from bookmarks");
-                                                }}
-                                                className="w-7 h-7 rounded-full bg-[#FAF8F5] dark:bg-[#1C1916] text-[#8C6239] dark:text-[#E5C378] hover:scale-110 transition cursor-pointer border border-[#EAE2D8] dark:border-[#2E2822] flex items-center justify-center shrink-0"
-                                                title={isBookmarked(paper._id) ? "Remove Bookmark" : "Save Paper"}
-                                            >
-                                                {isBookmarked(paper._id) ? (
-                                                    <FaBookmark className="text-amber-500 text-[10px]" />
-                                                ) : (
-                                                    <FaRegBookmark className="text-[10px]" />
-                                                )}
-                                            </button>
-                                        </div>
-                                    </div>
-
-                                    {/* Title */}
-                                    <h3
-                                        title={paper.title}
-                                        onClick={(e) => handlePreview(paper, e)}
-                                        className="text-sm font-serif font-bold text-[#1A1614] dark:text-[#FAF8F5] group-hover:text-[#8C6239] dark:group-hover:text-[#E5C378] transition cursor-pointer line-clamp-2 leading-snug mb-1 min-h-[2.5rem]"
-                                    >
-                                        {paper.title || "Untitled Question Paper"}
-                                    </h3>
-
-                                    {/* Metadata */}
-                                    <p className="text-xs text-[#8C7862] dark:text-[#A8957E] mb-3.5 font-medium truncate">
-                                        {paper.university || "University Vault"} • {paper.semester ? `Sem ${paper.semester}` : "All Sems"}
-                                        {paper.branch ? ` • ${paper.branch}` : ""}
-                                    </p>
-
-                                    {/* Thumbnail Preview Box */}
-                                    <div
-                                        onClick={(e) => handlePreview(paper, e)}
-                                        className="rounded-2xl border border-[#EAE2D8] dark:border-[#2E2822] bg-[#FAF8F5] dark:bg-[#1C1916] p-3 mb-4 cursor-pointer hover:bg-[#F4EFEA] dark:hover:bg-[#24201C] transition flex items-center justify-center gap-2 group/prev shadow-2xs"
-                                    >
-                                        <FaFilePdf className="text-red-500 text-base group-hover/prev:scale-110 transition-transform" />
-                                        <span className="text-xs font-semibold text-[#6B5B49] dark:text-[#C2B3A0]">
-                                            {!isSignedIn ? "Sign in to preview" : "Click to preview"}
-                                        </span>
-                                    </div>
-                                </div>
-
-                                {/* Action Buttons */}
-                                <div className="flex items-center gap-2 pt-3 border-t border-[#EAE2D8] dark:border-[#2E2822]">
-                                    <button
-                                        id={`view-btn-${paper._id}`}
-                                        onClick={(e) => handlePreview(paper, e)}
-                                        className="flex-1 flex items-center justify-center gap-1.5 py-2 px-3 bg-white dark:bg-[#1C1916] hover:bg-[#FAF8F5] dark:hover:bg-[#24201C] text-[#4A3E31] dark:text-[#FAF8F5] border border-[#DDD2C4] dark:border-[#2E2822] rounded-full text-xs font-bold transition cursor-pointer shadow-2xs"
-                                    >
-                                        {!isSignedIn ? <FaLock className="text-[10px]" /> : <FaEye className="text-xs text-[#8C6239] dark:text-[#E5C378]" />}
-                                        <span>{isSignedIn ? "Preview" : "Sign In"}</span>
-                                    </button>
-
-                                    <button
-                                        id={`download-btn-${paper._id}`}
-                                        onClick={(e) => handleDownload(paper, e)}
-                                        disabled={downloadingId === paper._id}
-                                        className="flex-1 flex items-center justify-center gap-1.5 py-2 px-3 bg-[#4A2E1B] hover:bg-[#331F12] dark:bg-[#C5A059] dark:hover:bg-[#E5C378] text-white dark:text-[#0F0E0D] rounded-full text-xs font-bold transition disabled:opacity-60 cursor-pointer shadow-xs"
-                                    >
-                                        {downloadingId === paper._id ? (
-                                            <FaSpinner className="animate-spin text-xs" />
-                                        ) : !isSignedIn ? (
-                                            <FaLock className="text-[10px]" />
-                                        ) : (
-                                            <FaDownload className="text-xs" />
-                                        )}
-                                        <span>Download</span>
-                                    </button>
-
-                                    <button
-                                        onClick={(e) => handleShare(paper, e)}
-                                        title="Copy Share Link"
-                                        className="p-2.5 bg-[#FAF8F5] dark:bg-[#1C1916] hover:bg-[#F4EFEA] dark:hover:bg-[#24201C] text-[#8C7862] dark:text-[#A8957E] border border-[#EAE2D8] dark:border-[#2E2822] rounded-full text-xs transition cursor-pointer"
-                                    >
-                                        {copiedId === paper._id ? (
-                                            <FaCheck className="text-emerald-600 text-xs" />
-                                        ) : (
-                                            <FaShareAlt className="text-xs" />
-                                        )}
-                                    </button>
-                                </div>
+                                    );
+                                })}
                             </div>
-                        ))}
-                    </div>
-                )}
-
-                {/* LIST VIEW */}
-                {!loading && !error && filteredPapers.length > 0 && viewMode === "list" && (
-                    <div className="bg-white dark:bg-[#161412] rounded-3xl border border-[#EAE2D8] dark:border-[#2E2822] shadow-xs overflow-hidden">
-                        <div className="overflow-x-auto">
-                            <table className="w-full text-left text-xs">
-                                <thead className="bg-[#FAF8F5] dark:bg-[#1C1916] border-b border-[#EAE2D8] dark:border-[#2E2822] text-[#8C7862] dark:text-[#A8957E] uppercase tracking-wider font-bold">
-                                    <tr>
-                                        <th className="py-4 px-5">Paper Title</th>
-                                        <th className="py-4 px-5">Course</th>
-                                        <th className="py-4 px-5">Semester</th>
-                                        <th className="py-4 px-5">Exam Type</th>
-                                        <th className="py-4 px-5">Year</th>
-                                        <th className="py-4 px-5">Branch</th>
-                                        <th className="py-4 px-5 text-right">Actions</th>
-                                    </tr>
-                                </thead>
-                                <tbody className="divide-y divide-[#EAE2D8] dark:divide-[#2E2822] font-medium text-[#4A3E31] dark:text-[#EAE2D8]">
-                                    {paginatedPapers.map((paper) => (
-                                        <tr key={paper._id} className="hover:bg-[#FAF8F5] dark:hover:bg-[#1C1916] transition-colors">
-                                            <td className="py-4 px-5">
-                                                <div className="flex items-center gap-3">
-                                                    <FaFilePdf className="text-red-500 shrink-0 text-sm" />
-                                                    <span
-                                                        className="font-serif font-bold text-[#1A1614] dark:text-[#FAF8F5] hover:text-[#8C6239] dark:hover:text-[#E5C378] cursor-pointer line-clamp-1 max-w-xs"
-                                                        onClick={(e) => handlePreview(paper, e)}
-                                                    >
+                        ) : (
+                            /* List View */
+                            <div className="bg-white dark:bg-[#161412] rounded-3xl border border-[#EAE2D8] dark:border-[#2E2822] divide-y divide-[#EAE2D8] dark:divide-[#2E2822] overflow-hidden shadow-xs">
+                                {paginatedPapers.map((paper) => {
+                                    const isSaved = savedIds.includes(paper._id);
+                                    return (
+                                        <div
+                                            key={paper._id}
+                                            className="p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4 hover:bg-[#FAF8F5] dark:hover:bg-[#1C1916] transition"
+                                        >
+                                            <div className="flex items-start gap-3.5 min-w-0 flex-1">
+                                                <div className="w-10 h-10 rounded-2xl bg-rose-50 dark:bg-rose-950/40 text-rose-600 dark:text-rose-400 flex items-center justify-center shrink-0 text-base">
+                                                    <FaFilePdf />
+                                                </div>
+                                                <div className="min-w-0 flex-1">
+                                                    <div className="flex flex-wrap items-center gap-2 mb-1">
+                                                        <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold border ${getCourseBadgeStyle(paper.courseId?.name || paper.course)}`}>
+                                                            {formatCourseBadge(paper.courseId?.code || paper.courseId?.name || paper.course)}
+                                                        </span>
+                                                        <span className="text-[11px] font-semibold text-[#8C7862] dark:text-[#A8957E]">
+                                                            Sem {paper.semester || 1} • {paper.academicYear || paper.year}
+                                                        </span>
+                                                        {paper.examType && (
+                                                            <span className={`px-2 py-0.5 rounded-full text-[10px] font-medium border capitalize ${getExamBadgeStyle(paper.examType)}`}>
+                                                                {paper.examType}
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                    <h3 className="font-serif font-bold text-sm text-[#1A1614] dark:text-[#FAF8F5] truncate">
                                                         {paper.title}
-                                                    </span>
+                                                    </h3>
+                                                    <p className="text-[11px] text-[#8C7862] dark:text-[#A8957E] truncate">
+                                                        {paper.universityId?.name || paper.university}{paper.subjectCode ? ` • ${paper.subjectCode}` : ""}
+                                                    </p>
                                                 </div>
-                                            </td>
-                                            <td className="py-4 px-5">
-                                                <span className={`px-2.5 py-0.5 rounded-full font-semibold border ${getCourseBadgeStyle(paper.course)}`}>
-                                                    {paper.course || "-"}
-                                                </span>
-                                            </td>
-                                            <td className="py-4 px-5 text-[#8C7862] dark:text-[#A8957E]">
-                                                {paper.semester ? `Sem ${paper.semester}` : "-"}
-                                            </td>
-                                            <td className="py-4 px-5 capitalize">
-                                                {paper.examType ? (
-                                                    <span className={`px-2.5 py-0.5 rounded-full text-[11px] font-medium border ${getExamBadgeStyle(paper.examType)}`}>
-                                                        {paper.examType}
-                                                    </span>
-                                                ) : (
-                                                    "-"
-                                                )}
-                                            </td>
-                                            <td className="py-4 px-5 font-semibold text-[#1A1614] dark:text-[#FAF8F5]">
-                                                {paper.year || "-"}
-                                            </td>
-                                            <td className="py-4 px-5 text-[#8C7862] dark:text-[#A8957E]">
-                                                {paper.branch || "-"}
-                                            </td>
-                                            <td className="py-4 px-5 text-right">
-                                                <div className="flex items-center justify-end gap-1.5">
-                                                    <button
-                                                        onClick={(e) => handlePreview(paper, e)}
-                                                        className="p-2 bg-[#F4EFEA] dark:bg-[#24201C] hover:bg-[#EAE2D8] text-[#8C6239] dark:text-[#E5C378] rounded-full transition cursor-pointer"
-                                                        title="Preview Paper"
-                                                    >
-                                                        {!isSignedIn ? <FaLock className="text-[10px]" /> : <FaEye className="text-xs" />}
-                                                    </button>
-                                                    <button
-                                                        onClick={(e) => handleDownload(paper, e)}
-                                                        disabled={downloadingId === paper._id}
-                                                        className="p-2 bg-[#4A2E1B] dark:bg-[#C5A059] hover:bg-[#331F12] text-white dark:text-[#0F0E0D] rounded-full transition cursor-pointer"
-                                                        title="Download PDF"
-                                                    >
-                                                        {downloadingId === paper._id ? (
-                                                            <FaSpinner className="animate-spin text-xs" />
-                                                        ) : !isSignedIn ? (
-                                                            <FaLock className="text-[10px]" />
-                                                        ) : (
-                                                            <FaDownload className="text-xs" />
-                                                        )}
-                                                    </button>
-                                                    <button
-                                                        onClick={(e) => handleShare(paper, e)}
-                                                        className="p-2 bg-[#FAF8F5] dark:bg-[#1C1916] hover:bg-[#F4EFEA] text-[#8C7862] rounded-full transition cursor-pointer border border-[#EAE2D8] dark:border-[#2E2822]"
-                                                        title="Share Link"
-                                                    >
-                                                        {copiedId === paper._id ? (
-                                                            <FaCheck className="text-emerald-600 text-xs" />
-                                                        ) : (
-                                                            <FaShareAlt className="text-xs" />
-                                                        )}
-                                                    </button>
-                                                </div>
-                                            </td>
-                                        </tr>
-                                    ))}
-                                </tbody>
-                            </table>
-                        </div>
-                    </div>
-                )}
+                                            </div>
 
-                {/* Standard Clean Pagination */}
-                {!loading && !error && filteredPapers.length > pageSize && (
-                    <div className="flex flex-col sm:flex-row items-center justify-between gap-4 mt-8 pt-6 border-t border-[#EAE2D8] dark:border-[#2E2822] text-xs">
-                        <span className="text-[#8C7862] dark:text-[#A8957E] font-medium">
-                            Showing {(currentPage - 1) * pageSize + 1} to{" "}
-                            {Math.min(currentPage * pageSize, filteredPapers.length)} of {filteredPapers.length} papers
-                        </span>
-                        <div className="flex items-center gap-2">
-                            <button
-                                onClick={() => {
-                                    setCurrentPage((p) => Math.max(1, p - 1));
-                                    window.scrollTo({ top: 380, behavior: "smooth" });
-                                }}
-                                disabled={currentPage === 1}
-                                className="px-3.5 py-1.5 rounded-full bg-white dark:bg-[#161412] border border-[#EAE2D8] dark:border-[#2E2822] text-[#2B231B] dark:text-[#FAF8F5] hover:bg-[#FAF8F5] dark:hover:bg-[#24201C] disabled:opacity-40 disabled:cursor-not-allowed font-semibold transition cursor-pointer flex items-center gap-1 shadow-2xs"
-                            >
-                                <FaChevronLeft className="text-[10px]" /> Prev
-                            </button>
-                            <span className="px-3 py-1 rounded-full bg-[#F4EFEA] dark:bg-[#24201C] text-[#8C6239] dark:text-[#E5C378] font-bold text-xs">
-                                Page {currentPage} of {totalPages}
-                            </span>
-                            <button
-                                onClick={() => {
-                                    setCurrentPage((p) => Math.min(totalPages, p + 1));
-                                    window.scrollTo({ top: 380, behavior: "smooth" });
-                                }}
-                                disabled={currentPage === totalPages}
-                                className="px-3.5 py-1.5 rounded-full bg-white dark:bg-[#161412] border border-[#EAE2D8] dark:border-[#2E2822] text-[#2B231B] dark:text-[#FAF8F5] hover:bg-[#FAF8F5] dark:hover:bg-[#24201C] disabled:opacity-40 disabled:cursor-not-allowed font-semibold transition cursor-pointer flex items-center gap-1 shadow-2xs"
-                            >
-                                Next <FaChevronRight className="text-[10px]" />
-                            </button>
-                        </div>
-                    </div>
+                                            <div className="flex items-center gap-2 shrink-0 self-end sm:self-auto">
+                                                <button
+                                                    type="button"
+                                                    onClick={(e) => handleBookmark(paper, e)}
+                                                    className="w-9 h-9 rounded-full bg-[#FAF8F5] dark:bg-[#1C1916] text-[#8C6239] dark:text-[#E5C378] hover:scale-110 transition cursor-pointer border border-[#EAE2D8] dark:border-[#2E2822] flex items-center justify-center shrink-0 min-h-[38px] min-w-[38px]"
+                                                    title={isSaved ? "Remove Bookmark" : "Save Paper"}
+                                                    aria-label="Bookmark"
+                                                >
+                                                    {isSaved ? <FaBookmark className="text-amber-500" /> : <FaRegBookmark />}
+                                                </button>
+                                                <button
+                                                    type="button"
+                                                    onClick={(e) => handlePreview(paper, e)}
+                                                    className="px-3.5 py-2 rounded-full bg-[#FAF8F5] dark:bg-[#1C1916] hover:bg-[#F4EFEA] text-[#4A2E1B] dark:text-[#FAF8F5] border border-[#EAE2D8] dark:border-[#2E2822] text-xs font-semibold transition cursor-pointer min-h-[38px] flex items-center gap-1.5"
+                                                >
+                                                    <FaEye className="text-xs text-[#8C6239] dark:text-[#E5C378]" />
+                                                    <span>Preview</span>
+                                                </button>
+                                                <button
+                                                    type="button"
+                                                    disabled={downloadingId === paper._id}
+                                                    onClick={(e) => handleDownload(paper, e)}
+                                                    className="px-4 py-2 rounded-full bg-[#4A2E1B] hover:bg-[#331F12] dark:bg-[#C5A059] dark:hover:bg-[#E5C378] text-white dark:text-[#0D1B2A] text-xs font-semibold transition cursor-pointer min-h-[38px] flex items-center gap-1.5 disabled:opacity-50"
+                                                >
+                                                    {downloadingId === paper._id ? <FaSpinner className="animate-spin text-xs" /> : <FaDownload className="text-xs" />}
+                                                    <span>Download</span>
+                                                </button>
+                                            </div>
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        )}
+
+                        {/* Pagination Bar */}
+                        {totalPages > 1 && (
+                            <div className="flex items-center justify-between gap-4 mt-8 pt-6 border-t border-[#EAE2D8] dark:border-[#2E2822]">
+                                <button
+                                    type="button"
+                                    disabled={currentPage === 1}
+                                    onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                                    className="px-4 py-2 rounded-full bg-white dark:bg-[#161412] border border-[#EAE2D8] dark:border-[#2E2822] text-xs font-semibold text-[#1A1614] dark:text-[#FAF8F5] disabled:opacity-40 disabled:cursor-not-allowed hover:bg-[#FAF8F5] transition flex items-center gap-1.5 min-h-[38px] cursor-pointer shadow-2xs"
+                                >
+                                    <FaChevronLeft className="text-[10px]" /> Previous
+                                </button>
+
+                                <div className="text-xs font-semibold text-[#8C7862] dark:text-[#A8957E]">
+                                    Page <strong className="text-[#1A1614] dark:text-[#FAF8F5]">{currentPage}</strong> of {totalPages}
+                                </div>
+
+                                <button
+                                    type="button"
+                                    disabled={currentPage === totalPages}
+                                    onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                                    className="px-4 py-2 rounded-full bg-white dark:bg-[#161412] border border-[#EAE2D8] dark:border-[#2E2822] text-xs font-semibold text-[#1A1614] dark:text-[#FAF8F5] disabled:opacity-40 disabled:cursor-not-allowed hover:bg-[#FAF8F5] transition flex items-center gap-1.5 min-h-[38px] cursor-pointer shadow-2xs"
+                                >
+                                    Next <FaChevronRight className="text-[10px]" />
+                                </button>
+                            </div>
+                        )}
+                    </>
                 )}
             </main>
 
-            {/* FOOTER */}
-            <Footer />
+            {/* ── MOBILE FILTER DRAWER OVERLAY ────────────────────────────────────── */}
+            {isMobileFilterOpen && (
+                <div className="fixed inset-0 z-50 lg:hidden flex justify-end">
+                    <div
+                        className="fixed inset-0 bg-black/60 backdrop-blur-xs transition-opacity animate-in fade-in"
+                        onClick={() => setIsMobileFilterOpen(false)}
+                    />
+                    <div className="relative w-full max-w-xs sm:max-w-sm bg-white dark:bg-[#161412] h-full shadow-2xl border-l border-[#EAE2D8] dark:border-[#2E2822] flex flex-col p-6 overflow-y-auto z-10 animate-in slide-in-from-right duration-200">
+                        <div className="flex items-center justify-between pb-4 border-b border-[#EAE2D8] dark:border-[#2E2822] mb-5">
+                            <div className="flex items-center gap-2">
+                                <FaFilter className="text-sm text-[#8C6239] dark:text-[#E5C378]" />
+                                <h3 className="font-serif font-bold text-base text-[#1A1614] dark:text-[#FAF8F5]">
+                                    Filters
+                                </h3>
+                            </div>
+                            <button
+                                type="button"
+                                onClick={() => setIsMobileFilterOpen(false)}
+                                className="p-2 rounded-full bg-[#FAF8F5] dark:bg-[#1C1916] text-[#8C7862] hover:text-[#1A1614] dark:hover:text-white cursor-pointer min-h-[38px] min-w-[38px] flex items-center justify-center border border-[#EAE2D8] dark:border-[#2E2822]"
+                            >
+                                <FaTimes />
+                            </button>
+                        </div>
 
-            {/* MODAL PDF VIEWER */}
+                        <div className="space-y-4 flex-1">
+                            {/* University */}
+                            <div>
+                                <label className="block text-[11px] font-bold text-[#8C7862] dark:text-[#A8957E] uppercase mb-1.5">
+                                    University
+                                </label>
+                                <select
+                                    value={universityFilter}
+                                    onChange={(e) => handleUniversityChange(e.target.value)}
+                                    className="w-full px-3 py-2.5 rounded-xl bg-[#FAF8F5] dark:bg-[#1C1916] border border-[#EAE2D8] dark:border-[#2E2822] text-xs text-[#1A1614] dark:text-[#FAF8F5] font-semibold"
+                                >
+                                    {availableUniversities.map((u) => (
+                                        <option key={u.value} value={u.value}>
+                                            {u.label}
+                                        </option>
+                                    ))}
+                                </select>
+                            </div>
+
+                            {/* Course */}
+                            <div>
+                                <label className="block text-[11px] font-bold text-[#8C7862] dark:text-[#A8957E] uppercase mb-1.5">
+                                    Course
+                                </label>
+                                <select
+                                    value={courseFilter}
+                                    onChange={(e) => handleCourseChange(e.target.value)}
+                                    className="w-full px-3 py-2.5 rounded-xl bg-[#FAF8F5] dark:bg-[#1C1916] border border-[#EAE2D8] dark:border-[#2E2822] text-xs text-[#1A1614] dark:text-[#FAF8F5] font-semibold"
+                                >
+                                    {availableCourses.map((c) => (
+                                        <option key={c.value} value={c.value}>
+                                            {c.label}
+                                        </option>
+                                    ))}
+                                </select>
+                            </div>
+
+                            {/* Semester */}
+                            <div>
+                                <label className="block text-[11px] font-bold text-[#8C7862] dark:text-[#A8957E] uppercase mb-1.5">
+                                    Semester
+                                </label>
+                                <select
+                                    value={semesterFilter}
+                                    onChange={(e) => handleSemesterChange(e.target.value)}
+                                    className="w-full px-3 py-2.5 rounded-xl bg-[#FAF8F5] dark:bg-[#1C1916] border border-[#EAE2D8] dark:border-[#2E2822] text-xs text-[#1A1614] dark:text-[#FAF8F5] font-semibold"
+                                >
+                                    {availableSemesters.map((s) => (
+                                        <option key={s.value} value={s.value}>
+                                            {s.label}
+                                        </option>
+                                    ))}
+                                </select>
+                            </div>
+
+                            {/* Subject */}
+                            <div>
+                                <label className="block text-[11px] font-bold text-[#8C7862] dark:text-[#A8957E] uppercase mb-1.5">
+                                    Subject
+                                </label>
+                                <select
+                                    value={subjectFilter}
+                                    onChange={(e) => {
+                                        setSubjectFilter(e.target.value);
+                                        setCurrentPage(1);
+                                    }}
+                                    className="w-full px-3 py-2.5 rounded-xl bg-[#FAF8F5] dark:bg-[#1C1916] border border-[#EAE2D8] dark:border-[#2E2822] text-xs text-[#1A1614] dark:text-[#FAF8F5] font-semibold"
+                                >
+                                    {availableSubjects.map((sub) => (
+                                        <option key={sub.value} value={sub.value}>
+                                            {sub.label}
+                                        </option>
+                                    ))}
+                                </select>
+                            </div>
+
+                            {/* Academic Year */}
+                            <div>
+                                <label className="block text-[11px] font-bold text-[#8C7862] dark:text-[#A8957E] uppercase mb-1.5">
+                                    Academic Year
+                                </label>
+                                <select
+                                    value={yearFilter}
+                                    onChange={(e) => {
+                                        setYearFilter(e.target.value);
+                                        setCurrentPage(1);
+                                    }}
+                                    className="w-full px-3 py-2.5 rounded-xl bg-[#FAF8F5] dark:bg-[#1C1916] border border-[#EAE2D8] dark:border-[#2E2822] text-xs text-[#1A1614] dark:text-[#FAF8F5] font-semibold"
+                                >
+                                    <option value="">All Years</option>
+                                    {availableYears.map((yr) => (
+                                        <option key={yr} value={yr}>
+                                            {yr}
+                                        </option>
+                                    ))}
+                                </select>
+                            </div>
+
+                            {/* Exam Type */}
+                            <div>
+                                <label className="block text-[11px] font-bold text-[#8C7862] dark:text-[#A8957E] uppercase mb-1.5">
+                                    Exam Type
+                                </label>
+                                <select
+                                    value={examFilter}
+                                    onChange={(e) => {
+                                        setExamFilter(e.target.value);
+                                        setCurrentPage(1);
+                                    }}
+                                    className="w-full px-3 py-2.5 rounded-xl bg-[#FAF8F5] dark:bg-[#1C1916] border border-[#EAE2D8] dark:border-[#2E2822] text-xs text-[#1A1614] dark:text-[#FAF8F5] font-semibold"
+                                >
+                                    {EXAM_TYPES.map((ex) => (
+                                        <option key={ex.value} value={ex.value}>
+                                            {ex.label}
+                                        </option>
+                                    ))}
+                                </select>
+                            </div>
+                        </div>
+
+                        <div className="pt-5 border-t border-[#EAE2D8] dark:border-[#2E2822] space-y-2">
+                            <button
+                                type="button"
+                                onClick={() => setIsMobileFilterOpen(false)}
+                                className="w-full py-3 rounded-2xl bg-[#4A2E1B] hover:bg-[#331F12] dark:bg-[#C5A059] dark:hover:bg-[#E5C378] text-white dark:text-[#0D1B2A] text-xs font-bold shadow-xs transition min-h-[44px] cursor-pointer"
+                            >
+                                Apply Filters ({filteredPapers.length} papers)
+                            </button>
+                            <button
+                                type="button"
+                                onClick={clearAllFilters}
+                                className="w-full py-2.5 rounded-2xl bg-[#FAF8F5] dark:bg-[#1C1916] border border-[#EAE2D8] dark:border-[#2E2822] text-[#8C7862] dark:text-[#A8957E] text-xs font-semibold transition min-h-[40px] cursor-pointer"
+                            >
+                                Reset All
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* In-App PDF Previewer Modal */}
             {selectedPdf && (
                 <PDFViewer
                     fileUrl={selectedPdf.fileUrl}
@@ -1231,6 +1286,9 @@ function BrowsePYQ() {
                     onClose={() => setSelectedPdf(null)}
                 />
             )}
+
+            {/* FOOTER */}
+            <Footer />
         </div>
     );
 }

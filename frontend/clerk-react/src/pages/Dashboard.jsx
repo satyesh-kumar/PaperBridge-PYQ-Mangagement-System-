@@ -12,10 +12,10 @@ import {
     FaCheckCircle,
     FaTimesCircle,
     FaStickyNote,
-    FaUniversity,
     FaBookmark,
     FaTrash,
     FaSyncAlt,
+    FaSpinner,
 } from "react-icons/fa";
 import Navbar2 from "../components/Navbar2";
 import Footer from "../components/Footer";
@@ -53,13 +53,17 @@ const formatCourseBadge = (courseStr = "") => {
 
 function StatCard({ icon, label, value }) {
     return (
-        <div className="bg-white dark:bg-[#161412] rounded-3xl border border-[#EAE2D8] dark:border-[#2E2822] shadow-xs p-5 flex items-center gap-4">
-            <div className="w-11 h-11 rounded-2xl bg-[#FAF8F5] dark:bg-[#24201C] flex items-center justify-center text-xl text-[#8C6239] dark:text-[#E5C378]">
+        <div className="bg-white dark:bg-[#161412] rounded-2xl sm:rounded-3xl border border-[#EAE2D8] dark:border-[#2E2822] shadow-xs p-3.5 sm:p-5 flex items-center gap-3 sm:gap-4 transition-all">
+            <div className="w-9 h-9 sm:w-11 sm:h-11 rounded-xl sm:rounded-2xl bg-[#FAF8F5] dark:bg-[#24201C] flex items-center justify-center text-lg sm:text-xl text-[#8C6239] dark:text-[#E5C378] shrink-0 border border-[#EAE2D8] dark:border-[#2E2822]">
                 {icon}
             </div>
-            <div>
-                <p className="text-2xl font-serif font-bold text-[#1A1614] dark:text-[#FAF8F5] leading-tight">{value}</p>
-                <p className="text-[10px] font-semibold text-[#8C7862] dark:text-[#A8957E] uppercase tracking-wider mt-0.5">{label}</p>
+            <div className="min-w-0">
+                <p className="text-xl sm:text-2xl font-serif font-bold text-[#1A1614] dark:text-[#FAF8F5] leading-tight truncate">
+                    {value}
+                </p>
+                <p className="text-[9px] sm:text-[10px] font-semibold text-[#8C7862] dark:text-[#A8957E] uppercase tracking-wider mt-0.5 truncate">
+                    {label}
+                </p>
             </div>
         </div>
     );
@@ -129,7 +133,7 @@ function Dashboard() {
             setAllNotesCount(Array.isArray(allNotesRes.data) ? allNotesRes.data.length : 0);
         } catch (err) {
             console.error("Dashboard fetch error:", err);
-            toast.error("Failed to load user library");
+            toast.error("Something went wrong while loading your dashboard.");
         } finally {
             setLoading(false);
         }
@@ -143,18 +147,23 @@ function Dashboard() {
         return (
             <>
                 <Navbar2 />
-                <div className="min-h-screen flex items-center justify-center bg-[#FAF8F5] dark:bg-[#0F0E0D] p-6 text-[#1A1614] dark:text-[#F5F2EC]">
-                    <div className="bg-white dark:bg-[#161412] rounded-3xl p-8 text-center shadow-sm border border-[#EAE2D8] dark:border-[#2E2822] max-w-sm w-full">
+                <div className="min-h-screen flex items-center justify-center bg-[#FAF8F5] dark:bg-[#0F0E0D] p-4 text-[#1A1614] dark:text-[#F5F2EC]">
+                    <div className="bg-white dark:bg-[#161412] rounded-3xl p-6 sm:p-8 text-center shadow-sm border border-[#EAE2D8] dark:border-[#2E2822] max-w-sm w-full">
+                        <div className="w-12 h-12 rounded-2xl bg-[#F4EFEA] dark:bg-[#24201C] text-[#8C6239] dark:text-[#E5C378] flex items-center justify-center text-xl mx-auto mb-3">
+                            <FaFilePdf />
+                        </div>
                         <h2 className="text-xl font-serif font-bold mb-1">Sign in Required</h2>
-                        <p className="text-[#8C7862] text-xs mb-5">Please sign in to view your personal academic library.</p>
-                        <Link to="/" className="text-[#8C6239] dark:text-[#E5C378] font-semibold hover:underline text-xs">← Back to Home</Link>
+                        <p className="text-[#8C7862] text-xs mb-5">Please sign in to access your student dashboard and uploads.</p>
+                        <Link to="/" className="inline-flex items-center gap-1 text-[#8C6239] dark:text-[#E5C378] font-semibold hover:underline text-xs">
+                            ← Back to Home
+                        </Link>
                     </div>
                 </div>
             </>
         );
     }
 
-    const firstName = user?.firstName || user?.emailAddresses?.[0]?.emailAddress?.split("@")[0] || "Student";
+    const firstName = user?.firstName || user?.fullName?.split(" ")[0] || user?.emailAddresses?.[0]?.emailAddress?.split("@")[0] || "Student";
     const avatarUrl = user?.imageUrl;
 
     const totalSubmissions = myPapers.length + myNotes.length;
@@ -169,63 +178,67 @@ function Dashboard() {
         <div className="min-h-screen bg-[#FAF8F5] dark:bg-[#0F0E0D] text-[#1A1614] dark:text-[#F5F2EC] flex flex-col font-sans transition-colors duration-300">
             <Navbar2 />
 
-            <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8 w-full flex-1">
-                {/* Welcome header */}
-                <div className="bg-white dark:bg-[#161412] rounded-3xl border border-[#EAE2D8] dark:border-[#2E2822] shadow-xs p-6 sm:p-8 mb-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-5">
-                    <div className="flex items-center gap-4">
+            <main className="max-w-6xl mx-auto px-3.5 sm:px-6 lg:px-8 py-5 sm:py-8 w-full flex-1">
+                {/* Welcome header — Responsive & Clean Layout */}
+                <div className="bg-white dark:bg-[#161412] rounded-2xl sm:rounded-3xl border border-[#EAE2D8] dark:border-[#2E2822] shadow-xs p-4 sm:p-6 md:p-8 mb-5 sm:mb-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 sm:gap-6">
+                    <div className="flex items-center gap-3.5 sm:gap-4 min-w-0 w-full sm:w-auto">
                         {avatarUrl ? (
                             <img
                                 src={avatarUrl}
                                 alt="avatar"
-                                className="w-14 h-14 rounded-2xl border-2 border-[#8C6239] dark:border-[#C5A059] object-cover shadow-xs"
+                                className="w-12 h-12 sm:w-14 sm:h-14 rounded-2xl border-2 border-[#8C6239] dark:border-[#C5A059] object-cover shadow-xs shrink-0"
                             />
                         ) : (
-                            <div className="w-14 h-14 rounded-2xl bg-[#0D1B2A] dark:bg-[#C89D5C] text-white dark:text-[#0D1B2A] flex items-center justify-center font-bold text-xl">
+                            <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-2xl bg-[#4A2E1B] dark:bg-[#C5A059] text-white dark:text-[#0F0E0D] flex items-center justify-center font-bold text-lg sm:text-xl shrink-0">
                                 {firstName.charAt(0).toUpperCase()}
                             </div>
                         )}
-                        <div>
-                            <div className="flex items-center gap-2">
-                                <h1 className="text-2xl sm:text-3xl font-serif font-bold text-[#1A1614] dark:text-[#FAF8F5] tracking-tight">
+                        <div className="min-w-0 flex-1">
+                            <div className="flex flex-wrap items-center gap-2">
+                                <h1 className="text-xl sm:text-2xl md:text-3xl font-serif font-bold text-[#1A1614] dark:text-[#FAF8F5] tracking-tight truncate max-w-[200px] xs:max-w-[260px] sm:max-w-none">
                                     Welcome, {firstName}
                                 </h1>
-                                <span className="px-2.5 py-0.5 rounded-full bg-[#F4EFEA] dark:bg-[#24201C] text-[#8C6239] dark:text-[#E5C378] text-[10px] font-bold uppercase border border-[#DDD2C4] dark:border-[#2E2822]">
-                                    Student Library
+                                <span className="px-2 py-0.5 rounded-full bg-[#F4EFEA] dark:bg-[#24201C] text-[#8C6239] dark:text-[#E5C378] text-[10px] font-bold uppercase border border-[#DDD2C4] dark:border-[#2E2822] shrink-0">
+                                    Student
                                 </span>
                             </div>
-                            <p className="text-[#8C7862] dark:text-[#A8957E] mt-1 text-xs sm:text-sm">
-                                Track your uploaded question papers & study notes, review statuses, and platform stats.
+                            <p className="text-[#8C7862] dark:text-[#A8957E] mt-0.5 sm:mt-1 text-xs sm:text-sm line-clamp-1 sm:line-clamp-none">
+                                Track your uploaded papers & study notes, review statuses, and platform stats.
                             </p>
                         </div>
                     </div>
 
-                    <div className="flex items-center gap-2 w-full sm:w-auto">
+                    {/* Header Action Buttons */}
+                    <div className="flex items-center gap-2 w-full sm:w-auto shrink-0">
                         <button
+                            type="button"
                             onClick={fetchUserData}
-                            className="p-2.5 rounded-2xl bg-[#FAF8F5] dark:bg-[#1C1916] hover:bg-[#F4EFEA] dark:hover:bg-[#24201C] text-[#4A3E31] dark:text-[#FAF8F5] border border-[#EAE2D8] dark:border-[#2E2822] flex items-center justify-center transition cursor-pointer shadow-2xs"
-                            title="Refresh Library"
+                            className="p-2.5 rounded-2xl bg-[#FAF8F5] dark:bg-[#1C1916] hover:bg-[#F4EFEA] dark:hover:bg-[#24201C] text-[#4A3E31] dark:text-[#FAF8F5] border border-[#EAE2D8] dark:border-[#2E2822] flex items-center justify-center transition cursor-pointer shadow-2xs min-h-[42px] min-w-[42px]"
+                            title="Refresh Dashboard"
+                            aria-label="Refresh Dashboard"
                         >
-                            <FaSyncAlt className="text-xs text-[#8C6239] dark:text-[#E5C378]" />
+                            <FaSyncAlt className={`text-xs text-[#8C6239] dark:text-[#E5C378] ${loading ? "animate-spin" : ""}`} />
                         </button>
                         <Link
                             to="/upload"
-                            className="flex-1 sm:flex-none inline-flex items-center justify-center gap-1.5 px-5 py-2.5 rounded-full bg-[#0D1B2A] hover:bg-[#1E293B] dark:bg-[#C89D5C] dark:hover:bg-[#E5C378] text-white dark:text-[#0D1B2A] text-xs font-bold shadow-xs transition"
+                            className="flex-1 sm:flex-none inline-flex items-center justify-center gap-1.5 px-5 py-2.5 rounded-full bg-[#4A2E1B] hover:bg-[#331F12] dark:bg-[#C5A059] dark:hover:bg-[#E5C378] text-white dark:text-[#0F0E0D] text-xs font-bold shadow-xs transition min-h-[42px]"
                         >
-                            <FaUpload className="text-[10px]" /> + Upload Material ↗
+                            <FaUpload className="text-[10px]" />
+                            <span className="whitespace-nowrap">+ Upload Material ↗</span>
                         </Link>
                     </div>
                 </div>
 
-                {/* 4 Stat Cards */}
-                <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+                {/* 4 Stat Cards — Responsive 2-column grid on mobile */}
+                <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-4 mb-6 sm:mb-8">
                     <StatCard
                         icon="📄"
-                        label="My Contributions"
+                        label="My Uploads"
                         value={loading ? "…" : totalSubmissions}
                     />
                     <StatCard
                         icon="⏳"
-                        label="Pending Review"
+                        label="In Review"
                         value={loading ? "…" : pendingTotal}
                     />
                     <StatCard
@@ -240,8 +253,8 @@ function Dashboard() {
                     />
                 </div>
 
-                {/* Quick actions */}
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-8">
+                {/* Quick Actions — Strictly ONE LINE without wrapping */}
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 sm:gap-3 mb-6 sm:mb-8">
                     {[
                         { label: "Browse Question Papers", icon: <FaSearch />, to: "/browse" },
                         { label: "Browse Study Notes", icon: <FaStickyNote />, to: "/notes" },
@@ -250,17 +263,17 @@ function Dashboard() {
                         <Link
                             key={i}
                             to={item.to}
-                            className="flex items-center gap-3 bg-white dark:bg-[#161412] border border-[#EAE2D8] dark:border-[#2E2822] text-[#1A1614] dark:text-[#FAF8F5] hover:border-[#8C6239] dark:hover:border-[#C5A059] rounded-2xl p-4 shadow-2xs font-semibold text-xs transition"
+                            className="flex items-center gap-2.5 sm:gap-3 bg-white dark:bg-[#161412] border border-[#EAE2D8] dark:border-[#2E2822] text-[#1A1614] dark:text-[#FAF8F5] hover:border-[#8C6239] dark:hover:border-[#C5A059] rounded-2xl px-4 py-3 sm:py-3.5 shadow-2xs font-semibold text-xs transition min-h-[44px] overflow-hidden"
                         >
-                            <span className="text-[#8C6239] dark:text-[#E5C378]">{item.icon}</span>
-                            {item.label}
+                            <span className="text-[#8C6239] dark:text-[#E5C378] text-sm shrink-0">{item.icon}</span>
+                            <span className="whitespace-nowrap truncate tracking-tight">{item.label}</span>
                         </Link>
                     ))}
                 </div>
 
                 {/* Submissions Section with Tabs */}
                 <div>
-                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-5 border-b border-[#EAE2D8] dark:border-[#2E2822] pb-4">
+                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 mb-5 border-b border-[#EAE2D8] dark:border-[#2E2822] pb-4">
                         <div>
                             <h2 className="text-lg font-serif font-bold text-[#1A1614] dark:text-[#FAF8F5]">
                                 My Uploads & Review Status
@@ -271,10 +284,11 @@ function Dashboard() {
                         </div>
 
                         {/* Tab Switcher */}
-                        <div className="flex items-center gap-1 bg-[#F4EFEA] dark:bg-[#1C1916] p-1 rounded-full border border-[#EAE2D8] dark:border-[#2E2822] overflow-x-auto">
+                        <div className="flex items-center gap-1 bg-[#F4EFEA] dark:bg-[#1C1916] p-1 rounded-full border border-[#EAE2D8] dark:border-[#2E2822] overflow-x-auto no-scrollbar">
                             <button
+                                type="button"
                                 onClick={() => setActiveTab("pyqs")}
-                                className={`px-4 py-1.5 rounded-full text-xs font-semibold transition flex items-center gap-1.5 shrink-0 cursor-pointer ${
+                                className={`px-3.5 sm:px-4 py-1.5 rounded-full text-xs font-semibold transition flex items-center gap-1.5 shrink-0 cursor-pointer min-h-[34px] ${
                                     activeTab === "pyqs"
                                         ? "bg-white dark:bg-[#24201C] text-[#4A2E1B] dark:text-[#E5C378] shadow-2xs font-bold"
                                         : "text-[#8C7862] hover:text-[#2B231B] dark:hover:text-white"
@@ -283,8 +297,9 @@ function Dashboard() {
                                 <FaFilePdf className="text-xs" /> Question Papers ({myPapers.length})
                             </button>
                             <button
+                                type="button"
                                 onClick={() => setActiveTab("notes")}
-                                className={`px-4 py-1.5 rounded-full text-xs font-semibold transition flex items-center gap-1.5 shrink-0 cursor-pointer ${
+                                className={`px-3.5 sm:px-4 py-1.5 rounded-full text-xs font-semibold transition flex items-center gap-1.5 shrink-0 cursor-pointer min-h-[34px] ${
                                     activeTab === "notes"
                                         ? "bg-white dark:bg-[#24201C] text-[#4A2E1B] dark:text-[#E5C378] shadow-2xs font-bold"
                                         : "text-[#8C7862] hover:text-[#2B231B] dark:hover:text-white"
@@ -293,10 +308,11 @@ function Dashboard() {
                                 <FaStickyNote className="text-xs" /> Study Notes ({myNotes.length})
                             </button>
                             <button
+                                type="button"
                                 onClick={() => setActiveTab("bookmarks")}
-                                className={`px-4 py-1.5 rounded-full text-xs font-semibold transition flex items-center gap-1.5 shrink-0 cursor-pointer ${
+                                className={`px-3.5 sm:px-4 py-1.5 rounded-full text-xs font-semibold transition flex items-center gap-1.5 shrink-0 cursor-pointer min-h-[34px] ${
                                     activeTab === "bookmarks"
-                                        ? "bg-[#0D1B2A] text-white dark:bg-[#C89D5C] dark:text-[#0D1B2A] shadow-2xs font-bold"
+                                        ? "bg-[#4A2E1B] text-white dark:bg-[#C5A059] dark:text-[#0D1B2A] shadow-2xs font-bold"
                                         : "text-[#8C7862] hover:text-[#2B231B] dark:hover:text-white"
                                 }`}
                             >
@@ -305,16 +321,13 @@ function Dashboard() {
                         </div>
                     </div>
 
-                    {/* Loading Skeleton */}
+                    {/* Loading State */}
                     {loading && (
-                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                            {[...Array(3)].map((_, i) => (
-                                <div key={i} className="bg-white dark:bg-[#161412] rounded-3xl p-5 animate-pulse border border-[#EAE2D8] dark:border-[#2E2822]">
-                                    <div className="h-4 bg-[#EAE2D8] dark:bg-[#2E2822] rounded w-3/4 mb-2" />
-                                    <div className="h-3 bg-[#EAE2D8] dark:bg-[#2E2822] rounded w-1/2 mb-4" />
-                                    <div className="h-8 bg-[#EAE2D8] dark:bg-[#2E2822] rounded-full" />
-                                </div>
-                            ))}
+                        <div className="py-12 text-center">
+                            <div className="w-10 h-10 border-2 border-[#8C6239] dark:border-[#C5A059] border-t-transparent rounded-full animate-spin mx-auto mb-3" />
+                            <p className="text-xs font-medium text-[#8C7862] dark:text-[#A8957E]">
+                                Loading your dashboard…
+                            </p>
                         </div>
                     )}
 
@@ -322,7 +335,7 @@ function Dashboard() {
                     {!loading && activeTab === "pyqs" && (
                         <>
                             {myPapers.length === 0 ? (
-                                <div className="bg-white dark:bg-[#161412] rounded-3xl border border-[#EAE2D8] dark:border-[#2E2822] p-10 text-center shadow-xs">
+                                <div className="bg-white dark:bg-[#161412] rounded-3xl border border-[#EAE2D8] dark:border-[#2E2822] p-8 sm:p-12 text-center shadow-xs">
                                     <div className="w-12 h-12 rounded-2xl bg-[#F4EFEA] dark:bg-[#24201C] text-[#8C6239] dark:text-[#E5C378] flex items-center justify-center text-xl mx-auto mb-3">
                                         <FaFilePdf />
                                     </div>
@@ -334,7 +347,7 @@ function Dashboard() {
                                     </p>
                                     <Link
                                         to="/upload"
-                                        className="inline-flex items-center gap-1.5 bg-[#0D1B2A] hover:bg-[#1E293B] dark:bg-[#C89D5C] dark:hover:bg-[#E5C378] dark:text-[#0D1B2A] text-white px-5 py-2.5 rounded-full text-xs font-bold shadow-xs transition"
+                                        className="inline-flex items-center gap-1.5 bg-[#4A2E1B] hover:bg-[#331F12] dark:bg-[#C5A059] dark:hover:bg-[#E5C378] dark:text-[#0D1B2A] text-white px-5 py-2.5 rounded-full text-xs font-bold shadow-xs transition min-h-[42px]"
                                     >
                                         <FaUpload className="text-[10px]" /> Upload Paper ↗
                                     </Link>
@@ -387,17 +400,19 @@ function Dashboard() {
 
                                                 <div className="grid grid-cols-2 gap-2 pt-2 border-t border-[#EAE2D8] dark:border-[#2E2822]">
                                                     <button
+                                                        type="button"
                                                         onClick={() => setSelectedPdf({
                                                             fileUrl: paper.fileUrl,
                                                             title: `${paper.title} (${formatCourseBadge(paper.courseId?.name || paper.course)})`,
                                                         })}
-                                                        className="flex items-center justify-center gap-1.5 bg-[#FAF8F5] dark:bg-[#1C1916] hover:bg-[#F4EFEA] dark:hover:bg-[#24201C] text-[#4A2E1B] dark:text-[#FAF8F5] border border-[#EAE2D8] dark:border-[#2E2822] py-2 px-3 rounded-full text-xs font-semibold transition cursor-pointer shadow-2xs"
+                                                        className="flex items-center justify-center gap-1.5 bg-[#FAF8F5] dark:bg-[#1C1916] hover:bg-[#F4EFEA] dark:hover:bg-[#24201C] text-[#4A2E1B] dark:text-[#FAF8F5] border border-[#EAE2D8] dark:border-[#2E2822] py-2 px-3 rounded-full text-xs font-semibold transition cursor-pointer shadow-2xs min-h-[38px]"
                                                     >
                                                         <FaEye className="text-xs text-[#8C6239] dark:text-[#E5C378]" /> Preview
                                                     </button>
                                                     <button
+                                                        type="button"
                                                         onClick={() => downloadPDF(paper.fileUrl, `${paper.title}.pdf`)}
-                                                        className="flex items-center justify-center gap-1.5 bg-[#FAF8F5] dark:bg-[#1C1916] hover:bg-[#F4EFEA] dark:hover:bg-[#24201C] text-[#4A2E1B] dark:text-[#FAF8F5] border border-[#EAE2D8] dark:border-[#2E2822] py-2 px-3 rounded-full text-xs font-semibold transition cursor-pointer shadow-2xs"
+                                                        className="flex items-center justify-center gap-1.5 bg-[#FAF8F5] dark:bg-[#1C1916] hover:bg-[#F4EFEA] dark:hover:bg-[#24201C] text-[#4A2E1B] dark:text-[#FAF8F5] border border-[#EAE2D8] dark:border-[#2E2822] py-2 px-3 rounded-full text-xs font-semibold transition cursor-pointer shadow-2xs min-h-[38px]"
                                                     >
                                                         <FaDownload className="text-xs text-[#8C6239] dark:text-[#E5C378]" /> Download
                                                     </button>
@@ -414,7 +429,7 @@ function Dashboard() {
                     {!loading && activeTab === "notes" && (
                         <>
                             {myNotes.length === 0 ? (
-                                <div className="bg-white dark:bg-[#161412] rounded-3xl border border-[#EAE2D8] dark:border-[#2E2822] p-10 text-center shadow-xs">
+                                <div className="bg-white dark:bg-[#161412] rounded-3xl border border-[#EAE2D8] dark:border-[#2E2822] p-8 sm:p-12 text-center shadow-xs">
                                     <div className="w-12 h-12 rounded-2xl bg-[#F4EFEA] dark:bg-[#24201C] text-[#8C6239] dark:text-[#E5C378] flex items-center justify-center text-xl mx-auto mb-3">
                                         <FaStickyNote />
                                     </div>
@@ -426,7 +441,7 @@ function Dashboard() {
                                     </p>
                                     <Link
                                         to="/upload"
-                                        className="inline-flex items-center gap-1.5 bg-[#0D1B2A] hover:bg-[#1E293B] dark:bg-[#C89D5C] dark:hover:bg-[#E5C378] dark:text-[#0D1B2A] text-white px-5 py-2.5 rounded-full text-xs font-bold shadow-xs transition"
+                                        className="inline-flex items-center gap-1.5 bg-[#4A2E1B] hover:bg-[#331F12] dark:bg-[#C5A059] dark:hover:bg-[#E5C378] dark:text-[#0D1B2A] text-white px-5 py-2.5 rounded-full text-xs font-bold shadow-xs transition min-h-[42px]"
                                     >
                                         <FaUpload className="text-[10px]" /> Upload Study Notes ↗
                                     </Link>
@@ -479,17 +494,19 @@ function Dashboard() {
 
                                                 <div className="grid grid-cols-2 gap-2 pt-2 border-t border-[#EAE2D8] dark:border-[#2E2822]">
                                                     <button
+                                                        type="button"
                                                         onClick={() => setSelectedPdf({
                                                             fileUrl: note.fileUrl,
                                                             title: `${note.title} (${note.subject || "Study Notes"})`,
                                                         })}
-                                                        className="flex items-center justify-center gap-1.5 bg-[#FAF8F5] dark:bg-[#1C1916] hover:bg-[#F4EFEA] dark:hover:bg-[#24201C] text-[#4A2E1B] dark:text-[#FAF8F5] border border-[#EAE2D8] dark:border-[#2E2822] py-2 px-3 rounded-full text-xs font-semibold transition cursor-pointer shadow-2xs"
+                                                        className="flex items-center justify-center gap-1.5 bg-[#FAF8F5] dark:bg-[#1C1916] hover:bg-[#F4EFEA] dark:hover:bg-[#24201C] text-[#4A2E1B] dark:text-[#FAF8F5] border border-[#EAE2D8] dark:border-[#2E2822] py-2 px-3 rounded-full text-xs font-semibold transition cursor-pointer shadow-2xs min-h-[38px]"
                                                     >
                                                         <FaEye className="text-xs text-[#8C6239] dark:text-[#E5C378]" /> Preview
                                                     </button>
                                                     <button
+                                                        type="button"
                                                         onClick={() => downloadPDF(note.fileUrl, `${note.title}.pdf`)}
-                                                        className="flex items-center justify-center gap-1.5 bg-[#FAF8F5] dark:bg-[#1C1916] hover:bg-[#F4EFEA] dark:hover:bg-[#24201C] text-[#4A2E1B] dark:text-[#FAF8F5] border border-[#EAE2D8] dark:border-[#2E2822] py-2 px-3 rounded-full text-xs font-semibold transition cursor-pointer shadow-2xs"
+                                                        className="flex items-center justify-center gap-1.5 bg-[#FAF8F5] dark:bg-[#1C1916] hover:bg-[#F4EFEA] dark:hover:bg-[#24201C] text-[#4A2E1B] dark:text-[#FAF8F5] border border-[#EAE2D8] dark:border-[#2E2822] py-2 px-3 rounded-full text-xs font-semibold transition cursor-pointer shadow-2xs min-h-[38px]"
                                                     >
                                                         <FaDownload className="text-xs text-[#8C6239] dark:text-[#E5C378]" /> Download
                                                     </button>
@@ -506,7 +523,7 @@ function Dashboard() {
                     {!loading && activeTab === "bookmarks" && (
                         <>
                             {bookmarks.length === 0 ? (
-                                <div className="bg-white dark:bg-[#161412] rounded-3xl border border-[#EAE2D8] dark:border-[#2E2822] p-10 text-center shadow-xs">
+                                <div className="bg-white dark:bg-[#161412] rounded-3xl border border-[#EAE2D8] dark:border-[#2E2822] p-8 sm:p-12 text-center shadow-xs">
                                     <div className="w-12 h-12 rounded-2xl bg-amber-500/10 text-amber-500 flex items-center justify-center text-xl mx-auto mb-3">
                                         <FaBookmark />
                                     </div>
@@ -518,7 +535,7 @@ function Dashboard() {
                                     </p>
                                     <Link
                                         to="/browse"
-                                        className="inline-flex items-center gap-1.5 bg-[#0D1B2A] hover:bg-[#1E293B] dark:bg-[#C89D5C] dark:hover:bg-[#E5C378] text-white dark:text-[#0D1B2A] px-5 py-2.5 rounded-full text-xs font-bold shadow-xs transition"
+                                        className="inline-flex items-center gap-1.5 bg-[#4A2E1B] hover:bg-[#331F12] dark:bg-[#C5A059] dark:hover:bg-[#E5C378] text-white dark:text-[#0D1B2A] px-5 py-2.5 rounded-full text-xs font-bold shadow-xs transition min-h-[42px]"
                                     >
                                         <FaSearch className="text-[10px]" /> Browse Papers ↗
                                     </Link>
@@ -536,8 +553,9 @@ function Dashboard() {
                                                         {item.itemType === "note" ? "Study Note" : "Question Paper"}
                                                     </span>
                                                     <button
+                                                        type="button"
                                                         onClick={() => toggleBookmark(item)}
-                                                        className="text-[#8C7862] hover:text-rose-600 dark:hover:text-rose-400 text-xs p-1 cursor-pointer transition"
+                                                        className="text-[#8C7862] hover:text-rose-600 dark:hover:text-rose-400 text-xs p-1 cursor-pointer transition min-h-[32px] min-w-[32px] flex items-center justify-center"
                                                         title="Remove from saved"
                                                     >
                                                         <FaTrash />
@@ -554,17 +572,19 @@ function Dashboard() {
 
                                             <div className="grid grid-cols-2 gap-2 pt-2 border-t border-[#EAE2D8] dark:border-[#2E2822]">
                                                 <button
+                                                    type="button"
                                                     onClick={() => setSelectedPdf({
                                                         fileUrl: item.fileUrl,
                                                         title: item.title || "Saved Document",
                                                     })}
-                                                    className="flex items-center justify-center gap-1.5 bg-[#FAF8F5] dark:bg-[#1C1916] hover:bg-[#F4EFEA] dark:hover:bg-[#24201C] text-[#4A2E1B] dark:text-[#FAF8F5] border border-[#EAE2D8] dark:border-[#2E2822] py-2 px-3 rounded-full text-xs font-semibold transition cursor-pointer shadow-2xs"
+                                                    className="flex items-center justify-center gap-1.5 bg-[#FAF8F5] dark:bg-[#1C1916] hover:bg-[#F4EFEA] dark:hover:bg-[#24201C] text-[#4A2E1B] dark:text-[#FAF8F5] border border-[#EAE2D8] dark:border-[#2E2822] py-2 px-3 rounded-full text-xs font-semibold transition cursor-pointer shadow-2xs min-h-[38px]"
                                                 >
                                                     <FaEye className="text-xs text-[#8C6239] dark:text-[#E5C378]" /> Preview
                                                 </button>
                                                 <button
+                                                    type="button"
                                                     onClick={() => downloadPDF(item.fileUrl, `${item.title || "Document"}.pdf`)}
-                                                    className="flex items-center justify-center gap-1.5 bg-[#FAF8F5] dark:bg-[#1C1916] hover:bg-[#F4EFEA] dark:hover:bg-[#24201C] text-[#4A2E1B] dark:text-[#FAF8F5] border border-[#EAE2D8] dark:border-[#2E2822] py-2 px-3 rounded-full text-xs font-semibold transition cursor-pointer shadow-2xs"
+                                                    className="flex items-center justify-center gap-1.5 bg-[#FAF8F5] dark:bg-[#1C1916] hover:bg-[#F4EFEA] dark:hover:bg-[#24201C] text-[#4A2E1B] dark:text-[#FAF8F5] border border-[#EAE2D8] dark:border-[#2E2822] py-2 px-3 rounded-full text-xs font-semibold transition cursor-pointer shadow-2xs min-h-[38px]"
                                                 >
                                                     <FaDownload className="text-xs text-[#8C6239] dark:text-[#E5C378]" /> Download
                                                 </button>
@@ -576,7 +596,7 @@ function Dashboard() {
                         </>
                     )}
                 </div>
-            </div>
+            </main>
 
             {/* In-App PDF Previewer Modal */}
             {selectedPdf && (
