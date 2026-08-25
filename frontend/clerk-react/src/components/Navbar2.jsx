@@ -520,12 +520,12 @@ function Navbar() {
             {/* Theme Toggle */}
             <ThemeToggle />
 
-            {/* Clerk Authentication Controls & Dashboard */}
+            {/* Clerk Authentication Controls & Dashboard (Desktop only: on mobile they live cleanly in the hamburger drawer) */}
             <Show when="signed-out">
               <SignInButton mode="modal">
                 <button
                   id="navbar-signin-btn"
-                  className="px-3 sm:px-4 py-1.5 sm:py-2 rounded-full border border-[#DDD2C4] dark:border-[#332E28] bg-white/70 dark:bg-[#1C1916] hover:bg-white dark:hover:bg-[#24201C] text-[#4A3E31] dark:text-[#EAE2D8] transition text-xs font-semibold cursor-pointer shadow-2xs min-h-[38px]"
+                  className="hidden lg:inline-flex px-3.5 sm:px-4 py-1.5 sm:py-2 rounded-full border border-[#DDD2C4] dark:border-[#332E28] bg-white/70 dark:bg-[#1C1916] hover:bg-white dark:hover:bg-[#24201C] text-[#4A3E31] dark:text-[#EAE2D8] transition text-xs font-semibold cursor-pointer shadow-2xs min-h-[38px]"
                 >
                   Sign In
                 </button>
@@ -533,7 +533,7 @@ function Navbar() {
               <SignUpButton mode="modal">
                 <button
                   id="navbar-signup-btn"
-                  className="hidden sm:inline-flex items-center gap-1.5 px-3.5 sm:px-4 py-1.5 sm:py-2 rounded-full bg-[#4A2E1B] hover:bg-[#331F12] dark:bg-[#C5A059] dark:hover:bg-[#E5C378] text-white dark:text-[#0F0E0D] transition text-xs font-semibold cursor-pointer shadow-xs min-h-[38px]"
+                  className="hidden lg:inline-flex items-center gap-1.5 px-3.5 sm:px-4 py-1.5 sm:py-2 rounded-full bg-[#4A2E1B] hover:bg-[#331F12] dark:bg-[#C5A059] dark:hover:bg-[#E5C378] text-white dark:text-[#0F0E0D] transition text-xs font-semibold cursor-pointer shadow-xs min-h-[38px]"
                 >
                   <span>Sign Up</span>
                   <span className="text-[11px]">↗</span>
@@ -544,12 +544,12 @@ function Navbar() {
             <Show when="signed-in">
               <Link
                 to="/dashboard"
-                className="hidden sm:inline-flex items-center gap-1.5 px-4 py-2 rounded-full bg-[#4A2E1B] hover:bg-[#331F12] dark:bg-[#C5A059] dark:hover:bg-[#E5C378] text-white dark:text-[#0F0E0D] transition text-xs font-semibold cursor-pointer shadow-xs min-h-[38px]"
+                className="hidden lg:inline-flex items-center gap-1.5 px-4 py-2 rounded-full bg-[#4A2E1B] hover:bg-[#331F12] dark:bg-[#C5A059] dark:hover:bg-[#E5C378] text-white dark:text-[#0F0E0D] transition text-xs font-semibold cursor-pointer shadow-xs min-h-[38px]"
               >
                 <span>Dashboard</span>
                 <span className="text-[11px]">↗</span>
               </Link>
-              <div className="flex items-center pl-1">
+              <div className="hidden lg:flex items-center pl-1">
                 <UserButton afterSignOutUrl="/" />
               </div>
             </Show>
