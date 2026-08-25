@@ -1,23 +1,35 @@
 import React, { useEffect, useState } from "react";
-import { FaDownload, FaExternalLinkAlt, FaTimes, FaSyncAlt, FaExclamationTriangle } from "react-icons/fa";
+import {
+    FaDownload,
+    FaExternalLinkAlt,
+    FaTimes,
+    FaSyncAlt,
+    FaExclamationTriangle,
+    FaFilePdf,
+    FaCheckCircle,
+} from "react-icons/fa";
 import { downloadPDF } from "../utils/downloadHelper";
 import { PaperAirplaneIcon } from "./PaperBridgeLogo";
 
 const API_URL = import.meta.env.VITE_API_URL || "http://localhost:5000";
 
 function PDFViewer({ fileUrl, title = "Document Preview", onClose }) {
-    // Default to 'google' view (Google Cloud Engine) for universal mobile & desktop support
-    const [viewerMode, setViewerMode] = useState("google");
+    // Mode: 'native' (high-fidelity direct stream) | 'google' (Google Cloud Viewer)
+    const [viewerMode, setViewerMode] = useState("native");
     const [blobUrl, setBlobUrl] = useState(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
 
-    // Compute proxy inline stream URL & Google viewer URL
-    const proxyUrl = `${API_URL}/api/pdf/view?url=${encodeURIComponent(fileUrl || "")}`;
-    const directDocUrl = fileUrl || proxyUrl;
-    const googleViewerUrl = `https://docs.google.com/viewer?embedded=true&url=${encodeURIComponent(directDocUrl)}`;
+    // Compute proxy inline stream URL & public Google viewer URL
+    const proxyUrl = fileUrl ? `${API_URL}/api/pdf/view?url=${encodeURIComponent(fileUrl)}` : "";
+    
+    // Only pass direct public URLs (e.g. Cloudinary) to Google Docs viewer
+    const isPublicInternetUrl = fileUrl && /^https?:\/\//i.test(fileUrl) && !fileUrl.includes("localhost") && !fileUrl.includes("127.0.0.1");
+    const googleViewerUrl = isPublicInternetUrl
+        ? `https://docs.google.com/viewer?embedded=true&url=${encodeURIComponent(fileUrl)}`
+        : "";
 
-    // Pre-fetch PDF blob in background if user switches to Native View
+    // Fetch PDF blob as high-speed inline buffer for instant client rendering
     useEffect(() => {
         let isMounted = true;
         let objectUrl = null;
@@ -29,6 +41,9 @@ function PDFViewer({ fileUrl, title = "Document Preview", onClose }) {
                 return;
             }
 
+            setLoading(true);
+            setError(null);
+
             const candidates = [
                 proxyUrl,
                 fileUrl,
@@ -38,7 +53,7 @@ function PDFViewer({ fileUrl, title = "Document Preview", onClose }) {
                     fileUrl.replace("/raw/upload/", "/image/upload/"),
                     fileUrl.replace(/\.pdf$/i, ""),
                 ] : []),
-            ];
+            ].filter(Boolean);
 
             let foundBlob = null;
             for (const targetUrl of candidates) {
@@ -75,7 +90,7 @@ function PDFViewer({ fileUrl, title = "Document Preview", onClose }) {
         };
     }, [fileUrl, proxyUrl]);
 
-    // Close modal on Escape key press
+    // Close on Escape key press
     useEffect(() => {
         const handleKeyDown = (e) => {
             if (e.key === "Escape") {
@@ -86,7 +101,7 @@ function PDFViewer({ fileUrl, title = "Document Preview", onClose }) {
         return () => window.removeEventListener("keydown", handleKeyDown);
     }, [onClose]);
 
-    // Prevent background scrolling when modal is open
+    // Prevent background body scrolling when modal is open
     useEffect(() => {
         const originalStyle = window.getComputedStyle(document.body).overflow;
         document.body.style.overflow = "hidden";
@@ -98,6 +113,11 @@ function PDFViewer({ fileUrl, title = "Document Preview", onClose }) {
     const handleDownload = () => {
         downloadPDF(fileUrl, title);
     };
+
+    // Determine active rendering source
+    const activeUrl = viewerMode === "google" && googleViewerUrl
+        ? googleViewerUrl
+        : (blobUrl || proxyUrl || fileUrl);
 
     return (
         <div
@@ -121,27 +141,29 @@ function PDFViewer({ fileUrl, title = "Document Preview", onClose }) {
                             <div className="flex items-center gap-1.5">
                                 <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 shrink-0" />
                                 <p className="text-[10px] sm:text-[11px] text-[#C2B3A0] truncate">
-                                    {viewerMode === "google" ? "Google View (Default)" : "Native View"}
+                                    {viewerMode === "google" ? "Google Cloud Engine" : "Direct High-Fidelity Engine"}
                                 </p>
                             </div>
                         </div>
                     </div>
 
                     <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
-                        {/* Switch Viewer Engine */}
-                        <button
-                            type="button"
-                            onClick={() => {
-                                setLoading(true);
-                                setViewerMode((prev) => (prev === "google" ? "native" : "google"));
-                            }}
-                            className="inline-flex items-center gap-1 px-2.5 sm:px-3 py-1.5 bg-white/10 hover:bg-white/20 text-white text-[11px] sm:text-xs font-semibold rounded-full transition cursor-pointer border border-white/10 min-h-[34px]"
-                            title="Switch rendering engine between Google View and Native View"
-                        >
-                            <FaSyncAlt className="text-[9px]" />
-                            <span className="hidden xs:inline">{viewerMode === "google" ? "Native View" : "Google View"}</span>
-                            <span className="xs:hidden">{viewerMode === "google" ? "Native" : "Google"}</span>
-                        </button>
+                        {/* Switch Viewer Engine if Google Docs is available */}
+                        {isPublicInternetUrl && (
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    setLoading(true);
+                                    setViewerMode((prev) => (prev === "google" ? "native" : "google"));
+                                }}
+                                className="inline-flex items-center gap-1 px-2.5 sm:px-3 py-1.5 bg-white/10 hover:bg-white/20 text-white text-[11px] sm:text-xs font-semibold rounded-full transition cursor-pointer border border-white/10 min-h-[34px]"
+                                title="Switch between Direct Viewer and Google Docs Cloud Viewer"
+                            >
+                                <FaSyncAlt className="text-[9px]" />
+                                <span className="hidden xs:inline">{viewerMode === "google" ? "Native View" : "Google View"}</span>
+                                <span className="xs:hidden">{viewerMode === "google" ? "Native" : "Google"}</span>
+                            </button>
+                        )}
 
                         <button
                             type="button"
@@ -154,7 +176,7 @@ function PDFViewer({ fileUrl, title = "Document Preview", onClose }) {
                         </button>
 
                         <a
-                            href={proxyUrl}
+                            href={fileUrl || proxyUrl}
                             target="_blank"
                             rel="noopener noreferrer"
                             title="Open in new window"
@@ -207,7 +229,7 @@ function PDFViewer({ fileUrl, title = "Document Preview", onClose }) {
                                     <span>Download</span>
                                 </button>
                                 <a
-                                    href={proxyUrl}
+                                    href={fileUrl || proxyUrl}
                                     target="_blank"
                                     rel="noopener noreferrer"
                                     className="px-4 py-2 bg-[#EAE2D8] dark:bg-[#24201C] hover:bg-[#DDD2C4] text-[#1A1614] dark:text-[#FAF8F5] text-xs font-bold rounded-full transition flex items-center gap-1.5"
@@ -219,8 +241,9 @@ function PDFViewer({ fileUrl, title = "Document Preview", onClose }) {
                         </div>
                     ) : (
                         <div className="w-full h-full flex-1 relative">
-                            {viewerMode === "google" ? (
+                            {viewerMode === "google" && googleViewerUrl ? (
                                 <iframe
+                                    key="google-frame"
                                     src={googleViewerUrl}
                                     className="w-full h-full border-none"
                                     title={title}
@@ -229,7 +252,8 @@ function PDFViewer({ fileUrl, title = "Document Preview", onClose }) {
                                 />
                             ) : (
                                 <iframe
-                                    src={blobUrl || proxyUrl}
+                                    key="native-frame"
+                                    src={blobUrl || proxyUrl || fileUrl}
                                     className="w-full h-full border-none"
                                     title={title}
                                     type="application/pdf"

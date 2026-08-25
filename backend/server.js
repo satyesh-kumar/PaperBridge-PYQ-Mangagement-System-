@@ -80,6 +80,31 @@ app.use("/uploads", (req, res, next) => {
   }
 }));
 
+// PDF inline viewing / proxy stream route
+app.get("/api/pdf/view", async (req, res) => {
+  const targetUrl = req.query.url;
+  if (!targetUrl) {
+    return res.status(400).json({ error: "Missing document URL" });
+  }
+
+  try {
+    const response = await fetch(targetUrl);
+    if (!response.ok) {
+      return res.status(response.status).json({ error: "Failed to fetch document from storage" });
+    }
+
+    res.setHeader("Content-Type", "application/pdf");
+    res.setHeader("Content-Disposition", "inline; filename=\"document.pdf\"");
+    res.setHeader("Access-Control-Allow-Origin", "*");
+
+    const buffer = Buffer.from(await response.arrayBuffer());
+    return res.send(buffer);
+  } catch (err) {
+    console.error("PDF proxy error:", err);
+    return res.status(500).json({ error: "Error streaming PDF" });
+  }
+});
+
 app.use(clerkMiddleware());
 
 // ── ADMIN AUTHORIZATION HELPER ────────────────────────────────────────────────
