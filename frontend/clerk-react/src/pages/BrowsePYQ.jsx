@@ -942,11 +942,11 @@ function BrowsePYQ() {
                                         >
                                             <div>
                                                 {/* Card Header Badges */}
-                                                <div className="flex items-center justify-between gap-2 mb-3">
-                                                    <div className="flex items-center gap-1.5 min-w-0 overflow-hidden">
+                                                <div className="flex flex-wrap items-center justify-between gap-1.5 mb-3">
+                                                    <div className="flex flex-wrap items-center gap-1.5 min-w-0">
                                                         <span
                                                             title={paper.courseId?.name || paper.course}
-                                                            className={`px-2.5 py-0.5 rounded-full text-[11px] font-semibold border truncate max-w-[130px] inline-block shrink-0 ${getCourseBadgeStyle(paper.courseId?.name || paper.course)}`}
+                                                            className={`px-2.5 py-0.5 rounded-full text-[11px] font-semibold border truncate max-w-[120px] inline-block shrink-0 ${getCourseBadgeStyle(paper.courseId?.name || paper.course)}`}
                                                         >
                                                             {formatCourseBadge(paper.courseId?.code || paper.courseId?.name || paper.course || "General")}
                                                         </span>
@@ -957,7 +957,7 @@ function BrowsePYQ() {
                                                         )}
                                                     </div>
 
-                                                    <div className="flex items-center gap-1.5 shrink-0">
+                                                    <div className="flex items-center gap-1.5 shrink-0 ml-auto">
                                                         {(paper.academicYear || paper.year) && (
                                                             <span className="text-[10px] font-bold font-mono text-[#8C7862] dark:text-[#A8957E] bg-[#FAF8F5] dark:bg-[#1C1916] px-2 py-0.5 rounded-md border border-[#EAE2D8] dark:border-[#2E2822] whitespace-nowrap">
                                                                 {paper.academicYear || paper.year}
@@ -966,17 +966,17 @@ function BrowsePYQ() {
                                                         <button
                                                             type="button"
                                                             onClick={(e) => handleBookmark(paper, e)}
-                                                            className="w-7 h-7 rounded-full bg-[#FAF8F5] dark:bg-[#1C1916] text-[#8C6239] dark:text-[#E5C378] hover:scale-110 transition cursor-pointer border border-[#EAE2D8] dark:border-[#2E2822] flex items-center justify-center shrink-0"
+                                                            className="w-7 h-7 rounded-full bg-[#FAF8F5] dark:bg-[#1C1916] text-[#8C6239] dark:text-[#E5C378] hover:scale-110 transition cursor-pointer border border-[#EAE2D8] dark:border-[#2E2822] flex items-center justify-center shrink-0 min-h-[28px] min-w-[28px]"
                                                             title={isSaved ? "Remove Bookmark" : "Save Paper"}
                                                             aria-label="Bookmark"
                                                         >
-                                                            {isSaved ? <FaBookmark className="text-amber-500" /> : <FaRegBookmark />}
+                                                            {isSaved ? <FaBookmark className="text-amber-500 text-[10px]" /> : <FaRegBookmark className="text-[10px]" />}
                                                         </button>
                                                     </div>
                                                 </div>
 
                                                 {/* Title & Subject Info */}
-                                                <h3 className="font-serif font-bold text-[#1A1614] dark:text-[#FAF8F5] text-sm sm:text-base line-clamp-2 mb-1.5 group-hover:text-[#8C6239] dark:group-hover:text-[#E5C378] transition-colors">
+                                                <h3 className="font-serif font-bold text-[#1A1614] dark:text-[#FAF8F5] text-sm sm:text-base line-clamp-2 mb-1.5 group-hover:text-[#8C6239] dark:group-hover:text-[#E5C378] transition-colors break-words">
                                                     {paper.title}
                                                 </h3>
 
@@ -990,7 +990,7 @@ function BrowsePYQ() {
                                                 <button
                                                     type="button"
                                                     onClick={(e) => handlePreview(paper, e)}
-                                                    className="flex items-center justify-center gap-1.5 bg-[#FAF8F5] dark:bg-[#1C1916] hover:bg-[#F4EFEA] dark:hover:bg-[#24201C] text-[#4A2E1B] dark:text-[#FAF8F5] border border-[#EAE2D8] dark:border-[#2E2822] py-2 px-3 rounded-full text-xs font-semibold transition cursor-pointer shadow-2xs min-h-[38px]"
+                                                    className="flex items-center justify-center gap-1.5 bg-[#FAF8F5] dark:bg-[#1C1916] hover:bg-[#F4EFEA] dark:hover:bg-[#24201C] text-[#4A2E1B] dark:text-[#FAF8F5] border border-[#EAE2D8] dark:border-[#2E2822] py-2.5 px-3 rounded-full text-xs font-semibold transition cursor-pointer shadow-2xs min-h-[40px]"
                                                 >
                                                     <FaEye className="text-xs text-[#8C6239] dark:text-[#E5C378]" />
                                                     <span>Preview</span>
@@ -999,7 +999,7 @@ function BrowsePYQ() {
                                                     type="button"
                                                     disabled={downloadingId === paper._id}
                                                     onClick={(e) => handleDownload(paper, e)}
-                                                    className="flex items-center justify-center gap-1.5 bg-[#4A2E1B] hover:bg-[#331F12] dark:bg-[#C5A059] dark:hover:bg-[#E5C378] text-white dark:text-[#0D1B2A] py-2 px-3 rounded-full text-xs font-semibold transition cursor-pointer shadow-2xs min-h-[38px] disabled:opacity-50"
+                                                    className="flex items-center justify-center gap-1.5 bg-[#4A2E1B] hover:bg-[#331F12] dark:bg-[#C5A059] dark:hover:bg-[#E5C378] text-white dark:text-[#0D1B2A] py-2.5 px-3 rounded-full text-xs font-semibold transition cursor-pointer shadow-2xs min-h-[40px] disabled:opacity-50"
                                                 >
                                                     {downloadingId === paper._id ? (
                                                         <FaSpinner className="animate-spin text-xs" />

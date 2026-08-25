@@ -405,14 +405,14 @@ function Dashboard() {
                                                             fileUrl: paper.fileUrl,
                                                             title: `${paper.title} (${formatCourseBadge(paper.courseId?.name || paper.course)})`,
                                                         })}
-                                                        className="flex items-center justify-center gap-1.5 bg-[#FAF8F5] dark:bg-[#1C1916] hover:bg-[#F4EFEA] dark:hover:bg-[#24201C] text-[#4A2E1B] dark:text-[#FAF8F5] border border-[#EAE2D8] dark:border-[#2E2822] py-2 px-3 rounded-full text-xs font-semibold transition cursor-pointer shadow-2xs min-h-[38px]"
+                                                        className="flex items-center justify-center gap-1.5 bg-[#FAF8F5] dark:bg-[#1C1916] hover:bg-[#F4EFEA] dark:hover:bg-[#24201C] text-[#4A2E1B] dark:text-[#FAF8F5] border border-[#EAE2D8] dark:border-[#2E2822] py-2.5 px-3 rounded-full text-xs font-semibold transition cursor-pointer shadow-2xs min-h-[40px]"
                                                     >
                                                         <FaEye className="text-xs text-[#8C6239] dark:text-[#E5C378]" /> Preview
                                                     </button>
                                                     <button
                                                         type="button"
                                                         onClick={() => downloadPDF(paper.fileUrl, `${paper.title}.pdf`)}
-                                                        className="flex items-center justify-center gap-1.5 bg-[#FAF8F5] dark:bg-[#1C1916] hover:bg-[#F4EFEA] dark:hover:bg-[#24201C] text-[#4A2E1B] dark:text-[#FAF8F5] border border-[#EAE2D8] dark:border-[#2E2822] py-2 px-3 rounded-full text-xs font-semibold transition cursor-pointer shadow-2xs min-h-[38px]"
+                                                        className="flex items-center justify-center gap-1.5 bg-[#FAF8F5] dark:bg-[#1C1916] hover:bg-[#F4EFEA] dark:hover:bg-[#24201C] text-[#4A2E1B] dark:text-[#FAF8F5] border border-[#EAE2D8] dark:border-[#2E2822] py-2.5 px-3 rounded-full text-xs font-semibold transition cursor-pointer shadow-2xs min-h-[40px]"
                                                     >
                                                         <FaDownload className="text-xs text-[#8C6239] dark:text-[#E5C378]" /> Download
                                                     </button>
@@ -499,14 +499,14 @@ function Dashboard() {
                                                             fileUrl: note.fileUrl,
                                                             title: `${note.title} (${note.subject || "Study Notes"})`,
                                                         })}
-                                                        className="flex items-center justify-center gap-1.5 bg-[#FAF8F5] dark:bg-[#1C1916] hover:bg-[#F4EFEA] dark:hover:bg-[#24201C] text-[#4A2E1B] dark:text-[#FAF8F5] border border-[#EAE2D8] dark:border-[#2E2822] py-2 px-3 rounded-full text-xs font-semibold transition cursor-pointer shadow-2xs min-h-[38px]"
+                                                        className="flex items-center justify-center gap-1.5 bg-[#FAF8F5] dark:bg-[#1C1916] hover:bg-[#F4EFEA] dark:hover:bg-[#24201C] text-[#4A2E1B] dark:text-[#FAF8F5] border border-[#EAE2D8] dark:border-[#2E2822] py-2.5 px-3 rounded-full text-xs font-semibold transition cursor-pointer shadow-2xs min-h-[40px]"
                                                     >
                                                         <FaEye className="text-xs text-[#8C6239] dark:text-[#E5C378]" /> Preview
                                                     </button>
                                                     <button
                                                         type="button"
                                                         onClick={() => downloadPDF(note.fileUrl, `${note.title}.pdf`)}
-                                                        className="flex items-center justify-center gap-1.5 bg-[#FAF8F5] dark:bg-[#1C1916] hover:bg-[#F4EFEA] dark:hover:bg-[#24201C] text-[#4A2E1B] dark:text-[#FAF8F5] border border-[#EAE2D8] dark:border-[#2E2822] py-2 px-3 rounded-full text-xs font-semibold transition cursor-pointer shadow-2xs min-h-[38px]"
+                                                        className="flex items-center justify-center gap-1.5 bg-[#FAF8F5] dark:bg-[#1C1916] hover:bg-[#F4EFEA] dark:hover:bg-[#24201C] text-[#4A2E1B] dark:text-[#FAF8F5] border border-[#EAE2D8] dark:border-[#2E2822] py-2.5 px-3 rounded-full text-xs font-semibold transition cursor-pointer shadow-2xs min-h-[40px]"
                                                     >
                                                         <FaDownload className="text-xs text-[#8C6239] dark:text-[#E5C378]" /> Download
                                                     </button>
@@ -577,14 +577,14 @@ function Dashboard() {
                                                         fileUrl: item.fileUrl,
                                                         title: item.title || "Saved Document",
                                                     })}
-                                                    className="flex items-center justify-center gap-1.5 bg-[#FAF8F5] dark:bg-[#1C1916] hover:bg-[#F4EFEA] dark:hover:bg-[#24201C] text-[#4A2E1B] dark:text-[#FAF8F5] border border-[#EAE2D8] dark:border-[#2E2822] py-2 px-3 rounded-full text-xs font-semibold transition cursor-pointer shadow-2xs min-h-[38px]"
+                                                    className="flex items-center justify-center gap-1.5 bg-[#FAF8F5] dark:bg-[#1C1916] hover:bg-[#F4EFEA] dark:hover:bg-[#24201C] text-[#4A2E1B] dark:text-[#FAF8F5] border border-[#EAE2D8] dark:border-[#2E2822] py-2.5 px-3 rounded-full text-xs font-semibold transition cursor-pointer shadow-2xs min-h-[40px]"
                                                 >
                                                     <FaEye className="text-xs text-[#8C6239] dark:text-[#E5C378]" /> Preview
                                                 </button>
                                                 <button
                                                     type="button"
                                                     onClick={() => downloadPDF(item.fileUrl, `${item.title || "Document"}.pdf`)}
-                                                    className="flex items-center justify-center gap-1.5 bg-[#FAF8F5] dark:bg-[#1C1916] hover:bg-[#F4EFEA] dark:hover:bg-[#24201C] text-[#4A2E1B] dark:text-[#FAF8F5] border border-[#EAE2D8] dark:border-[#2E2822] py-2 px-3 rounded-full text-xs font-semibold transition cursor-pointer shadow-2xs min-h-[38px]"
+                                                    className="flex items-center justify-center gap-1.5 bg-[#FAF8F5] dark:bg-[#1C1916] hover:bg-[#F4EFEA] dark:hover:bg-[#24201C] text-[#4A2E1B] dark:text-[#FAF8F5] border border-[#EAE2D8] dark:border-[#2E2822] py-2.5 px-3 rounded-full text-xs font-semibold transition cursor-pointer shadow-2xs min-h-[40px]"
                                                 >
                                                     <FaDownload className="text-xs text-[#8C6239] dark:text-[#E5C378]" /> Download
                                                 </button>

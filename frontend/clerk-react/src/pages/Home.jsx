@@ -821,11 +821,11 @@ function Home() {
                                 >
                                     <div>
                                         {/* Top Badges */}
-                                        <div className="flex items-center justify-between gap-2 mb-3">
-                                            <div className="flex items-center gap-1.5 min-w-0 overflow-hidden">
+                                        <div className="flex flex-wrap items-center justify-between gap-1.5 mb-3">
+                                            <div className="flex flex-wrap items-center gap-1.5 min-w-0">
                                                 <span 
                                                     title={paper.courseId?.name || paper.course}
-                                                    className={`px-2.5 py-0.5 rounded-full text-[11px] font-semibold border truncate max-w-[130px] inline-block shrink-0 ${getCourseBadgeStyle(paper.courseId?.name || paper.course)}`}
+                                                    className={`px-2.5 py-0.5 rounded-full text-[11px] font-semibold border truncate max-w-[120px] inline-block shrink-0 ${getCourseBadgeStyle(paper.courseId?.name || paper.course)}`}
                                                 >
                                                     {formatCourseBadge(paper.courseId?.code || paper.courseId?.name || paper.course || "General")}
                                                 </span>
@@ -837,7 +837,7 @@ function Home() {
                                                 )}
                                             </div>
 
-                                            <div className="flex items-center gap-1.5 shrink-0">
+                                            <div className="flex items-center gap-1.5 shrink-0 ml-auto">
                                                 {(paper.academicYear || paper.year) && (
                                                     <span className="text-[10px] font-bold font-mono text-[#8C7862] dark:text-[#A8957E] bg-[#FAF8F5] dark:bg-[#1C1916] px-2 py-0.5 rounded-md border border-[#EAE2D8] dark:border-[#2E2822] whitespace-nowrap">
                                                         {paper.academicYear || paper.year}
@@ -846,7 +846,7 @@ function Home() {
                                                 <button
                                                     type="button"
                                                     onClick={(e) => handleBookmark(paper, e)}
-                                                    className="w-7 h-7 rounded-full bg-[#FAF8F5] dark:bg-[#1C1916] text-[#8C6239] dark:text-[#E5C378] hover:scale-110 transition cursor-pointer border border-[#EAE2D8] dark:border-[#2E2822] flex items-center justify-center shrink-0"
+                                                    className="w-7 h-7 rounded-full bg-[#FAF8F5] dark:bg-[#1C1916] text-[#8C6239] dark:text-[#E5C378] hover:scale-110 transition cursor-pointer border border-[#EAE2D8] dark:border-[#2E2822] flex items-center justify-center shrink-0 min-h-[28px] min-w-[28px]"
                                                     title={savedPaperIds.includes(paper._id) ? "Remove Bookmark" : "Save Paper"}
                                                 >
                                                     {savedPaperIds.includes(paper._id) ? (
@@ -862,7 +862,7 @@ function Home() {
                                         <h3
                                             title={paper.title}
                                             onClick={(e) => handlePreview(paper, e)}
-                                            className="text-sm font-serif font-bold text-[#1A1614] dark:text-[#FAF8F5] group-hover:text-[#8C6239] dark:group-hover:text-[#E5C378] transition cursor-pointer line-clamp-2 leading-snug mb-1 min-h-[2.5rem]"
+                                            className="text-sm font-serif font-bold text-[#1A1614] dark:text-[#FAF8F5] group-hover:text-[#8C6239] dark:group-hover:text-[#E5C378] transition cursor-pointer line-clamp-2 leading-snug mb-1 min-h-[2.5rem] break-words"
                                         >
                                             {paper.title || "Untitled Question Paper"}
                                         </h3>
@@ -876,7 +876,7 @@ function Home() {
                                         {/* Quick Preview Thumbnail Box */}
                                         <div
                                             onClick={(e) => handlePreview(paper, e)}
-                                            className="rounded-2xl border border-[#EAE2D8] dark:border-[#2E2822] bg-[#FAF8F5] dark:bg-[#1C1916] p-3 mb-4 cursor-pointer hover:bg-[#F4EFEA] dark:hover:bg-[#24201C] transition flex items-center justify-center gap-2 group/prev shadow-2xs"
+                                            className="rounded-2xl border border-[#EAE2D8] dark:border-[#2E2822] bg-[#FAF8F5] dark:bg-[#1C1916] p-3 mb-4 cursor-pointer hover:bg-[#F4EFEA] dark:hover:bg-[#24201C] transition flex items-center justify-center gap-2 group/prev shadow-2xs min-h-[44px]"
                                         >
                                             <FaFilePdf className="text-red-500 text-base group-hover/prev:scale-110 transition-transform" />
                                             <span className="text-xs font-semibold text-[#6B5B49] dark:text-[#C2B3A0]">
@@ -888,17 +888,19 @@ function Home() {
                                     {/* Action Buttons */}
                                     <div className="grid grid-cols-2 gap-2 pt-3 border-t border-[#EAE2D8] dark:border-[#2E2822]">
                                         <button
+                                            type="button"
                                             onClick={(e) => handlePreview(paper, e)}
-                                            className="flex items-center justify-center gap-1.5 py-2 px-3 bg-white dark:bg-[#1C1916] hover:bg-[#FAF8F5] dark:hover:bg-[#24201C] text-[#4A3E31] dark:text-[#FAF8F5] border border-[#DDD2C4] dark:border-[#2E2822] rounded-full text-xs font-bold transition cursor-pointer shadow-2xs"
+                                            className="flex items-center justify-center gap-1.5 py-2.5 px-3 bg-white dark:bg-[#1C1916] hover:bg-[#FAF8F5] dark:hover:bg-[#24201C] text-[#4A3E31] dark:text-[#FAF8F5] border border-[#DDD2C4] dark:border-[#2E2822] rounded-full text-xs font-bold transition cursor-pointer shadow-2xs min-h-[40px]"
                                         >
                                             {!isSignedIn ? <FaLock className="text-[10px]" /> : <FaEye className="text-xs text-[#8C6239] dark:text-[#E5C378]" />}
                                             <span>{isSignedIn ? "Preview" : "Sign In"}</span>
                                         </button>
 
                                         <button
+                                            type="button"
                                             onClick={(e) => handleDownload(paper, e)}
                                             disabled={downloadingId === paper._id}
-                                            className="flex items-center justify-center gap-1.5 py-2 px-3 bg-[#4A2E1B] hover:bg-[#331F12] dark:bg-[#C5A059] dark:hover:bg-[#E5C378] text-white dark:text-[#0F0E0D] rounded-full text-xs font-bold transition disabled:opacity-60 cursor-pointer shadow-xs"
+                                            className="flex items-center justify-center gap-1.5 py-2.5 px-3 bg-[#4A2E1B] hover:bg-[#331F12] dark:bg-[#C5A059] dark:hover:bg-[#E5C378] text-white dark:text-[#0F0E0D] rounded-full text-xs font-bold transition disabled:opacity-60 cursor-pointer shadow-xs min-h-[40px]"
                                         >
                                             {downloadingId === paper._id ? (
                                                 <FaSpinner className="animate-spin text-xs" />

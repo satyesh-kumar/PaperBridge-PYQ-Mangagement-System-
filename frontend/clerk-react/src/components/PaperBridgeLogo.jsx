@@ -146,7 +146,7 @@ export default function PaperBridgeLogo({
           </div>
           {subtitle && (
             <span
-              className={`font-sans font-bold uppercase text-[#8C7862] dark:text-[#A8957E] mt-1 leading-none ${subSizes[size]}`}
+              className={`hidden xs:inline-block font-sans font-bold uppercase text-[#8C7862] dark:text-[#A8957E] mt-1 leading-none ${subSizes[size]}`}
             >
               {subtitle}
             </span>
