@@ -60,6 +60,10 @@ function PDFViewer({ fileUrl, title = "Document Preview", onClose }) {
                 try {
                     const response = await fetch(targetUrl);
                     if (response.ok) {
+                        const contentType = response.headers.get("content-type") || "";
+                        if (contentType.includes("application/json")) {
+                            continue;
+                        }
                         const rawBlob = await response.blob();
                         if (rawBlob && rawBlob.size > 0) {
                             foundBlob = new Blob([rawBlob], { type: "application/pdf" });
@@ -75,6 +79,12 @@ function PDFViewer({ fileUrl, title = "Document Preview", onClose }) {
                 if (foundBlob) {
                     objectUrl = window.URL.createObjectURL(foundBlob);
                     setBlobUrl(objectUrl);
+                    setError(null);
+                } else if (googleViewerUrl) {
+                    setViewerMode("google");
+                    setError(null);
+                } else {
+                    setError("Document preview could not be loaded directly.");
                 }
                 setLoading(false);
             }

@@ -25,6 +25,10 @@ export async function downloadPDF(fileUrl, fileName = "paper") {
             try {
                 const response = await fetch(targetUrl);
                 if (response.ok) {
+                    const contentType = response.headers.get("content-type") || "";
+                    if (contentType.includes("application/json")) {
+                        continue;
+                    }
                     const blob = await response.blob();
                     if (blob && blob.size > 0) {
                         const blobUrl = window.URL.createObjectURL(blob);

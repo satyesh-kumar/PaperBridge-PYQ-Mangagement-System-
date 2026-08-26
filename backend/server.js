@@ -80,30 +80,6 @@ app.use("/uploads", (req, res, next) => {
   }
 }));
 
-// PDF inline viewing / proxy stream route
-app.get("/api/pdf/view", async (req, res) => {
-  const targetUrl = req.query.url;
-  if (!targetUrl) {
-    return res.status(400).json({ error: "Missing document URL" });
-  }
-
-  try {
-    const response = await fetch(targetUrl);
-    if (!response.ok) {
-      return res.status(response.status).json({ error: "Failed to fetch document from storage" });
-    }
-
-    res.setHeader("Content-Type", "application/pdf");
-    res.setHeader("Content-Disposition", "inline; filename=\"document.pdf\"");
-    res.setHeader("Access-Control-Allow-Origin", "*");
-
-    const buffer = Buffer.from(await response.arrayBuffer());
-    return res.send(buffer);
-  } catch (err) {
-    console.error("PDF proxy error:", err);
-    return res.status(500).json({ error: "Error streaming PDF" });
-  }
-});
 
 app.use(clerkMiddleware());
 
@@ -301,9 +277,12 @@ app.get("/api/pdf/view", async (req, res) => {
 
     const candidateUrls = [];
 
-    // If Cloudinary URL, extract public ID and create signed URLs
+    // If Cloudinary URL, extract cloud name and public ID and create signed URLs
     if (url.includes("res.cloudinary.com") || url.includes("cloudinary.com")) {
       const match = url.match(/\/upload\/(?:v\d+\/)?(.+)$/i);
+      const cloudNameMatch = url.match(/res\.cloudinary\.com\/([^/]+)\//i);
+      const cloudName = cloudNameMatch ? cloudNameMatch[1] : (process.env.CLOUDINARY_NAME || "ddl1le31s");
+
       const fullPublicId = match ? decodeURIComponent(match[1]) : null;
       const basePublicId = fullPublicId ? fullPublicId.replace(/\.pdf$/i, "") : null;
 
@@ -311,39 +290,45 @@ app.get("/api/pdf/view", async (req, res) => {
 
       for (const pid of idsToTry) {
         try {
-          // Authenticated private download URLs (works even when Cloudinary has restricted raw/PDF access)
+          // 1. Authenticated private download URLs (works even when Cloudinary has restricted raw/PDF access)
           candidateUrls.push(
             cloudinary.utils.private_download_url(pid.endsWith(".pdf") ? pid : `${pid}.pdf`, "", {
               resource_type: "raw",
               type: "upload",
+              cloud_name: cloudName,
             }),
             cloudinary.utils.private_download_url(pid.replace(/\.pdf$/i, ""), "", {
               resource_type: "raw",
               type: "upload",
+              cloud_name: cloudName,
             }),
             cloudinary.utils.private_download_url(pid.replace(/\.pdf$/i, ""), "pdf", {
               resource_type: "image",
               type: "upload",
+              cloud_name: cloudName,
             }),
             cloudinary.utils.private_download_url(pid.replace(/\.pdf$/i, ""), "", {
               resource_type: "image",
               type: "upload",
+              cloud_name: cloudName,
             })
           );
 
-          // Standard signed URLs
+          // 2. Standard signed URLs
           candidateUrls.push(
             cloudinary.url(pid.endsWith(".pdf") ? pid : `${pid}.pdf`, {
               resource_type: "raw",
               sign_url: true,
               secure: true,
               type: "upload",
+              cloud_name: cloudName,
             }),
             cloudinary.url(pid.replace(/\.pdf$/i, ""), {
               resource_type: "raw",
               sign_url: true,
               secure: true,
               type: "upload",
+              cloud_name: cloudName,
             }),
             cloudinary.url(pid.replace(/\.pdf$/i, ""), {
               resource_type: "image",
@@ -351,8 +336,18 @@ app.get("/api/pdf/view", async (req, res) => {
               sign_url: true,
               secure: true,
               type: "upload",
+              cloud_name: cloudName,
             })
           );
+
+          // 3. Direct API download endpoint
+          if (process.env.CLOUDINARY_KEY && process.env.CLOUDINARY_SECRET) {
+            candidateUrls.push(
+              `https://api.cloudinary.com/v1_1/${cloudName}/raw/download?public_id=${encodeURIComponent(pid.endsWith(".pdf") ? pid : `${pid}.pdf`)}`,
+              `https://api.cloudinary.com/v1_1/${cloudName}/raw/download?public_id=${encodeURIComponent(pid.replace(/\.pdf$/i, ""))}`,
+              `https://api.cloudinary.com/v1_1/${cloudName}/image/download?public_id=${encodeURIComponent(pid.replace(/\.pdf$/i, ""))}&format=pdf`
+            );
+          }
         } catch (signErr) {
           console.warn("Cloudinary URL signing warning:", signErr.message);
         }
@@ -371,13 +366,23 @@ app.get("/api/pdf/view", async (req, res) => {
     }
 
     let targetResponse = null;
+    const authHeader = (process.env.CLOUDINARY_KEY && process.env.CLOUDINARY_SECRET)
+      ? "Basic " + Buffer.from(`${process.env.CLOUDINARY_KEY}:${process.env.CLOUDINARY_SECRET}`).toString("base64")
+      : null;
+
     for (const testUrl of candidateUrls) {
       if (!testUrl) continue;
       try {
-        const resp = await fetch(testUrl);
+        const fetchOptions = (testUrl.includes("api.cloudinary.com") && authHeader)
+          ? { headers: { Authorization: authHeader } }
+          : {};
+        const resp = await fetch(testUrl, fetchOptions);
         if (resp.ok) {
-          targetResponse = resp;
-          break;
+          const contentType = resp.headers.get("content-type") || "";
+          if (!contentType.includes("application/json")) {
+            targetResponse = resp;
+            break;
+          }
         }
       } catch {
         // try next candidate
@@ -385,15 +390,17 @@ app.get("/api/pdf/view", async (req, res) => {
     }
 
     // Authenticated Cloudinary fetch fallback if public access returned 401/404
-    if ((!targetResponse || !targetResponse.ok) && process.env.CLOUDINARY_KEY && process.env.CLOUDINARY_SECRET) {
-      const authHeader = "Basic " + Buffer.from(`${process.env.CLOUDINARY_KEY}:${process.env.CLOUDINARY_SECRET}`).toString("base64");
-      for (const testUrl of candidateUrls.slice(0, 8)) {
+    if ((!targetResponse || !targetResponse.ok) && authHeader) {
+      for (const testUrl of candidateUrls.slice(0, 10)) {
         if (!testUrl) continue;
         try {
           const resp = await fetch(testUrl, { headers: { Authorization: authHeader } });
           if (resp.ok) {
-            targetResponse = resp;
-            break;
+            const contentType = resp.headers.get("content-type") || "";
+            if (!contentType.includes("application/json")) {
+              targetResponse = resp;
+              break;
+            }
           }
         } catch {}
       }
@@ -409,10 +416,10 @@ app.get("/api/pdf/view", async (req, res) => {
     res.setHeader("Cache-Control", "public, max-age=86400");
 
     const arrayBuffer = await targetResponse.arrayBuffer();
-    res.send(Buffer.from(arrayBuffer));
+    return res.send(Buffer.from(arrayBuffer));
   } catch (err) {
     console.error("PDF inline proxy error:", err);
-    res.status(500).json({ error: "Unable to render PDF preview" });
+    return res.status(500).json({ error: "Unable to render PDF preview" });
   }
 });
 
