@@ -1,3 +1,5 @@
+import { useEffect } from "react";
+import axios from "axios";
 import './App.css'
 import { Toaster } from "react-hot-toast";
 import { Routes, Route, Navigate } from "react-router-dom";
@@ -21,6 +23,16 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
 }
 
 function App() {
+  useEffect(() => {
+    // Non-blocking ping to wake up sleeping Render free instance on app mount
+    const apiUrl = import.meta.env.VITE_API_URL;
+    if (apiUrl) {
+      axios.get(`${apiUrl}/`, { timeout: 30000 }).catch(() => {
+        // Ignore warm-up ping error
+      });
+    }
+  }, []);
+
   return (
     <>
       <ScrollToTop />

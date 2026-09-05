@@ -1196,21 +1196,58 @@ app.post("/api/upload", requireAuth(), upload.single("file"), async (req, res) =
       return res.status(400).json({ error: "Paper title is required" });
     }
 
-    // Fetch entity references if IDs are passed
+    // Fetch entity references if IDs are passed (safely validating ObjectIds)
     let resolvedUniName = university || "United University";
     let resolvedCourseName = course || "General";
     let resolvedSubjectName = subject || "";
     let resolvedSubjectCode = subjectCode || "";
 
-    if (universityId) {
+    let validUniId = null;
+    let validCourseId = null;
+    let validSemId = null;
+    let validSubId = null;
+
+    if (universityId && mongoose.isValidObjectId(universityId)) {
+      validUniId = universityId;
       const u = await University.findById(universityId);
       if (u) resolvedUniName = u.name;
+    } else if (university) {
+      const u = await University.findOne({
+        $or: [
+          { name: new RegExp(`^${university.trim()}$`, "i") },
+          { code: new RegExp(`^${university.trim()}$`, "i") },
+        ],
+      });
+      if (u) {
+        validUniId = u._id;
+        resolvedUniName = u.name;
+      }
     }
-    if (courseId) {
+
+    if (courseId && mongoose.isValidObjectId(courseId)) {
+      validCourseId = courseId;
       const c = await Course.findById(courseId);
       if (c) resolvedCourseName = c.name;
+    } else if (courseId || course) {
+      const courseIdentifier = String(courseId || course || "").trim();
+      const c = await Course.findOne({
+        $or: [
+          { code: new RegExp(`^${courseIdentifier}$`, "i") },
+          { name: new RegExp(`^${courseIdentifier}$`, "i") },
+        ],
+      });
+      if (c) {
+        validCourseId = c._id;
+        resolvedCourseName = c.name;
+      }
     }
-    if (subjectId) {
+
+    if (semesterId && mongoose.isValidObjectId(semesterId)) {
+      validSemId = semesterId;
+    }
+
+    if (subjectId && mongoose.isValidObjectId(subjectId)) {
+      validSubId = subjectId;
       const s = await Subject.findById(subjectId);
       if (s) {
         resolvedSubjectName = s.name;
@@ -1249,10 +1286,10 @@ app.post("/api/upload", requireAuth(), upload.single("file"), async (req, res) =
 
     const pyq = await PYQ.create({
       title: title.trim(),
-      universityId: universityId || null,
-      courseId: courseId || null,
-      semesterId: semesterId || null,
-      subjectId: subjectId || null,
+      universityId: validUniId,
+      courseId: validCourseId,
+      semesterId: validSemId,
+      subjectId: validSubId,
       university: resolvedUniName,
       course: resolvedCourseName,
       semester: parsedSemester,
@@ -1641,14 +1678,60 @@ app.post("/api/notes/upload", requireAuth(), upload.single("file"), async (req, 
 
     let resolvedUniName = university || "United University";
     let resolvedCourseName = course || "B.Tech";
+    let resolvedSubjectName = subject || "General";
+    let resolvedSubjectCode = subjectCode || "";
 
-    if (universityId) {
+    let validUniId = null;
+    let validCourseId = null;
+    let validSemId = null;
+    let validSubId = null;
+
+    if (universityId && mongoose.isValidObjectId(universityId)) {
+      validUniId = universityId;
       const u = await University.findById(universityId);
       if (u) resolvedUniName = u.name;
+    } else if (university) {
+      const u = await University.findOne({
+        $or: [
+          { name: new RegExp(`^${university.trim()}$`, "i") },
+          { code: new RegExp(`^${university.trim()}$`, "i") },
+        ],
+      });
+      if (u) {
+        validUniId = u._id;
+        resolvedUniName = u.name;
+      }
     }
-    if (courseId) {
+
+    if (courseId && mongoose.isValidObjectId(courseId)) {
+      validCourseId = courseId;
       const c = await Course.findById(courseId);
       if (c) resolvedCourseName = c.name;
+    } else if (courseId || course) {
+      const courseIdentifier = String(courseId || course || "").trim();
+      const c = await Course.findOne({
+        $or: [
+          { code: new RegExp(`^${courseIdentifier}$`, "i") },
+          { name: new RegExp(`^${courseIdentifier}$`, "i") },
+        ],
+      });
+      if (c) {
+        validCourseId = c._id;
+        resolvedCourseName = c.name;
+      }
+    }
+
+    if (semesterId && mongoose.isValidObjectId(semesterId)) {
+      validSemId = semesterId;
+    }
+
+    if (subjectId && mongoose.isValidObjectId(subjectId)) {
+      validSubId = subjectId;
+      const s = await Subject.findById(subjectId);
+      if (s) {
+        resolvedSubjectName = s.name;
+        resolvedSubjectCode = s.code;
+      }
     }
 
     const result = await uploadToCloudinary(req.file.buffer);
@@ -1670,13 +1753,13 @@ app.post("/api/notes/upload", requireAuth(), upload.single("file"), async (req, 
 
     const note = await Note.create({
       title: title.trim(),
-      subject: subject || "General",
-      subjectCode: subjectCode || "",
+      subject: resolvedSubjectName,
+      subjectCode: resolvedSubjectCode,
       unit: unit || "Complete Syllabus",
-      universityId: universityId || null,
-      courseId: courseId || null,
-      semesterId: semesterId || null,
-      subjectId: subjectId || null,
+      universityId: validUniId,
+      courseId: validCourseId,
+      semesterId: validSemId,
+      subjectId: validSubId,
       university: resolvedUniName,
       course: resolvedCourseName,
       semester: semester ? Number(semester) : 1,
@@ -1698,7 +1781,7 @@ app.post("/api/notes/upload", requireAuth(), upload.single("file"), async (req, 
     res.status(201).json(note);
   } catch (error) {
     console.error("Upload Note error:", error);
-    res.status(500).json({ error: "Failed to upload study notes" });
+    res.status(500).json({ error: "Failed to upload study notes: " + error.message });
   }
 });
 
@@ -2144,6 +2227,23 @@ app.get("/api/admin/users", requireAdmin, async (req, res) => {
     console.error("Admin users error:", err);
     res.status(500).json({ error: "Failed to load user directory" });
   }
+});
+
+// ── GLOBAL ERROR HANDLER ──────────────────────────────────────────────────────
+app.use((err, req, res, next) => {
+  console.error("Express global error handler:", err);
+  if (err.name === "MulterError") {
+    if (err.code === "LIMIT_FILE_SIZE") {
+      return res.status(400).json({ error: "File size exceeds the 50MB limit." });
+    }
+    return res.status(400).json({ error: `Upload error: ${err.message}` });
+  }
+  if (err.message && err.message.includes("Only PDF")) {
+    return res.status(400).json({ error: err.message });
+  }
+  return res.status(err.status || 500).json({
+    error: err.message || "An internal server error occurred",
+  });
 });
 
 // ── START SERVER ──────────────────────────────────────────────────────────────

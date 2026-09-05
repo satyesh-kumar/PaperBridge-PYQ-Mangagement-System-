@@ -178,9 +178,9 @@ function BrowsePYQ() {
         const loadAcademicEntities = async () => {
             try {
                 const [uniRes, courseRes, subRes] = await Promise.allSettled([
-                    axios.get(`${API_URL}/api/universities`, { timeout: 15000 }),
-                    axios.get(`${API_URL}/api/courses`, { timeout: 15000 }),
-                    axios.get(`${API_URL}/api/subjects`, { timeout: 15000 }),
+                    axios.get(`${API_URL}/api/universities`, { timeout: 45000 }),
+                    axios.get(`${API_URL}/api/courses`, { timeout: 45000 }),
+                    axios.get(`${API_URL}/api/subjects`, { timeout: 45000 }),
                 ]);
                 if (uniRes.status === "fulfilled" && Array.isArray(uniRes.value.data) && uniRes.value.data.length > 0) {
                     setUniversities(uniRes.value.data);
@@ -203,7 +203,7 @@ function BrowsePYQ() {
         setLoading(true);
         setError("");
         try {
-            const res = await axios.get(`${API_URL}/api/pyqs`, { timeout: 20000 });
+            const res = await axios.get(`${API_URL}/api/pyqs`, { timeout: 60000 });
             if (Array.isArray(res.data)) {
                 setPapers(res.data);
             } else {
@@ -211,7 +211,12 @@ function BrowsePYQ() {
             }
         } catch (err) {
             console.error("BrowsePYQ fetch error:", err);
-            setError("Something went wrong while loading question papers.");
+            const isTimeout = err.code === "ECONNABORTED" || (err.message && err.message.toLowerCase().includes("timeout"));
+            if (isTimeout) {
+                setError("The server is currently waking up from sleep. Please refresh or retry in a few seconds.");
+            } else {
+                setError("Something went wrong while loading question papers.");
+            }
         } finally {
             setLoading(false);
         }

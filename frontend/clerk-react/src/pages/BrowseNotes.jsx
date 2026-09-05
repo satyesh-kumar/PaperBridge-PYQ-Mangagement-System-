@@ -135,8 +135,8 @@ function BrowseNotes() {
         const loadEntities = async () => {
             try {
                 const [uniRes, courseRes] = await Promise.allSettled([
-                    axios.get(`${API_URL}/api/universities`, { timeout: 15000 }),
-                    axios.get(`${API_URL}/api/courses`, { timeout: 15000 }),
+                    axios.get(`${API_URL}/api/universities`, { timeout: 45000 }),
+                    axios.get(`${API_URL}/api/courses`, { timeout: 45000 }),
                 ]);
                 if (uniRes.status === "fulfilled" && Array.isArray(uniRes.value.data) && uniRes.value.data.length > 0) {
                     setUniversities(uniRes.value.data);
@@ -156,7 +156,7 @@ function BrowseNotes() {
         setLoading(true);
         setError("");
         try {
-            const res = await axios.get(`${API_URL}/api/notes`, { timeout: 20000 });
+            const res = await axios.get(`${API_URL}/api/notes`, { timeout: 60000 });
             if (Array.isArray(res.data)) {
                 setNotes(res.data);
             } else {
@@ -164,7 +164,12 @@ function BrowseNotes() {
             }
         } catch (err) {
             console.error("Notes fetch error:", err);
-            setError("Something went wrong while loading study notes.");
+            const isTimeout = err.code === "ECONNABORTED" || (err.message && err.message.toLowerCase().includes("timeout"));
+            if (isTimeout) {
+                setError("The server is waking up from idle state. Please refresh or retry in a few seconds.");
+            } else {
+                setError("Something went wrong while loading study notes.");
+            }
         } finally {
             setLoading(false);
         }

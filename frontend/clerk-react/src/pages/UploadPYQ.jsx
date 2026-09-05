@@ -119,7 +119,7 @@ export default function UploadPYQ() {
     const fetchAdminCourses = useCallback(async () => {
         try {
             setLoadingCourses(true);
-            const res = await axios.get(`${API_URL}/api/courses?status=active`, { timeout: 15000 });
+            const res = await axios.get(`${API_URL}/api/courses?status=active`, { timeout: 45000 });
             if (Array.isArray(res.data) && res.data.length > 0) {
                 setCourses(res.data);
 
@@ -302,9 +302,13 @@ export default function UploadPYQ() {
                 ...(token ? { Authorization: `Bearer ${token}` } : {}),
             };
 
+            const isMongoId = (id) => typeof id === "string" && /^[0-9a-fA-F]{24}$/.test(id);
+
             if (isPyq) {
                 const chosenCourse = courses.find((c) => c._id === pyqForm.courseId) || courses[0];
-                if (chosenCourse?._id) data.append("courseId", chosenCourse._id);
+                if (chosenCourse?._id && isMongoId(chosenCourse._id)) {
+                    data.append("courseId", chosenCourse._id);
+                }
                 data.append("course", chosenCourse ? chosenCourse.name : pyqForm.course);
                 data.append("title", pyqForm.title.trim());
                 data.append("semester", pyqForm.semester);
@@ -318,8 +322,10 @@ export default function UploadPYQ() {
 
                 const res = await axios.post(`${API_URL}/api/upload`, data, {
                     headers: uploadHeaders,
+                    timeout: 90000,
                     onUploadProgress: (progressEvent) => {
-                        const percent = Math.round((progressEvent.loaded * 100) / progressEvent.total);
+                        const total = progressEvent.total || 1;
+                        const percent = Math.round((progressEvent.loaded * 100) / total);
                         setUploadProgress(percent);
                     },
                 });
@@ -336,7 +342,9 @@ export default function UploadPYQ() {
                 }
             } else {
                 const chosenCourse = courses.find((c) => c._id === noteForm.courseId) || courses[0];
-                if (chosenCourse?._id) data.append("courseId", chosenCourse._id);
+                if (chosenCourse?._id && isMongoId(chosenCourse._id)) {
+                    data.append("courseId", chosenCourse._id);
+                }
                 data.append("course", chosenCourse ? chosenCourse.name : noteForm.course);
                 data.append("title", noteForm.title.trim());
                 data.append("semester", noteForm.semester);
@@ -347,8 +355,10 @@ export default function UploadPYQ() {
 
                 const res = await axios.post(`${API_URL}/api/notes/upload`, data, {
                     headers: uploadHeaders,
+                    timeout: 90000,
                     onUploadProgress: (progressEvent) => {
-                        const percent = Math.round((progressEvent.loaded * 100) / progressEvent.total);
+                        const total = progressEvent.total || 1;
+                        const percent = Math.round((progressEvent.loaded * 100) / total);
                         setUploadProgress(percent);
                     },
                 });
@@ -369,7 +379,15 @@ export default function UploadPYQ() {
             setFile(null);
         } catch (err) {
             console.error("Upload error:", err);
-            toast.error(err.response?.data?.error || "Failed to upload file. Please try again.");
+            const serverMessage = err.response?.data?.error;
+            const isTimeout = err.code === "ECONNABORTED" || (err.message && err.message.toLowerCase().includes("timeout"));
+            if (isTimeout) {
+                toast.error("Upload timed out. The server may be waking up from cold sleep. Please try again.");
+            } else if (serverMessage) {
+                toast.error(serverMessage);
+            } else {
+                toast.error("Failed to upload file. Please try again.");
+            }
         } finally {
             setLoading(false);
         }

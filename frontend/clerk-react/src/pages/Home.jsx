@@ -192,17 +192,24 @@ function Home() {
         try {
             // Fetch real database records concurrently with error fallbacks
             const [papersRes, coursesRes, unisRes, notesRes] = await Promise.allSettled([
-                axios.get(`${API_URL}/api/pyqs`, { timeout: 15000 }),
-                axios.get(`${API_URL}/api/courses`, { timeout: 15000 }),
-                axios.get(`${API_URL}/api/universities`, { timeout: 15000 }),
-                axios.get(`${API_URL}/api/notes`, { timeout: 15000 }),
+                axios.get(`${API_URL}/api/pyqs`, { timeout: 60000 }),
+                axios.get(`${API_URL}/api/courses`, { timeout: 60000 }),
+                axios.get(`${API_URL}/api/universities`, { timeout: 60000 }),
+                axios.get(`${API_URL}/api/notes`, { timeout: 60000 }),
             ]);
 
             if (papersRes.status === "fulfilled" && Array.isArray(papersRes.value.data)) {
                 setPapers(papersRes.value.data);
             } else if (papersRes.status === "rejected") {
-                console.error("Failed to load papers:", papersRes.reason);
-                setError("Unable to load latest papers right now. Please check connection.");
+                const err = papersRes.reason;
+                const isTimeout = err?.code === "ECONNABORTED" || (err?.message && err.message.toLowerCase().includes("timeout"));
+                if (isTimeout) {
+                    console.warn("Backend is waking up from sleep, papers will load momentarily.");
+                    setError("Server is waking up from cold sleep. Please wait a moment or refresh.");
+                } else {
+                    console.error("Failed to load papers:", err);
+                    setError("Unable to load latest papers right now. Please check connection.");
+                }
             }
 
             if (coursesRes.status === "fulfilled" && Array.isArray(coursesRes.value.data)) {
