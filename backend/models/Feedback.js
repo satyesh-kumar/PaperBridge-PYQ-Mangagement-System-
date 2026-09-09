@@ -36,6 +36,18 @@ const feedbackSchema = new mongoose.Schema(
       type: String,
       required: [true, "Feedback type is required"],
       enum: [
+        // Natural language options
+        "Paper not found",
+        "Request a paper",
+        "Wrong paper",
+        "Download problem",
+        "Search problem",
+        "Subject missing",
+        "Website problem",
+        "Suggest improvement",
+        "Request a new feature",
+        "General feedback",
+        // Legacy options for full backwards compatibility
         "Suggest an Improvement",
         "Report a Problem",
         "Report a Bug",
@@ -50,9 +62,14 @@ const feedbackSchema = new mongoose.Schema(
         "UI/Design Feedback",
         "Content Quality",
         "Teacher/Faculty Feedback",
-        "General Feedback",
         "Other",
       ],
+      index: true,
+    },
+    problemType: {
+      type: String,
+      default: "",
+      trim: true,
       index: true,
     },
     relatedTo: {
@@ -132,21 +149,35 @@ const feedbackSchema = new mongoose.Schema(
       default: "",
       trim: true,
     },
+    examYear: {
+      type: String,
+      default: "",
+      trim: true,
+    },
+    searchQuery: {
+      type: String,
+      default: "",
+      trim: true,
+    },
+    source: {
+      type: String,
+      default: "direct",
+      trim: true,
+    },
 
-    // Rating & Message Content
+    // Rating & Message Content (Rating is optional)
     rating: {
       type: Number,
-      required: [true, "Rating is required"],
       min: 1,
       max: 5,
-      default: 5,
+      default: null,
       index: true,
     },
     message: {
       type: String,
       required: [true, "Feedback message is required"],
       trim: true,
-      minlength: [10, "Feedback message must be at least 10 characters."],
+      minlength: [3, "Feedback message must contain at least 3 characters."],
       maxlength: [3000, "Feedback message cannot exceed 3000 characters."],
     },
     followUpRequested: {

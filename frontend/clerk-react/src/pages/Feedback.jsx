@@ -10,15 +10,16 @@ import {
   FaArrowLeft,
   FaHistory,
   FaShieldAlt,
-  FaUserSecret,
-  FaExclamationCircle,
-  FaSyncAlt,
-  FaGraduationCap,
-  FaBook,
   FaTimes,
-  FaRegLightbulb,
+  FaFilePdf,
+  FaSearch,
   FaBug,
-  FaExternalLinkAlt,
+  FaRegLightbulb,
+  FaDownload,
+  FaExclamationCircle,
+  FaBook,
+  FaPlus,
+  FaSyncAlt,
 } from "react-icons/fa";
 import toast from "react-hot-toast";
 import confetti from "canvas-confetti";
@@ -27,66 +28,27 @@ import Footer from "../components/Footer";
 
 const API_URL = import.meta.env.VITE_API_URL || "http://localhost:5000";
 
-const FEEDBACK_TYPES = [
-  "Suggest an Improvement",
-  "Report a Problem",
-  "Report a Bug",
-  "Suggest a New Feature",
-  "Website Experience",
-  "Paper/PYQ Issue",
-  "Search Issue",
-  "Account/Login Issue",
-  "Upload Issue",
-  "Download Issue",
-  "Performance Issue",
-  "UI/Design Feedback",
-  "Content Quality",
-  "Teacher/Faculty Feedback",
-  "General Feedback",
-  "Other",
-];
-
-const RELATED_ENTITIES = [
-  "PaperBridge",
-  "Website",
-  "Paper/PYQ",
-  "Course",
-  "Department",
-  "Teacher",
-  "Student",
-  "Administrator",
-  "Other",
-];
-
 const ACADEMIC_YEARS = [
   "1st Year",
   "2nd Year",
   "3rd Year",
   "4th Year",
-  "5th Year",
-  "Postgraduate",
   "Other",
 ];
 
-const SEMESTERS = [
-  "1st Semester",
-  "2nd Semester",
-  "3rd Semester",
-  "4th Semester",
-  "5th Semester",
-  "6th Semester",
-  "7th Semester",
-  "8th Semester",
-  "Other",
+const PROBLEM_OPTIONS = [
+  { id: "Paper not found", label: "Paper not found", icon: "📄", desc: "Missing past year question paper" },
+  { id: "Request a paper", label: "Request a paper", icon: "➕", desc: "Request an exam paper to be added" },
+  { id: "Wrong paper", label: "Wrong paper", icon: "❌", desc: "Incorrect paper uploaded or wrong info" },
+  { id: "Download problem", label: "Download problem", icon: "⬇️", desc: "Unable to download or open PDF" },
+  { id: "Search problem", label: "Search problem", icon: "🔍", desc: "Search results inaccurate or broken" },
+  { id: "Subject missing", label: "Subject missing", icon: "📚", desc: "Subject not listed in course" },
+  { id: "Website problem", label: "Website problem", icon: "🐛", desc: "Page error, broken button, or bug" },
+  { id: "Suggest improvement", label: "Suggest improvement", icon: "💡", desc: "Idea to improve PaperBridge" },
+  { id: "Request a new feature", label: "Request a new feature", icon: "✨", desc: "New feature or tool suggestion" },
+  { id: "General feedback", label: "General feedback", icon: "👍", desc: "Share your thoughts or compliments" },
+  { id: "Other", label: "Other", icon: "💬", desc: "Anything else you'd like to tell us" },
 ];
-
-const RATING_DESCRIPTIONS = {
-  1: "Very Poor — Needs major fixes",
-  2: "Poor — Frustrating experience",
-  3: "Average — Acceptable, but needs work",
-  4: "Good — Satisfying experience",
-  5: "Excellent — Loved using PaperBridge!",
-};
 
 export default function Feedback() {
   const { getToken, isSignedIn } = useAuth();
@@ -102,30 +64,32 @@ export default function Feedback() {
   // Dynamic database lists
   const [courses, setCourses] = useState([]);
   const [subjects, setSubjects] = useState([]);
+  const [papers, setPapers] = useState([]);
   const [loadingAcademic, setLoadingAcademic] = useState(false);
 
-  // User feedback history
+  // User feedback & paper request history
   const [myFeedbacks, setMyFeedbacks] = useState([]);
+  const [myRequests, setMyRequests] = useState([]);
   const [loadingHistory, setLoadingHistory] = useState(false);
   const [selectedDetail, setSelectedDetail] = useState(null);
 
-  // Form states
-  const [feedbackType, setFeedbackType] = useState("Suggest an Improvement");
-  const [relatedTo, setRelatedTo] = useState("PaperBridge");
-  const [teacherName, setTeacherName] = useState("");
-  const [studentName, setStudentName] = useState("");
+  // Primary 20-30s Form Fields
   const [selectedCourseId, setSelectedCourseId] = useState("");
-  const [courseName, setCourseName] = useState("");
-  const [department, setDepartment] = useState("");
-  const [academicYear, setAcademicYear] = useState("1st Year");
-  const [semester, setSemester] = useState("1st Semester");
-  const [subjectName, setSubjectName] = useState("");
-  const [paperTitle, setPaperTitle] = useState("");
-  const [rating, setRating] = useState(5);
-  const [hoverRating, setHoverRating] = useState(0);
+  const [courseName, setCourseName] = useState(searchParams.get("course") || "");
+  const [academicYear, setAcademicYear] = useState(searchParams.get("year") || "1st Year");
+  const [selectedProblem, setSelectedProblem] = useState(
+    searchParams.get("problem") || "Paper not found"
+  );
+
+  // Progressive Disclosure Fields
+  const [subjectName, setSubjectName] = useState(searchParams.get("subject") || "");
+  const [examYear, setExamYear] = useState(searchParams.get("examYear") || "2026");
+  const [paperTitle, setPaperTitle] = useState(searchParams.get("paperTitle") || "");
+  const [paperId, setPaperId] = useState(searchParams.get("paperId") || "");
+  const [searchQueryParam, setSearchQueryParam] = useState(searchParams.get("query") || "");
   const [message, setMessage] = useState("");
-  const [followUpRequested, setFollowUpRequested] = useState(false);
-  const [anonymous, setAnonymous] = useState(false);
+  const [rating, setRating] = useState(null);
+  const [hoverRating, setHoverRating] = useState(0);
 
   // Submission state
   const [submitting, setSubmitting] = useState(false);
@@ -148,22 +112,38 @@ export default function Feedback() {
     };
   };
 
-  // Fetch courses on mount
+  // Fetch courses and papers for progressive disclosure
   useEffect(() => {
-    async function loadCourses() {
+    async function loadInitialData() {
       try {
         setLoadingAcademic(true);
-        const res = await axios.get(`${API_URL}/api/courses?status=active`, { timeout: 10000 });
-        if (Array.isArray(res.data)) {
-          setCourses(res.data);
+        const [courseRes, pyqRes] = await Promise.all([
+          axios.get(`${API_URL}/api/courses?status=active`, { timeout: 10000 }).catch(() => ({ data: [] })),
+          axios.get(`${API_URL}/api/pyqs`, { timeout: 10000 }).catch(() => ({ data: [] })),
+        ]);
+        if (Array.isArray(courseRes.data) && courseRes.data.length > 0) {
+          setCourses(courseRes.data);
+          // If no course selected and we have courses, set default
+          if (!courseName) {
+            setCourseName(courseRes.data[0].name);
+            setSelectedCourseId(courseRes.data[0]._id);
+          } else {
+            const match = courseRes.data.find(
+              (c) => c.name.toLowerCase() === courseName.toLowerCase() || c.code.toLowerCase() === courseName.toLowerCase()
+            );
+            if (match) setSelectedCourseId(match._id);
+          }
         }
-      } catch (err) {
-        console.warn("Could not load dynamic courses:", err.message);
+        if (Array.isArray(pyqRes.data)) {
+          setPapers(pyqRes.data);
+        }
+      } catch {
+        // Fallback
       } finally {
         setLoadingAcademic(false);
       }
     }
-    loadCourses();
+    loadInitialData();
   }, []);
 
   // Fetch subjects dynamically when course changes
@@ -177,26 +157,31 @@ export default function Feedback() {
         const res = await axios.get(`${API_URL}/api/subjects?courseId=${selectedCourseId}`, { timeout: 10000 });
         if (Array.isArray(res.data)) {
           setSubjects(res.data);
+          if (res.data.length > 0 && !subjectName) {
+            setSubjectName(res.data[0].name);
+          }
         }
-      } catch (err) {
+      } catch {
         setSubjects([]);
       }
     }
     loadSubjects();
   }, [selectedCourseId]);
 
-  // Fetch user's feedback history
-  const loadMyFeedback = async () => {
+  // Load user's history
+  const loadHistory = async () => {
     if (!isSignedIn) return;
     try {
       setLoadingHistory(true);
       const headers = await getAuthHeaders();
-      const res = await axios.get(`${API_URL}/api/feedback/my`, { headers, timeout: 12000 });
-      if (Array.isArray(res.data)) {
-        setMyFeedbacks(res.data);
-      }
-    } catch (err) {
-      console.warn("Could not fetch feedback history:", err.message);
+      const [fbRes, reqRes] = await Promise.all([
+        axios.get(`${API_URL}/api/feedback/my`, { headers, timeout: 10000 }).catch(() => ({ data: [] })),
+        axios.get(`${API_URL}/api/paper-requests/my`, { headers, timeout: 10000 }).catch(() => ({ data: [] })),
+      ]);
+      if (Array.isArray(fbRes.data)) setMyFeedbacks(fbRes.data);
+      if (Array.isArray(reqRes.data)) setMyRequests(reqRes.data);
+    } catch {
+      // ignore
     } finally {
       setLoadingHistory(false);
     }
@@ -204,11 +189,11 @@ export default function Feedback() {
 
   useEffect(() => {
     if (activeTab === "history") {
-      loadMyFeedback();
+      loadHistory();
     }
   }, [activeTab, isSignedIn]);
 
-  // Handle course selection
+  // Handle course change
   const handleCourseChange = (e) => {
     const val = e.target.value;
     setSelectedCourseId(val);
@@ -216,713 +201,739 @@ export default function Feedback() {
     setCourseName(matched ? matched.name : val);
   };
 
-  // Form submission handler
+  // Dynamic context placeholder for message box
+  const getMessagePlaceholder = useMemo(() => {
+    switch (selectedProblem) {
+      case "Paper not found":
+      case "Request a paper":
+        return "Tell us which paper or exam year you are looking for (e.g., End Semester 2026)...";
+      case "Wrong paper":
+        return "What is wrong with this paper? (e.g., wrong semester, wrong syllabus, missing pages)...";
+      case "Download problem":
+        return "What went wrong when downloading? (e.g., page 404, file corrupted, slow download)...";
+      case "Search problem":
+        return "What were you searching for and what went wrong?...";
+      case "Subject missing":
+        return "Tell us which subject code or syllabus unit is missing...";
+      case "Website problem":
+        return "Tell us what went wrong on the website...";
+      case "Suggest improvement":
+        return "What would you like PaperBridge to improve?";
+      case "Request a new feature":
+        return "What new feature or tool would make your study easier?";
+      default:
+        return "Tell us your thoughts in a few words...";
+    }
+  }, [selectedProblem]);
+
+  // Form Submission
   const handleSubmit = async (e) => {
     e.preventDefault();
 
-    if (!message.trim() || message.trim().length < 10) {
-      toast.error("Please describe your feedback with at least 10 characters.");
+    if (!courseName) {
+      toast.error("Please select your course.");
       return;
     }
 
-    if (message.length > 2500) {
-      toast.error("Feedback message cannot exceed 2500 characters.");
-      return;
-    }
+    // Determine if this is a dedicated Paper Request
+    const isPaperRequest = selectedProblem === "Paper not found" || selectedProblem === "Request a paper";
 
     try {
       setSubmitting(true);
       const headers = await getAuthHeaders();
 
-      const payload = {
-        feedbackType,
-        relatedTo,
-        teacherName: relatedTo === "Teacher" ? teacherName.trim() : "",
-        studentName: relatedTo === "Student" ? studentName.trim() : "",
-        courseId: selectedCourseId || null,
-        course: courseName || "",
-        department: department.trim(),
-        academicYear,
-        semester,
-        subject: subjectName.trim(),
-        paperTitle: relatedTo === "Paper/PYQ" ? paperTitle.trim() : "",
-        rating,
-        message: message.trim(),
-        followUpRequested,
-        anonymous,
-        userName: user?.fullName || "Student",
-        userEmail: user?.primaryEmailAddress?.emailAddress || "",
-      };
+      if (isPaperRequest) {
+        // Submit via Paper Request API
+        const payload = {
+          course: courseName,
+          courseId: selectedCourseId || null,
+          academicYear,
+          subject: subjectName || "General",
+          examYear: parseInt(examYear, 10) || 2026,
+          examType: "End Semester",
+          message: message.trim(),
+          notifyMe: true,
+          studentName: user?.fullName || "Student",
+          studentEmail: user?.primaryEmailAddress?.emailAddress || "",
+        };
 
-      const res = await axios.post(`${API_URL}/api/feedback`, payload, {
-        headers,
-        timeout: 15000,
-      });
-
-      if (res.data?.success) {
-        confetti({
-          particleCount: 70,
-          spread: 60,
-          origin: { y: 0.6 },
+        const res = await axios.post(`${API_URL}/api/paper-requests`, payload, {
+          headers,
+          timeout: 15000,
         });
-        setSubmittedResult(res.data.feedback);
-        toast.success("Feedback submitted successfully! Thank you for helping us improve.");
-        // Refresh history cache in background
-        loadMyFeedback();
+
+        confetti({ particleCount: 70, spread: 60, origin: { y: 0.6 } });
+        setSubmittedResult({
+          type: "request",
+          referenceId: res.data.referenceId || `PB-REQ-${Date.now().toString().slice(-6)}`,
+          title: "Paper request submitted!",
+          subtitle: "We'll work on collecting and adding this paper to PaperBridge.",
+        });
+      } else {
+        // Submit via Feedback API
+        const payload = {
+          problemType: selectedProblem,
+          feedbackType: selectedProblem,
+          studentName: user?.fullName || "Student",
+          courseId: selectedCourseId || null,
+          course: courseName,
+          academicYear,
+          subject: subjectName || "",
+          paperId: paperId || null,
+          paperTitle: paperTitle || "",
+          searchQuery: searchQueryParam || "",
+          rating: rating || null,
+          message: message.trim() || `${selectedProblem} reported by student.`,
+          userName: user?.fullName || "Student",
+          userEmail: user?.primaryEmailAddress?.emailAddress || "",
+        };
+
+        const res = await axios.post(`${API_URL}/api/feedback`, payload, {
+          headers,
+          timeout: 15000,
+        });
+
+        confetti({ particleCount: 70, spread: 60, origin: { y: 0.6 } });
+        setSubmittedResult({
+          type: "feedback",
+          referenceId: res.data.referenceId || `PB-FB-${Date.now().toString().slice(-6)}`,
+          title: "Feedback submitted!",
+          subtitle: "Thanks for helping us improve PaperBridge.",
+        });
       }
     } catch (err) {
-      const errMsg = err.response?.data?.error || "Failed to submit feedback. Please try again.";
-      toast.error(errMsg);
+      if (err.response?.status === 409) {
+        toast.success(err.response.data?.message || "You have already requested this paper.");
+        setSubmittedResult({
+          type: "request",
+          referenceId: err.response.data?.referenceId || "ALREADY-REQUESTED",
+          title: "Paper Already Requested!",
+          subtitle: "You've already requested this paper. We're working on adding it.",
+        });
+      } else {
+        toast.error(err.response?.data?.error || "Failed to submit. Please try again.");
+      }
     } finally {
       setSubmitting(false);
     }
   };
 
-  const handleResetForm = () => {
+  const resetForm = () => {
     setSubmittedResult(null);
     setMessage("");
-    setRating(5);
-    setFollowUpRequested(false);
-    setTeacherName("");
-    setStudentName("");
-    setPaperTitle("");
+    setRating(null);
+    setActiveTab("form");
   };
 
-  // Helper for Status Badge styling
-  const renderStatusBadge = (status) => {
-    const config = {
-      New: "bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300 border-blue-200 dark:border-blue-800",
-      "Under Review": "bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 border-amber-200 dark:border-amber-800",
-      "In Progress": "bg-orange-50 dark:bg-orange-950/40 text-orange-700 dark:text-orange-300 border-orange-200 dark:border-orange-800",
-      Resolved: "bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800",
-      Rejected: "bg-rose-50 dark:bg-rose-950/40 text-rose-700 dark:text-rose-300 border-rose-200 dark:border-rose-800",
-      Archived: "bg-stone-100 dark:bg-stone-800 text-stone-600 dark:text-stone-300 border-stone-300 dark:border-stone-700",
-    };
-    const style = config[status] || config["New"];
-    return (
-      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold border ${style}`}>
-        {status}
-      </span>
-    );
+  // Status mapping for user display
+  const formatStatusBadge = (status = "") => {
+    const s = status.toUpperCase();
+    if (s === "NEW") {
+      return <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800">Received</span>;
+    }
+    if (s === "UNDER REVIEW" || s === "UNDER_REVIEW") {
+      return <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-800">Being Reviewed</span>;
+    }
+    if (s === "IN PROGRESS" || s === "IN_PROGRESS" || s === "COMING_SOON") {
+      return <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-purple-50 dark:bg-purple-950/40 text-purple-700 dark:text-purple-300 border border-purple-200 dark:border-purple-800">⏳ We're Working on It</span>;
+    }
+    if (s === "RESOLVED" || s === "AVAILABLE") {
+      return <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800">✓ Resolved</span>;
+    }
+    if (s === "REJECTED" || s === "NOT_AVAILABLE") {
+      return <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-rose-50 dark:bg-rose-950/40 text-rose-700 dark:text-rose-300 border border-rose-200 dark:border-rose-800">Closed</span>;
+    }
+    return <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-stone-100 dark:bg-stone-800 text-stone-700 dark:text-stone-300">{status}</span>;
   };
 
   return (
     <div className="min-h-screen bg-[#FAF8F5] dark:bg-[#0F0E0D] text-[#1A1614] dark:text-[#F5F2EC] flex flex-col font-sans transition-colors duration-300">
       <Navbar2 />
 
-      <main className="flex-1 max-w-4xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-12">
-        {/* Navigation Breadcrumb & Back button */}
-        <div className="flex items-center justify-between gap-4 mb-6">
+      <main className="max-w-3xl mx-auto px-4 sm:px-6 py-6 sm:py-10 w-full flex-1">
+        {/* Navigation Breadcrumb / Top Bar */}
+        <div className="flex items-center justify-between gap-3 mb-6">
           <Link
             to="/dashboard"
-            className="inline-flex items-center gap-2 text-xs font-semibold text-[#8C7862] dark:text-[#A8957E] hover:text-[#4A2E1B] dark:hover:text-[#E5C378] transition"
+            className="inline-flex items-center gap-1.5 text-xs font-semibold text-[#8C7862] dark:text-[#A8957E] hover:text-[#4A2E1B] dark:hover:text-[#FAF8F5] transition"
           >
             <FaArrowLeft className="text-[10px]" /> Back to Dashboard
           </Link>
 
-          {/* Sub-view Switcher Tabs */}
+          {/* Tab Switcher: Submit Form vs My History */}
           <div className="flex items-center gap-1 bg-[#F4EFEA] dark:bg-[#1C1916] p-1 rounded-full border border-[#EAE2D8] dark:border-[#2E2822]">
             <button
               type="button"
               onClick={() => setActiveTab("form")}
-              className={`px-4 py-1.5 rounded-full text-xs font-semibold transition cursor-pointer ${
+              className={`px-3.5 py-1 rounded-full text-xs font-semibold transition cursor-pointer ${
                 activeTab === "form"
-                  ? "bg-white dark:bg-[#24201C] text-[#4A2E1B] dark:text-[#E5C378] shadow-2xs font-bold"
-                  : "text-[#8C7862] hover:text-[#2B231B] dark:hover:text-white"
+                  ? "bg-white dark:bg-[#24201C] text-[#4A2E1B] dark:text-[#E5C378] font-bold shadow-2xs"
+                  : "text-[#8C7862] hover:text-[#1A1614] dark:hover:text-white"
               }`}
             >
-              Submit Feedback
+              Give Feedback
             </button>
             <button
               type="button"
               onClick={() => setActiveTab("history")}
-              className={`px-4 py-1.5 rounded-full text-xs font-semibold transition cursor-pointer flex items-center gap-1.5 ${
+              className={`px-3.5 py-1 rounded-full text-xs font-semibold transition cursor-pointer flex items-center gap-1.5 ${
                 activeTab === "history"
-                  ? "bg-white dark:bg-[#24201C] text-[#4A2E1B] dark:text-[#E5C378] shadow-2xs font-bold"
-                  : "text-[#8C7862] hover:text-[#2B231B] dark:hover:text-white"
+                  ? "bg-white dark:bg-[#24201C] text-[#4A2E1B] dark:text-[#E5C378] font-bold shadow-2xs"
+                  : "text-[#8C7862] hover:text-[#1A1614] dark:hover:text-white"
               }`}
             >
-              <FaHistory className="text-[10px]" /> My Feedback ({myFeedbacks.length})
+              <FaHistory className="text-[10px]" /> My History ({myFeedbacks.length + myRequests.length})
             </button>
           </div>
         </div>
 
-        {/* ── SUBMIT FEEDBACK TAB ───────────────────────────────────────────── */}
+        {/* VIEW 1: COMPACT 20-30s FEEDBACK FORM */}
         {activeTab === "form" && (
-          <div>
-            {/* SUCCESS STATE */}
+          <>
             {submittedResult ? (
-              <div className="bg-white dark:bg-[#161412] border border-[#EAE2D8] dark:border-[#2E2822] rounded-3xl p-8 sm:p-12 text-center shadow-xs">
-                <div className="w-16 h-16 bg-emerald-100 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400 rounded-full flex items-center justify-center text-3xl mx-auto mb-5 shadow-inner">
+              /* Success Screen */
+              <div className="bg-white dark:bg-[#161412] border border-[#EAE2D8] dark:border-[#2E2822] rounded-3xl p-8 sm:p-12 text-center shadow-sm animate-in fade-in zoom-in-95 duration-200">
+                <div className="w-16 h-16 rounded-3xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 flex items-center justify-center text-3xl mx-auto mb-4 border border-emerald-500/20">
                   <FaCheckCircle />
                 </div>
-                <h2 className="text-2xl font-serif font-bold text-[#1A1614] dark:text-[#FAF8F5] mb-2">
-                  Thank you for your feedback! 🎉
+                <h2 className="text-2xl font-serif font-bold text-[#1A1614] dark:text-[#FAF8F5] mb-1">
+                  ✅ {submittedResult.title}
                 </h2>
-                <p className="text-sm text-[#6B5B49] dark:text-[#C2B3A0] max-w-md mx-auto mb-6">
-                  Your feedback has been successfully submitted to the PaperBridge team. We'll review your input carefully and use it to improve the platform.
+                <p className="text-xs text-[#8C7862] dark:text-[#A8957E] mb-6 max-w-md mx-auto">
+                  {submittedResult.subtitle}
                 </p>
 
-                <div className="inline-block bg-[#FAF8F5] dark:bg-[#24201C] border border-[#EAE2D8] dark:border-[#2E2822] px-6 py-3 rounded-2xl mb-8">
-                  <p className="text-[11px] font-bold uppercase text-[#8C7862] dark:text-[#A8957E] tracking-wider">
-                    Reference ID
-                  </p>
-                  <p className="text-lg font-mono font-bold text-[#4A2E1B] dark:text-[#E5C378]">
+                {/* Reference ID Pill */}
+                <div className="inline-flex items-center gap-2 px-4 py-2 rounded-2xl bg-[#FAF8F5] dark:bg-[#1C1916] border border-[#EAE2D8] dark:border-[#2E2822] mb-8">
+                  <span className="text-xs text-[#8C7862] dark:text-[#A8957E]">Tracking ID:</span>
+                  <span className="font-mono text-sm font-bold text-[#4A2E1B] dark:text-[#E5C378]">
                     {submittedResult.referenceId}
-                  </p>
+                  </span>
                 </div>
 
                 <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
+                  <Link
+                    to="/dashboard"
+                    className="w-full sm:w-auto px-6 py-2.5 rounded-full bg-[#4A2E1B] hover:bg-[#331F12] dark:bg-[#C5A059] dark:hover:bg-[#E5C378] text-white dark:text-[#0F0E0D] text-xs font-bold transition shadow-xs"
+                  >
+                    Back to Dashboard
+                  </Link>
                   <button
                     type="button"
-                    onClick={() => setActiveTab("history")}
-                    className="w-full sm:w-auto px-6 py-2.5 rounded-full bg-[#4A2E1B] hover:bg-[#331F12] dark:bg-[#C5A059] dark:hover:bg-[#E5C378] text-white dark:text-[#0F0E0D] text-xs font-bold transition shadow-xs cursor-pointer min-h-[42px]"
+                    onClick={resetForm}
+                    className="w-full sm:w-auto px-6 py-2.5 rounded-full bg-[#FAF8F5] dark:bg-[#1C1916] hover:bg-[#F4EFEA] text-[#1A1614] dark:text-[#FAF8F5] border border-[#EAE2D8] dark:border-[#2E2822] text-xs font-semibold transition cursor-pointer"
                   >
-                    View My Feedback History →
-                  </button>
-                  <button
-                    type="button"
-                    onClick={handleResetForm}
-                    className="w-full sm:w-auto px-6 py-2.5 rounded-full bg-white dark:bg-[#1C1916] hover:bg-[#FAF8F5] dark:hover:bg-[#24201C] text-[#4A3E31] dark:text-[#FAF8F5] text-xs font-semibold border border-[#EAE2D8] dark:border-[#2E2822] transition shadow-2xs cursor-pointer min-h-[42px]"
-                  >
-                    Submit Another Feedback
+                    Submit Another
                   </button>
                 </div>
               </div>
             ) : (
-              /* FEEDBACK FORM */
-              <div className="bg-white dark:bg-[#161412] border border-[#EAE2D8] dark:border-[#2E2822] rounded-3xl shadow-xs overflow-hidden">
-                {/* Header Banner */}
-                <div className="border-b border-[#EAE2D8] dark:border-[#2E2822] px-6 sm:px-8 py-6 sm:py-8 bg-[#FAF8F5]/80 dark:bg-[#1C1916]/80">
-                  <div className="flex items-start gap-4">
-                    <div className="w-12 h-12 rounded-2xl bg-[#4A2E1B] dark:bg-[#C5A059] text-white dark:text-[#0F0E0D] flex items-center justify-center text-xl shrink-0 shadow-xs">
-                      <FaCommentDots />
-                    </div>
-                    <div>
-                      <h1 className="text-xl sm:text-2xl font-serif font-bold text-[#1A1614] dark:text-[#FAF8F5]">
-                        Help us improve PaperBridge
-                      </h1>
-                      <p className="text-xs sm:text-sm text-[#6B5B49] dark:text-[#C2B3A0] mt-1 leading-relaxed">
-                        Your feedback helps us make PaperBridge better for students, teachers, and everyone who uses the platform.
-                      </p>
-                    </div>
-                  </div>
+              /* The 20-30 Second Flow */
+              <div className="bg-white dark:bg-[#161412] border border-[#EAE2D8] dark:border-[#2E2822] rounded-3xl p-6 sm:p-8 md:p-10 shadow-sm">
+                {/* Header */}
+                <div className="mb-6">
+                  <h1 className="text-xl sm:text-2xl font-serif font-bold text-[#1A1614] dark:text-[#FAF8F5] tracking-tight flex items-center gap-2">
+                    💬 Help us improve PaperBridge
+                  </h1>
+                  <p className="text-xs sm:text-sm text-[#8C7862] dark:text-[#A8957E] mt-1">
+                    Tell us what you need. It only takes a few seconds.
+                  </p>
                 </div>
 
-                <form onSubmit={handleSubmit} className="p-6 sm:p-8 space-y-6">
-                  {/* Field 1: Feedback Type & Related To */}
+                <form onSubmit={handleSubmit} className="space-y-5">
+                  {/* Step 1: Student Name (Read-Only Snapshot from Clerk Auth) */}
+                  <div>
+                    <label className="block text-[11px] font-bold uppercase tracking-wider text-[#8C7862] dark:text-[#A8957E] mb-1">
+                      Student Name
+                    </label>
+                    <div className="w-full px-4 py-2.5 bg-[#FAF8F5] dark:bg-[#1C1916] border border-[#EAE2D8] dark:border-[#2E2822] rounded-xl text-xs font-semibold text-[#1A1614] dark:text-[#FAF8F5] flex items-center justify-between">
+                      <span>{user?.fullName || user?.firstName || "Signed in Student"}</span>
+                      <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-bold bg-emerald-50 dark:bg-emerald-950/40 px-2 py-0.5 rounded-full border border-emerald-200 dark:border-emerald-800">
+                        Verified Account
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Step 2 & 3: Course & Academic Year Dropdowns */}
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div>
-                      <label className="block text-xs font-bold uppercase tracking-wider text-[#6B5B49] dark:text-[#C2B3A0] mb-2">
-                        What would you like to tell us about? <span className="text-rose-500">*</span>
+                      <label className="block text-[11px] font-bold uppercase tracking-wider text-[#8C7862] dark:text-[#A8957E] mb-1">
+                        Course *
                       </label>
                       <select
-                        value={feedbackType}
-                        onChange={(e) => setFeedbackType(e.target.value)}
-                        className="w-full bg-[#FAF8F5] dark:bg-[#1C1916] border border-[#EAE2D8] dark:border-[#2E2822] rounded-2xl px-4 py-2.5 text-xs text-[#1A1614] dark:text-[#FAF8F5] font-semibold focus:outline-hidden focus:border-[#8C6239] transition cursor-pointer"
+                        value={selectedCourseId}
+                        onChange={handleCourseChange}
+                        className="w-full px-3.5 py-2.5 bg-white dark:bg-[#1C1916] border border-[#EAE2D8] dark:border-[#2E2822] rounded-xl text-xs font-semibold text-[#1A1614] dark:text-[#FAF8F5] focus:outline-hidden focus:border-[#8C6239] cursor-pointer"
                       >
-                        {FEEDBACK_TYPES.map((type) => (
-                          <option key={type} value={type}>
-                            {type}
+                        {courses.length === 0 && <option value="">Select Course</option>}
+                        {courses.map((c) => (
+                          <option key={c._id} value={c._id}>
+                            {c.name} ({c.code})
                           </option>
                         ))}
                       </select>
                     </div>
 
                     <div>
-                      <label className="block text-xs font-bold uppercase tracking-wider text-[#6B5B49] dark:text-[#C2B3A0] mb-2">
-                        Feedback Related To <span className="text-rose-500">*</span>
+                      <label className="block text-[11px] font-bold uppercase tracking-wider text-[#8C7862] dark:text-[#A8957E] mb-1">
+                        Academic Year *
                       </label>
                       <select
-                        value={relatedTo}
-                        onChange={(e) => setRelatedTo(e.target.value)}
-                        className="w-full bg-[#FAF8F5] dark:bg-[#1C1916] border border-[#EAE2D8] dark:border-[#2E2822] rounded-2xl px-4 py-2.5 text-xs text-[#1A1614] dark:text-[#FAF8F5] font-semibold focus:outline-hidden focus:border-[#8C6239] transition cursor-pointer"
+                        value={academicYear}
+                        onChange={(e) => setAcademicYear(e.target.value)}
+                        className="w-full px-3.5 py-2.5 bg-white dark:bg-[#1C1916] border border-[#EAE2D8] dark:border-[#2E2822] rounded-xl text-xs font-semibold text-[#1A1614] dark:text-[#FAF8F5] focus:outline-hidden focus:border-[#8C6239] cursor-pointer"
                       >
-                        {RELATED_ENTITIES.map((ent) => (
-                          <option key={ent} value={ent}>
-                            {ent}
+                        {ACADEMIC_YEARS.map((y) => (
+                          <option key={y} value={y}>
+                            {y}
                           </option>
                         ))}
                       </select>
                     </div>
                   </div>
 
-                  {/* Progressive Contextual Fields based on relatedTo */}
-                  {relatedTo === "Teacher" && (
-                    <div className="p-4 rounded-2xl bg-[#FAF8F5] dark:bg-[#1C1916] border border-[#EAE2D8] dark:border-[#2E2822] space-y-2">
-                      <label className="block text-xs font-bold text-[#4A2E1B] dark:text-[#E5C378]">
-                        Teacher / Faculty Name
-                      </label>
-                      <input
-                        type="text"
-                        placeholder="e.g. Prof. Sharma / Dr. Verma"
-                        value={teacherName}
-                        onChange={(e) => setTeacherName(e.target.value)}
-                        className="w-full bg-white dark:bg-[#161412] border border-[#EAE2D8] dark:border-[#2E2822] rounded-xl px-4 py-2 text-xs text-[#1A1614] dark:text-[#FAF8F5] placeholder:text-[#A8957E] focus:outline-hidden focus:border-[#8C6239]"
-                      />
+                  {/* Step 4: What problem did you face? (Clickable Cards) */}
+                  <div>
+                    <label className="block text-[11px] font-bold uppercase tracking-wider text-[#8C7862] dark:text-[#A8957E] mb-2">
+                      What problem did you face?
+                    </label>
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                      {PROBLEM_OPTIONS.map((item) => {
+                        const isSelected = selectedProblem === item.id;
+                        return (
+                          <button
+                            key={item.id}
+                            type="button"
+                            onClick={() => setSelectedProblem(item.id)}
+                            className={`p-2.5 rounded-xl border text-left transition flex items-center gap-2 cursor-pointer ${
+                              isSelected
+                                ? "bg-[#4A2E1B] text-white border-[#4A2E1B] dark:bg-[#C5A059] dark:text-[#0F0E0D] dark:border-[#C5A059] shadow-xs font-bold"
+                                : "bg-[#FAF8F5] dark:bg-[#1C1916] text-[#4A3E31] dark:text-[#FAF8F5] border-[#EAE2D8] dark:border-[#2E2822] hover:border-[#8C6239]"
+                            }`}
+                          >
+                            <span className="text-sm shrink-0">{item.icon}</span>
+                            <span className="text-xs truncate">{item.label}</span>
+                          </button>
+                        );
+                      })}
                     </div>
-                  )}
+                  </div>
 
-                  {relatedTo === "Student" && (
-                    <div className="p-4 rounded-2xl bg-[#FAF8F5] dark:bg-[#1C1916] border border-[#EAE2D8] dark:border-[#2E2822] space-y-2">
-                      <label className="block text-xs font-bold text-[#4A2E1B] dark:text-[#E5C378]">
-                        Student Identifier / Name (Optional)
-                      </label>
-                      <input
-                        type="text"
-                        placeholder="e.g. Roll number or name"
-                        value={studentName}
-                        onChange={(e) => setStudentName(e.target.value)}
-                        className="w-full bg-white dark:bg-[#161412] border border-[#EAE2D8] dark:border-[#2E2822] rounded-xl px-4 py-2 text-xs text-[#1A1614] dark:text-[#FAF8F5] placeholder:text-[#A8957E] focus:outline-hidden focus:border-[#8C6239]"
-                      />
-                    </div>
-                  )}
-
-                  {relatedTo === "Paper/PYQ" && (
-                    <div className="p-4 rounded-2xl bg-[#FAF8F5] dark:bg-[#1C1916] border border-[#EAE2D8] dark:border-[#2E2822] space-y-2">
-                      <label className="block text-xs font-bold text-[#4A2E1B] dark:text-[#E5C378]">
-                        Paper Title or Subject
-                      </label>
-                      <input
-                        type="text"
-                        placeholder="e.g. Operating Systems End Sem 2024"
-                        value={paperTitle}
-                        onChange={(e) => setPaperTitle(e.target.value)}
-                        className="w-full bg-white dark:bg-[#161412] border border-[#EAE2D8] dark:border-[#2E2822] rounded-xl px-4 py-2 text-xs text-[#1A1614] dark:text-[#FAF8F5] placeholder:text-[#A8957E] focus:outline-hidden focus:border-[#8C6239]"
-                      />
-                    </div>
-                  )}
-
-                  {/* Academic Context Card (Clean grouped fields) */}
-                  <div className="p-5 rounded-2xl bg-[#FAF8F5]/60 dark:bg-[#1C1916]/60 border border-[#EAE2D8] dark:border-[#2E2822] space-y-4">
-                    <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-[#8C7862] dark:text-[#A8957E]">
-                      <FaGraduationCap className="text-sm text-[#8C6239] dark:text-[#E5C378]" />
-                      <span>Academic Information</span>
-                    </div>
-
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-                      {/* Course */}
-                      <div>
-                        <label className="block text-[11px] font-semibold text-[#6B5B49] dark:text-[#C2B3A0] mb-1">
-                          Course / Program
-                        </label>
-                        <select
-                          value={selectedCourseId}
-                          onChange={handleCourseChange}
-                          className="w-full bg-white dark:bg-[#161412] border border-[#EAE2D8] dark:border-[#2E2822] rounded-xl px-3 py-2 text-xs text-[#1A1614] dark:text-[#FAF8F5] focus:outline-hidden focus:border-[#8C6239]"
-                        >
-                          <option value="">General / Other</option>
-                          {courses.map((c) => (
-                            <option key={c._id} value={c._id}>
-                              {c.name} ({c.code})
-                            </option>
-                          ))}
-                        </select>
+                  {/* Step 5: PROGRESSIVE DISCLOSURE CONDITIONAL FIELDS */}
+                  <div className="p-4 rounded-2xl bg-[#FAF8F5] dark:bg-[#1C1916] border border-[#EAE2D8] dark:border-[#2E2822] space-y-3">
+                    {/* CASE 1 & CASE 2: PAPER NOT FOUND / REQUEST A PAPER */}
+                    {(selectedProblem === "Paper not found" || selectedProblem === "Request a paper") && (
+                      <div className="space-y-3">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                          <div>
+                            <label className="block text-xs font-bold text-[#4A3E31] dark:text-[#FAF8F5] mb-1">
+                              Which Subject?
+                            </label>
+                            {subjects.length > 0 ? (
+                              <select
+                                value={subjectName}
+                                onChange={(e) => setSubjectName(e.target.value)}
+                                className="w-full px-3 py-2 bg-white dark:bg-[#24201C] border border-[#EAE2D8] dark:border-[#2E2822] rounded-xl text-xs font-semibold text-[#1A1614] dark:text-[#FAF8F5] focus:outline-hidden"
+                              >
+                                {subjects.map((s) => (
+                                  <option key={s._id} value={s.name}>
+                                    {s.name} ({s.code})
+                                  </option>
+                                ))}
+                              </select>
+                            ) : (
+                              <input
+                                type="text"
+                                value={subjectName}
+                                onChange={(e) => setSubjectName(e.target.value)}
+                                placeholder="e.g. Data Structures, Operating Systems"
+                                className="w-full px-3 py-2 bg-white dark:bg-[#24201C] border border-[#EAE2D8] dark:border-[#2E2822] rounded-xl text-xs text-[#1A1614] dark:text-[#FAF8F5] focus:outline-hidden"
+                              />
+                            )}
+                          </div>
+                          <div>
+                            <label className="block text-xs font-bold text-[#4A3E31] dark:text-[#FAF8F5] mb-1">
+                              Paper / Exam Year
+                            </label>
+                            <input
+                              type="number"
+                              min="2015"
+                              max="2035"
+                              value={examYear}
+                              onChange={(e) => setExamYear(e.target.value)}
+                              placeholder="e.g. 2026"
+                              className="w-full px-3 py-2 bg-white dark:bg-[#24201C] border border-[#EAE2D8] dark:border-[#2E2822] rounded-xl text-xs text-[#1A1614] dark:text-[#FAF8F5] focus:outline-hidden font-semibold"
+                            />
+                          </div>
+                        </div>
                       </div>
+                    )}
 
-                      {/* Department / Branch */}
+                    {/* CASE 3 & CASE 4: WRONG PAPER / DOWNLOAD PROBLEM */}
+                    {(selectedProblem === "Wrong paper" || selectedProblem === "Download problem") && (
                       <div>
-                        <label className="block text-[11px] font-semibold text-[#6B5B49] dark:text-[#C2B3A0] mb-1">
-                          Branch / Department
+                        <label className="block text-xs font-bold text-[#4A3E31] dark:text-[#FAF8F5] mb-1">
+                          Which Paper?
+                        </label>
+                        {paperTitle ? (
+                          <div className="w-full px-3 py-2 bg-white dark:bg-[#24201C] border border-[#EAE2D8] dark:border-[#2E2822] rounded-xl text-xs font-semibold text-[#1A1614] dark:text-[#FAF8F5] flex items-center justify-between">
+                            <span className="truncate">{paperTitle}</span>
+                            <span className="text-[10px] text-[#8C7862] shrink-0 ml-2">Attached ID: {paperId || "N/A"}</span>
+                          </div>
+                        ) : (
+                          <select
+                            value={paperId}
+                            onChange={(e) => {
+                              const pId = e.target.value;
+                              setPaperId(pId);
+                              const p = papers.find((x) => x._id === pId);
+                              if (p) {
+                                setPaperTitle(p.title);
+                                if (p.course) setCourseName(p.course);
+                                if (p.subject) setSubjectName(p.subject);
+                              }
+                            }}
+                            className="w-full px-3 py-2 bg-white dark:bg-[#24201C] border border-[#EAE2D8] dark:border-[#2E2822] rounded-xl text-xs font-semibold text-[#1A1614] dark:text-[#FAF8F5] focus:outline-hidden cursor-pointer"
+                          >
+                            <option value="">Select Paper from Repository</option>
+                            {papers.slice(0, 50).map((p) => (
+                              <option key={p._id} value={p._id}>
+                                {p.title} ({p.academicYear || p.year})
+                              </option>
+                            ))}
+                          </select>
+                        )}
+                      </div>
+                    )}
+
+                    {/* CASE 5: SEARCH PROBLEM */}
+                    {selectedProblem === "Search problem" && (
+                      <div>
+                        <label className="block text-xs font-bold text-[#4A3E31] dark:text-[#FAF8F5] mb-1">
+                          What were you searching for?
                         </label>
                         <input
                           type="text"
-                          placeholder="e.g. Computer Science"
-                          value={department}
-                          onChange={(e) => setDepartment(e.target.value)}
-                          className="w-full bg-white dark:bg-[#161412] border border-[#EAE2D8] dark:border-[#2E2822] rounded-xl px-3 py-2 text-xs text-[#1A1614] dark:text-[#FAF8F5] placeholder:text-[#A8957E] focus:outline-hidden focus:border-[#8C6239]"
+                          value={searchQueryParam}
+                          onChange={(e) => setSearchQueryParam(e.target.value)}
+                          placeholder="e.g. Data Structures 2026 Mid Semester"
+                          className="w-full px-3 py-2 bg-white dark:bg-[#24201C] border border-[#EAE2D8] dark:border-[#2E2822] rounded-xl text-xs text-[#1A1614] dark:text-[#FAF8F5] focus:outline-hidden"
                         />
                       </div>
+                    )}
 
-                      {/* Academic Year */}
-                      <div>
-                        <label className="block text-[11px] font-semibold text-[#6B5B49] dark:text-[#C2B3A0] mb-1">
-                          Academic Year
-                        </label>
-                        <select
-                          value={academicYear}
-                          onChange={(e) => setAcademicYear(e.target.value)}
-                          className="w-full bg-white dark:bg-[#161412] border border-[#EAE2D8] dark:border-[#2E2822] rounded-xl px-3 py-2 text-xs text-[#1A1614] dark:text-[#FAF8F5] focus:outline-hidden focus:border-[#8C6239]"
-                        >
-                          {ACADEMIC_YEARS.map((y) => (
-                            <option key={y} value={y}>
-                              {y}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
-
-                      {/* Semester */}
-                      <div>
-                        <label className="block text-[11px] font-semibold text-[#6B5B49] dark:text-[#C2B3A0] mb-1">
-                          Semester
-                        </label>
-                        <select
-                          value={semester}
-                          onChange={(e) => setSemester(e.target.value)}
-                          className="w-full bg-white dark:bg-[#161412] border border-[#EAE2D8] dark:border-[#2E2822] rounded-xl px-3 py-2 text-xs text-[#1A1614] dark:text-[#FAF8F5] focus:outline-hidden focus:border-[#8C6239]"
-                        >
-                          {SEMESTERS.map((s) => (
-                            <option key={s} value={s}>
-                              {s}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
-                    </div>
-
-                    {/* Subject (Autocomplete or text) */}
+                    {/* MESSAGE BOX (Max 1000 Chars) */}
                     <div>
-                      <label className="block text-[11px] font-semibold text-[#6B5B49] dark:text-[#C2B3A0] mb-1">
-                        Subject (Optional)
-                      </label>
-                      {subjects.length > 0 ? (
-                        <select
-                          value={subjectName}
-                          onChange={(e) => setSubjectName(e.target.value)}
-                          className="w-full bg-white dark:bg-[#161412] border border-[#EAE2D8] dark:border-[#2E2822] rounded-xl px-3 py-2 text-xs text-[#1A1614] dark:text-[#FAF8F5] focus:outline-hidden focus:border-[#8C6239]"
+                      <div className="flex items-center justify-between mb-1">
+                        <label className="text-xs font-bold text-[#4A3E31] dark:text-[#FAF8F5]">
+                          {selectedProblem === "Paper not found" || selectedProblem === "Request a paper"
+                            ? "Optional details:"
+                            : "Tell us what went wrong / your message:"}
+                        </label>
+                        <span className={`text-[10px] font-semibold ${message.length > 950 ? "text-rose-500" : "text-[#8C7862] dark:text-[#A8957E]"}`}>
+                          {message.length} / 1000
+                        </span>
+                      </div>
+                      <textarea
+                        rows={3}
+                        maxLength={1000}
+                        value={message}
+                        onChange={(e) => setMessage(e.target.value)}
+                        placeholder={getMessagePlaceholder}
+                        className="w-full p-3 bg-white dark:bg-[#24201C] border border-[#EAE2D8] dark:border-[#2E2822] rounded-xl text-xs text-[#1A1614] dark:text-[#FAF8F5] focus:outline-hidden focus:border-[#8C6239] resize-none"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Step 6: OPTIONAL RATING (Secondary) */}
+                  <div className="pt-2 flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-t border-[#EAE2D8] dark:border-[#2E2822]">
+                    <div>
+                      <p className="text-xs font-semibold text-[#8C7862] dark:text-[#A8957E]">
+                        How was your PaperBridge experience? <span className="text-[10px] font-normal">(optional)</span>
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      {[1, 2, 3, 4, 5].map((star) => (
+                        <button
+                          key={star}
+                          type="button"
+                          onClick={() => setRating(rating === star ? null : star)}
+                          onMouseEnter={() => setHoverRating(star)}
+                          onMouseLeave={() => setHoverRating(0)}
+                          className="text-lg text-amber-400 dark:text-amber-300 hover:scale-110 transition cursor-pointer p-0.5"
+                          title={`${star} Star`}
                         >
-                          <option value="">Select subject or leave general</option>
-                          {subjects.map((sub) => (
-                            <option key={sub._id} value={sub.name}>
-                              {sub.name} ({sub.code})
-                            </option>
-                          ))}
-                        </select>
-                      ) : (
-                        <input
-                          type="text"
-                          placeholder="e.g. Data Structures & Algorithms"
-                          value={subjectName}
-                          onChange={(e) => setSubjectName(e.target.value)}
-                          className="w-full bg-white dark:bg-[#161412] border border-[#EAE2D8] dark:border-[#2E2822] rounded-xl px-3 py-2 text-xs text-[#1A1614] dark:text-[#FAF8F5] placeholder:text-[#A8957E] focus:outline-hidden focus:border-[#8C6239]"
-                        />
+                          <FaStar className={(hoverRating || rating || 0) >= star ? "fill-current" : "opacity-30"} />
+                        </button>
+                      ))}
+                      {rating && (
+                        <span className="text-xs font-bold text-amber-500 ml-1">
+                          {rating}/5
+                        </span>
                       )}
                     </div>
                   </div>
 
-                  {/* Interactive Star Rating */}
-                  <div className="space-y-2">
-                    <label className="block text-xs font-bold uppercase tracking-wider text-[#6B5B49] dark:text-[#C2B3A0]">
-                      How would you rate your experience with PaperBridge? <span className="text-rose-500">*</span>
-                    </label>
-                    <div className="flex items-center gap-3">
-                      <div className="flex items-center gap-1.5 text-2xl">
-                        {[1, 2, 3, 4, 5].map((star) => (
-                          <button
-                            key={star}
-                            type="button"
-                            onClick={() => setRating(star)}
-                            onMouseEnter={() => setHoverRating(star)}
-                            onMouseLeave={() => setHoverRating(0)}
-                            className="cursor-pointer transition-transform hover:scale-110 focus:outline-hidden"
-                            title={`${star} Star`}
-                          >
-                            <FaStar
-                              className={
-                                (hoverRating || rating) >= star
-                                  ? "text-amber-500 dark:text-amber-400 drop-shadow-xs"
-                                  : "text-stone-300 dark:text-stone-700"
-                              }
-                            />
-                          </button>
-                        ))}
-                      </div>
-                      <span className="text-xs font-semibold text-[#8C7862] dark:text-[#A8957E]">
-                        {RATING_DESCRIPTIONS[hoverRating || rating]}
-                      </span>
-                    </div>
-                  </div>
-
-                  {/* Feedback Message Textarea */}
-                  <div className="space-y-2">
-                    <div className="flex items-center justify-between">
-                      <label className="block text-xs font-bold uppercase tracking-wider text-[#6B5B49] dark:text-[#C2B3A0]">
-                        Tell us what happened or what we can improve <span className="text-rose-500">*</span>
-                      </label>
-                      <span className={`text-[11px] font-mono ${message.length > 2500 ? "text-rose-500 font-bold" : "text-[#8C7862] dark:text-[#A8957E]"}`}>
-                        {message.length} / 2500
-                      </span>
-                    </div>
-                    <textarea
-                      rows={5}
-                      required
-                      value={message}
-                      onChange={(e) => setMessage(e.target.value)}
-                      placeholder="Please describe your experience, problem, or suggestion. The more detail you provide, the easier it is for us to improve PaperBridge."
-                      className="w-full bg-[#FAF8F5] dark:bg-[#1C1916] border border-[#EAE2D8] dark:border-[#2E2822] rounded-2xl p-4 text-xs text-[#1A1614] dark:text-[#FAF8F5] placeholder:text-[#A8957E] focus:outline-hidden focus:border-[#8C6239] transition leading-relaxed"
-                    />
-                    {message.length > 0 && message.length < 10 && (
-                      <p className="text-[11px] text-amber-600 dark:text-amber-400 flex items-center gap-1">
-                        <FaExclamationCircle className="text-[10px]" /> Please enter at least 10 characters.
-                      </p>
-                    )}
-                  </div>
-
-                  {/* User Profile Banner & Options */}
-                  <div className="p-4 rounded-2xl bg-[#FAF8F5] dark:bg-[#1C1916] border border-[#EAE2D8] dark:border-[#2E2822] flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-                    <div className="flex items-center gap-3">
-                      <div className="w-9 h-9 rounded-xl bg-[#4A2E1B] dark:bg-[#C5A059] text-white dark:text-[#0F0E0D] flex items-center justify-center font-bold text-xs">
-                        {user?.firstName?.[0] || "U"}
-                      </div>
-                      <div className="text-xs">
-                        <p className="font-bold text-[#1A1614] dark:text-[#FAF8F5]">
-                          {user?.fullName || "Logged-in User"}
-                        </p>
-                        <p className="text-[#8C7862] dark:text-[#A8957E]">
-                          {user?.primaryEmailAddress?.emailAddress || "Verified Student Account"}
-                        </p>
-                      </div>
-                    </div>
-
-                    <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4 text-xs">
-                      {/* Follow-up radio */}
-                      <label className="inline-flex items-center gap-2 cursor-pointer text-[#6B5B49] dark:text-[#C2B3A0]">
-                        <input
-                          type="checkbox"
-                          checked={followUpRequested}
-                          onChange={(e) => setFollowUpRequested(e.target.checked)}
-                          className="rounded text-[#4A2E1B] focus:ring-[#8C6239] cursor-pointer"
-                        />
-                        <span>Would you like us to follow up?</span>
-                      </label>
-
-                      {/* Anonymous toggle */}
-                      <label className="inline-flex items-center gap-2 cursor-pointer text-[#6B5B49] dark:text-[#C2B3A0]" title="Hide identity from reviewing administrators">
-                        <input
-                          type="checkbox"
-                          checked={anonymous}
-                          onChange={(e) => setAnonymous(e.target.checked)}
-                          className="rounded text-[#4A2E1B] focus:ring-[#8C6239] cursor-pointer"
-                        />
-                        <span className="flex items-center gap-1">
-                          <FaUserSecret className="text-[#8C6239] dark:text-[#E5C378]" /> Submit anonymously
-                        </span>
-                      </label>
-                    </div>
-                  </div>
-
-                  {anonymous && (
-                    <p className="text-[11px] text-[#8C7862] dark:text-[#A8957E] bg-stone-100 dark:bg-[#24201C] p-2.5 rounded-xl border border-stone-200 dark:border-[#2E2822]">
-                      ℹ️ <strong>Anonymous Submission:</strong> Your name and email address will not be displayed to administrators viewing this feedback.
-                    </p>
-                  )}
-
-                  {/* Submit Button */}
-                  <div className="pt-2 flex items-center justify-end">
+                  {/* Step 7: SUBMIT BUTTON */}
+                  <div className="pt-2">
                     <button
                       type="submit"
-                      disabled={submitting || !message.trim() || message.length < 10}
-                      className="inline-flex items-center justify-center gap-2 px-8 py-3 rounded-full bg-[#4A2E1B] hover:bg-[#331F12] dark:bg-[#C5A059] dark:hover:bg-[#E5C378] text-white dark:text-[#0F0E0D] text-xs font-bold shadow-xs transition disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer min-h-[44px]"
+                      disabled={submitting}
+                      className="w-full py-3 px-6 rounded-full bg-[#4A2E1B] hover:bg-[#331F12] dark:bg-[#C5A059] dark:hover:bg-[#E5C378] text-white dark:text-[#0F0E0D] text-xs sm:text-sm font-bold shadow-xs transition flex items-center justify-center gap-2 cursor-pointer disabled:opacity-60"
                     >
-                      <FaPaperPlane className="text-[10px]" />
-                      <span>{submitting ? "Submitting..." : "Submit Feedback"}</span>
+                      {submitting ? (
+                        <>
+                          <FaSyncAlt className="animate-spin text-xs" /> Submitting…
+                        </>
+                      ) : (
+                        <>
+                          <FaPaperPlane className="text-xs" />
+                          <span>
+                            {selectedProblem === "Paper not found" || selectedProblem === "Request a paper"
+                              ? "Send Paper Request"
+                              : "Send Feedback"}
+                          </span>
+                        </>
+                      )}
                     </button>
                   </div>
                 </form>
               </div>
             )}
-          </div>
+          </>
         )}
 
-        {/* ── MY FEEDBACK HISTORY TAB ───────────────────────────────────────── */}
+        {/* VIEW 2: STUDENT FEEDBACK & REQUEST HISTORY */}
         {activeTab === "history" && (
-          <div className="space-y-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <h2 className="text-lg font-serif font-bold text-[#1A1614] dark:text-[#FAF8F5]">
-                  My Submitted Feedback
-                </h2>
-                <p className="text-xs text-[#8C7862] dark:text-[#A8957E]">
-                  Track responses and review statuses for your suggestions and bug reports.
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={loadMyFeedback}
-                className="p-2 rounded-xl bg-white dark:bg-[#1C1916] text-[#4A3E31] dark:text-[#FAF8F5] border border-[#EAE2D8] dark:border-[#2E2822] hover:bg-[#FAF8F5] transition cursor-pointer shadow-2xs"
-                title="Refresh history"
-              >
-                <FaSyncAlt className={`text-xs ${loadingHistory ? "animate-spin" : ""}`} />
-              </button>
-            </div>
-
-            {loadingHistory ? (
-              <div className="space-y-3">
-                {[1, 2, 3].map((n) => (
-                  <div
-                    key={n}
-                    className="h-28 bg-white dark:bg-[#161412] border border-[#EAE2D8] dark:border-[#2E2822] rounded-2xl animate-pulse"
-                  />
-                ))}
-              </div>
-            ) : myFeedbacks.length === 0 ? (
-              <div className="bg-white dark:bg-[#161412] border border-[#EAE2D8] dark:border-[#2E2822] rounded-3xl p-10 text-center shadow-2xs">
-                <div className="w-12 h-12 rounded-2xl bg-[#FAF8F5] dark:bg-[#24201C] text-[#8C6239] dark:text-[#E5C378] flex items-center justify-center text-xl mx-auto mb-3">
-                  <FaRegLightbulb />
+          <div className="space-y-6">
+            <div className="bg-white dark:bg-[#161412] border border-[#EAE2D8] dark:border-[#2E2822] rounded-3xl p-6 shadow-sm">
+              <div className="flex items-center justify-between mb-4 pb-3 border-b border-[#EAE2D8] dark:border-[#2E2822]">
+                <div>
+                  <h2 className="text-base font-serif font-bold text-[#1A1614] dark:text-[#FAF8F5]">
+                    My Submissions & Paper Requests
+                  </h2>
+                  <p className="text-xs text-[#8C7862] dark:text-[#A8957E]">
+                    Track your reported issues, suggestions, and requested examination papers.
+                  </p>
                 </div>
-                <h3 className="text-base font-serif font-bold text-[#1A1614] dark:text-[#FAF8F5] mb-1">
-                  No feedback yet
-                </h3>
-                <p className="text-xs text-[#8C7862] dark:text-[#A8957E] max-w-sm mx-auto mb-5">
-                  Your submitted feedback will appear here once you share your thoughts with the team.
-                </p>
                 <button
                   type="button"
-                  onClick={() => setActiveTab("form")}
-                  className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full bg-[#4A2E1B] text-white dark:bg-[#C5A059] dark:text-[#0F0E0D] text-xs font-bold transition shadow-xs cursor-pointer"
+                  onClick={loadHistory}
+                  className="p-2 rounded-full hover:bg-[#FAF8F5] text-[#8C7862] cursor-pointer"
+                  title="Refresh history"
                 >
-                  Share Feedback Now →
+                  <FaSyncAlt className={`text-xs ${loadingHistory ? "animate-spin" : ""}`} />
                 </button>
               </div>
-            ) : (
-              <div className="space-y-3">
-                {myFeedbacks.map((item) => (
-                  <div
-                    key={item._id}
-                    onClick={() => setSelectedDetail(item)}
-                    className="bg-white dark:bg-[#161412] border border-[#EAE2D8] dark:border-[#2E2822] hover:border-[#8C6239] dark:hover:border-[#C5A059] rounded-2xl p-5 shadow-2xs transition cursor-pointer group"
-                  >
-                    <div className="flex flex-wrap items-center justify-between gap-2 mb-2.5">
-                      <div className="flex items-center gap-2">
-                        <span className="font-mono text-xs font-bold text-[#4A2E1B] dark:text-[#E5C378]">
-                          {item.referenceId}
-                        </span>
-                        <span className="text-[11px] px-2 py-0.5 rounded-full bg-[#F4EFEA] dark:bg-[#24201C] text-[#8C6239] dark:text-[#E5C378] font-semibold">
-                          {item.feedbackType}
-                        </span>
-                        {item.rating && (
-                          <span className="text-xs text-amber-500 font-semibold flex items-center gap-0.5">
-                            ★ {item.rating}
-                          </span>
-                        )}
-                      </div>
-                      <div className="flex items-center gap-2">
-                        {renderStatusBadge(item.status)}
-                        <span className="text-[11px] text-[#8C7862] dark:text-[#A8957E]">
-                          {new Date(item.createdAt).toLocaleDateString("en-IN", {
-                            day: "numeric",
-                            month: "short",
-                            year: "numeric",
-                          })}
-                        </span>
-                      </div>
-                    </div>
 
-                    <p className="text-xs text-[#6B5B49] dark:text-[#C2B3A0] line-clamp-2 leading-relaxed">
-                      {item.message}
-                    </p>
-
-                    {item.adminResponse?.message && (
-                      <div className="mt-3 p-3 rounded-xl bg-[#FAF8F5] dark:bg-[#1C1916] border border-[#EAE2D8] dark:border-[#2E2822] text-xs">
-                        <p className="font-bold text-[#4A2E1B] dark:text-[#E5C378] mb-0.5 flex items-center gap-1.5">
-                          <FaCheckCircle className="text-emerald-500" /> Response from PaperBridge Team:
-                        </p>
-                        <p className="text-[#1A1614] dark:text-[#FAF8F5] line-clamp-2">
-                          {item.adminResponse.message}
-                        </p>
-                      </div>
-                    )}
+              {loadingHistory ? (
+                <div className="py-12 text-center">
+                  <div className="w-8 h-8 border-2 border-[#8C6239] dark:border-[#C5A059] border-t-transparent rounded-full animate-spin mx-auto mb-2" />
+                  <p className="text-xs text-[#8C7862]">Loading your records…</p>
+                </div>
+              ) : myFeedbacks.length === 0 && myRequests.length === 0 ? (
+                <div className="py-10 text-center">
+                  <div className="w-12 h-12 rounded-2xl bg-[#FAF8F5] dark:bg-[#1C1916] text-[#8C6239] dark:text-[#E5C378] flex items-center justify-center text-xl mx-auto mb-3">
+                    <FaCommentDots />
                   </div>
-                ))}
-              </div>
-            )}
+                  <h3 className="text-sm font-bold text-[#1A1614] dark:text-[#FAF8F5] mb-1">
+                    No submissions yet
+                  </h3>
+                  <p className="text-xs text-[#8C7862] dark:text-[#A8957E] mb-4">
+                    Have a missing paper or suggestion? Tell us in 20 seconds.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => setActiveTab("form")}
+                    className="px-5 py-2 rounded-full bg-[#4A2E1B] text-white dark:bg-[#C5A059] dark:text-[#0F0E0D] text-xs font-bold"
+                  >
+                    Give Feedback Now
+                  </button>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {/* Paper Requests List */}
+                  {myRequests.map((req) => (
+                    <div
+                      key={req._id}
+                      onClick={() => setSelectedDetail(req)}
+                      className="p-4 rounded-2xl bg-[#FAF8F5] dark:bg-[#1C1916] border border-[#EAE2D8] dark:border-[#2E2822] hover:border-[#8C6239] transition cursor-pointer space-y-2"
+                    >
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <div className="flex items-center gap-2">
+                          <span className="text-sm">📄</span>
+                          <span className="font-mono text-xs font-bold text-[#4A2E1B] dark:text-[#E5C378]">
+                            {req.referenceId}
+                          </span>
+                          <span className="text-[11px] px-2 py-0.5 rounded-full bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300 font-bold border border-blue-200 dark:border-blue-800">
+                            Paper Request
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          {formatStatusBadge(req.status)}
+                          <span className="text-[11px] text-[#8C7862]">
+                            {new Date(req.createdAt).toLocaleDateString("en-IN", { month: "short", day: "numeric", year: "numeric" })}
+                          </span>
+                        </div>
+                      </div>
+
+                      <div>
+                        <h4 className="text-xs font-serif font-bold text-[#1A1614] dark:text-[#FAF8F5]">
+                          {req.subject} {req.examYear}
+                        </h4>
+                        <p className="text-[11px] text-[#8C7862] dark:text-[#A8957E]">
+                          {req.course} • {req.academicYear}
+                        </p>
+                      </div>
+
+                      {/* Paper live link if available */}
+                      {req.paperId?.fileUrl && (
+                        <div className="pt-2 flex items-center justify-between border-t border-[#EAE2D8] dark:border-[#2E2822]">
+                          <span className="text-xs text-emerald-600 font-bold">✓ This paper is now live!</span>
+                          <a
+                            href={req.paperId.fileUrl}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="px-3 py-1 rounded-full bg-emerald-600 text-white text-[11px] font-bold inline-flex items-center gap-1"
+                          >
+                            <FaFilePdf /> View Paper
+                          </a>
+                        </div>
+                      )}
+
+                      {/* Admin Response Card */}
+                      {req.adminResponse?.message && (
+                        <div className="p-3 rounded-xl bg-white dark:bg-[#161412] border border-emerald-500/30 text-xs">
+                          <p className="font-bold text-emerald-700 dark:text-emerald-400 mb-0.5">
+                            Response from PaperBridge Team:
+                          </p>
+                          <p className="text-[#1A1614] dark:text-[#FAF8F5]">
+                            {req.adminResponse.message}
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+
+                  {/* Feedback List */}
+                  {myFeedbacks.map((fb) => (
+                    <div
+                      key={fb._id}
+                      onClick={() => setSelectedDetail(fb)}
+                      className="p-4 rounded-2xl bg-[#FAF8F5] dark:bg-[#1C1916] border border-[#EAE2D8] dark:border-[#2E2822] hover:border-[#8C6239] transition cursor-pointer space-y-2"
+                    >
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <div className="flex items-center gap-2">
+                          <span className="font-mono text-xs font-bold text-[#4A2E1B] dark:text-[#E5C378]">
+                            {fb.referenceId}
+                          </span>
+                          <span className="text-[11px] px-2 py-0.5 rounded-full bg-[#F4EFEA] dark:bg-[#24201C] text-[#8C6239] dark:text-[#E5C378] font-bold">
+                            {fb.problemType || fb.feedbackType}
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          {formatStatusBadge(fb.status)}
+                          <span className="text-[11px] text-[#8C7862]">
+                            {new Date(fb.createdAt).toLocaleDateString("en-IN", { month: "short", day: "numeric", year: "numeric" })}
+                          </span>
+                        </div>
+                      </div>
+
+                      <p className="text-xs text-[#4A3E31] dark:text-[#C2B3A0] line-clamp-2">
+                        {fb.message}
+                      </p>
+
+                      {fb.adminResponse?.message && (
+                        <div className="p-3 rounded-xl bg-white dark:bg-[#161412] border border-emerald-500/30 text-xs">
+                          <p className="font-bold text-emerald-700 dark:text-emerald-400 mb-0.5">
+                            Response from PaperBridge Team:
+                          </p>
+                          <p className="text-[#1A1614] dark:text-[#FAF8F5]">
+                            {fb.adminResponse.message}
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
         )}
       </main>
 
-      {/* ── DETAIL MODAL ────────────────────────────────────────────────────── */}
+      {/* STUDENT DETAIL MODAL */}
       {selectedDetail && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs">
-          <div className="bg-white dark:bg-[#161412] border border-[#EAE2D8] dark:border-[#2E2822] rounded-3xl max-w-lg w-full p-6 shadow-xl max-h-[90vh] overflow-y-auto space-y-4">
-            <div className="flex items-center justify-between border-b border-[#EAE2D8] dark:border-[#2E2822] pb-3">
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-[#161412] border border-[#EAE2D8] dark:border-[#2E2822] rounded-3xl shadow-2xl w-full max-w-lg p-6 sm:p-8 animate-in fade-in zoom-in-95 duration-200 max-h-[90vh] overflow-y-auto space-y-4">
+            <div className="flex items-center justify-between pb-3 border-b border-[#EAE2D8] dark:border-[#2E2822]">
               <div>
                 <span className="font-mono text-sm font-bold text-[#4A2E1B] dark:text-[#E5C378]">
                   {selectedDetail.referenceId}
                 </span>
-                <p className="text-[11px] text-[#8C7862] dark:text-[#A8957E]">
-                  Submitted on {new Date(selectedDetail.createdAt).toLocaleDateString("en-IN", { day: "numeric", month: "long", year: "numeric" })}
+                <p className="text-[11px] text-[#8C7862]">
+                  Submitted {new Date(selectedDetail.createdAt).toLocaleString("en-IN")}
                 </p>
               </div>
               <button
                 type="button"
                 onClick={() => setSelectedDetail(null)}
-                className="p-2 rounded-full hover:bg-[#F4EFEA] dark:hover:bg-[#24201C] text-[#8C7862] transition cursor-pointer"
+                className="text-[#8C7862] hover:text-[#1A1614] dark:hover:text-white p-1 cursor-pointer"
               >
                 <FaTimes />
               </button>
             </div>
 
-            <div className="grid grid-cols-2 gap-3 text-xs">
-              <div>
-                <span className="text-[#8C7862] dark:text-[#A8957E] block text-[10px] uppercase font-bold">Category</span>
-                <span className="font-semibold text-[#1A1614] dark:text-[#FAF8F5]">{selectedDetail.feedbackType}</span>
+            <div className="space-y-3 text-xs">
+              <div className="flex justify-between items-center py-1 border-b border-[#FAF8F5] dark:border-[#24201C]">
+                <span className="text-[#8C7862]">Status:</span>
+                <div>{formatStatusBadge(selectedDetail.status)}</div>
               </div>
-              <div>
-                <span className="text-[#8C7862] dark:text-[#A8957E] block text-[10px] uppercase font-bold">Status</span>
-                {renderStatusBadge(selectedDetail.status)}
+              <div className="flex justify-between items-center py-1 border-b border-[#FAF8F5] dark:border-[#24201C]">
+                <span className="text-[#8C7862]">Category / Problem:</span>
+                <span className="font-bold text-[#1A1614] dark:text-[#FAF8F5]">
+                  {selectedDetail.subject ? `${selectedDetail.subject} (${selectedDetail.examYear || ""})` : selectedDetail.problemType || selectedDetail.feedbackType}
+                </span>
               </div>
-              <div>
-                <span className="text-[#8C7862] dark:text-[#A8957E] block text-[10px] uppercase font-bold">Related To</span>
-                <span className="font-semibold text-[#1A1614] dark:text-[#FAF8F5]">{selectedDetail.relatedTo || "Website"}</span>
-              </div>
-              <div>
-                <span className="text-[#8C7862] dark:text-[#A8957E] block text-[10px] uppercase font-bold">Rating</span>
-                <span className="text-amber-500 font-bold">★ {selectedDetail.rating} / 5</span>
-              </div>
-            </div>
-
-            {selectedDetail.course && (
-              <div className="text-xs bg-[#FAF8F5] dark:bg-[#1C1916] p-3 rounded-xl border border-[#EAE2D8] dark:border-[#2E2822]">
-                <p className="text-[10px] font-bold uppercase text-[#8C7862] dark:text-[#A8957E]">Academic Context</p>
-                <p className="font-semibold text-[#1A1614] dark:text-[#FAF8F5]">
-                  {selectedDetail.course} {selectedDetail.department ? `(${selectedDetail.department})` : ""}
-                </p>
-                {selectedDetail.academicYear && (
-                  <p className="text-[#8C7862] dark:text-[#A8957E]">
-                    {selectedDetail.academicYear} {selectedDetail.semester ? `• ${selectedDetail.semester}` : ""}
-                  </p>
-                )}
-              </div>
-            )}
-
-            <div>
-              <span className="text-[#8C7862] dark:text-[#A8957E] block text-[10px] uppercase font-bold mb-1">
-                Your Feedback
-              </span>
-              <div className="bg-[#FAF8F5] dark:bg-[#1C1916] p-3 rounded-xl text-xs leading-relaxed text-[#1A1614] dark:text-[#FAF8F5] border border-[#EAE2D8] dark:border-[#2E2822] whitespace-pre-wrap">
-                {selectedDetail.message}
-              </div>
-            </div>
-
-            {/* Official Admin Response */}
-            {selectedDetail.adminResponse?.message ? (
-              <div className="bg-emerald-50/70 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800/60 p-4 rounded-2xl text-xs space-y-1">
-                <div className="flex items-center justify-between text-emerald-800 dark:text-emerald-300 font-bold">
-                  <span className="flex items-center gap-1.5">
-                    <FaCheckCircle /> Response from PaperBridge Team
+              {selectedDetail.course && (
+                <div className="flex justify-between items-center py-1 border-b border-[#FAF8F5] dark:border-[#24201C]">
+                  <span className="text-[#8C7862]">Course & Year:</span>
+                  <span className="font-semibold text-[#1A1614] dark:text-[#FAF8F5]">
+                    {selectedDetail.course} {selectedDetail.academicYear ? `• ${selectedDetail.academicYear}` : ""}
                   </span>
-                  {selectedDetail.adminResponse.respondedAt && (
-                    <span className="text-[10px] font-normal opacity-80">
-                      {new Date(selectedDetail.adminResponse.respondedAt).toLocaleDateString("en-IN")}
-                    </span>
-                  )}
                 </div>
-                <p className="text-emerald-950 dark:text-emerald-100 leading-relaxed pt-1">
-                  {selectedDetail.adminResponse.message}
-                </p>
-              </div>
-            ) : (
-              <div className="text-center py-2 text-xs text-[#8C7862] dark:text-[#A8957E] italic">
-                Our team is currently reviewing your submission.
-              </div>
-            )}
+              )}
+              {selectedDetail.message && (
+                <div className="pt-2">
+                  <span className="text-[#8C7862] block mb-1">Your Message:</span>
+                  <p className="p-3 rounded-xl bg-[#FAF8F5] dark:bg-[#1C1916] text-[#1A1614] dark:text-[#FAF8F5] whitespace-pre-wrap">
+                    {selectedDetail.message}
+                  </p>
+                </div>
+              )}
+
+              {/* Official Response */}
+              {selectedDetail.adminResponse?.message ? (
+                <div className="p-4 rounded-2xl bg-emerald-500/10 border border-emerald-500/30">
+                  <p className="font-bold text-emerald-800 dark:text-emerald-300 text-xs mb-1">
+                    Response from PaperBridge Team:
+                  </p>
+                  <p className="text-xs text-[#1A1614] dark:text-[#FAF8F5]">
+                    {selectedDetail.adminResponse.message}
+                  </p>
+                </div>
+              ) : (
+                <div className="p-3 rounded-xl bg-[#FAF8F5] dark:bg-[#1C1916] text-[11px] text-[#8C7862] text-center">
+                  Our team is currently evaluating this submission.
+                </div>
+              )}
+            </div>
 
             <div className="pt-2 flex justify-end">
               <button
                 type="button"
                 onClick={() => setSelectedDetail(null)}
-                className="px-5 py-2 rounded-full bg-[#FAF8F5] dark:bg-[#1C1916] border border-[#EAE2D8] dark:border-[#2E2822] text-xs font-semibold text-[#1A1614] dark:text-[#FAF8F5] hover:bg-[#F4EFEA] transition cursor-pointer"
+                className="px-5 py-2 rounded-full bg-[#4A2E1B] text-white dark:bg-[#C5A059] dark:text-[#0F0E0D] text-xs font-bold"
               >
                 Close
               </button>

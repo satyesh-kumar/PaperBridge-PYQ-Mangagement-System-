@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import {
     FaDownload,
     FaExternalLinkAlt,
@@ -7,13 +8,23 @@ import {
     FaExclamationTriangle,
     FaFilePdf,
     FaCheckCircle,
+    FaFlag,
 } from "react-icons/fa";
 import { downloadPDF } from "../utils/downloadHelper";
 import { PaperAirplaneIcon } from "./PaperBridgeLogo";
 
 const API_URL = import.meta.env.VITE_API_URL || "http://localhost:5000";
 
-function PDFViewer({ fileUrl, title = "Document Preview", onClose }) {
+function PDFViewer({ 
+    fileUrl, 
+    title = "Document Preview", 
+    onClose,
+    course = "",
+    subject = "",
+    examYear = "",
+    paperId = "",
+}) {
+    const navigate = useNavigate();
     // Mode: 'native' (high-fidelity direct stream) | 'google' (Google Cloud Viewer)
     const [viewerMode, setViewerMode] = useState("native");
     const [blobUrl, setBlobUrl] = useState(null);
@@ -124,6 +135,18 @@ function PDFViewer({ fileUrl, title = "Document Preview", onClose }) {
         downloadPDF(fileUrl, title);
     };
 
+    const handleReportIssue = () => {
+        onClose?.();
+        const params = new URLSearchParams();
+        params.set("problem", "Wrong paper");
+        if (course) params.set("course", course);
+        if (subject) params.set("subject", subject);
+        if (examYear) params.set("examYear", examYear);
+        if (title) params.set("paperTitle", title);
+        if (paperId) params.set("paperId", paperId);
+        navigate(`/feedback?${params.toString()}`);
+    };
+
     // Determine active rendering source
     const activeUrl = viewerMode === "google" && googleViewerUrl
         ? googleViewerUrl
@@ -158,6 +181,17 @@ function PDFViewer({ fileUrl, title = "Document Preview", onClose }) {
                     </div>
 
                     <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
+                        {/* Report Problem button */}
+                        <button
+                            type="button"
+                            onClick={handleReportIssue}
+                            title="Report problem with this paper"
+                            className="inline-flex items-center gap-1 px-2.5 sm:px-3 py-1.5 bg-amber-500/15 hover:bg-amber-500/25 text-amber-200 border border-amber-500/30 text-[11px] sm:text-xs font-semibold rounded-full transition cursor-pointer min-h-[34px]"
+                        >
+                            <FaFlag className="text-[10px]" />
+                            <span className="hidden sm:inline">Report Issue</span>
+                        </button>
+
                         {/* Switch Viewer Engine if Google Docs is available */}
                         {isPublicInternetUrl && (
                             <button
@@ -272,6 +306,21 @@ function PDFViewer({ fileUrl, title = "Document Preview", onClose }) {
                             )}
                         </div>
                     )}
+                </div>
+
+                {/* Bottom Contextual Action Bar */}
+                <div className="px-3 sm:px-5 py-2 bg-[#211710] dark:bg-[#120F0D] text-[#C2B3A0] text-xs flex items-center justify-between border-t border-[#3D2617] dark:border-[#261E18] shrink-0 gap-2">
+                    <div className="flex items-center gap-2 truncate">
+                        <FaExclamationTriangle className="text-amber-400 shrink-0 text-xs" />
+                        <span className="truncate text-[11px] sm:text-xs">Blurry page, incorrect year, or wrong subject?</span>
+                    </div>
+                    <button
+                        type="button"
+                        onClick={handleReportIssue}
+                        className="shrink-0 text-[11px] sm:text-xs font-semibold text-amber-300 hover:text-amber-200 underline underline-offset-2 ml-2 transition cursor-pointer"
+                    >
+                        Report to PaperBridge &rarr;
+                    </button>
                 </div>
             </div>
         </div>

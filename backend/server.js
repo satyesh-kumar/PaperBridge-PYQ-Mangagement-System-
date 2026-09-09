@@ -15,7 +15,12 @@ import Course from "./models/Course.js";
 import Semester from "./models/Semester.js";
 import Subject from "./models/Subject.js";
 import Feedback from "./models/Feedback.js";
-import { sendFeedbackNotificationEmail } from "./utils/emailService.js";
+import PaperAvailability from "./models/PaperAvailability.js";
+import PaperRequest from "./models/PaperRequest.js";
+import {
+  sendFeedbackNotificationEmail,
+  sendPaperRequestNotificationEmail,
+} from "./utils/emailService.js";
 import { seedAcademicData } from "./seedAcademicData.js";
 
 dotenv.config();
@@ -2245,6 +2250,16 @@ const generateFeedbackReferenceId = async () => {
   return `PB-FB-${Date.now().toString().slice(-6)}`;
 };
 
+const generatePaperRequestReferenceId = async () => {
+  for (let i = 0; i < 15; i++) {
+    const randomNum = Math.floor(100000 + Math.random() * 900000);
+    const refId = `PB-REQ-${randomNum}`;
+    const exists = await PaperRequest.findOne({ referenceId: refId });
+    if (!exists) return refId;
+  }
+  return `PB-REQ-${Date.now().toString().slice(-6)}`;
+};
+
 const sanitizeInputText = (str) => {
   if (typeof str !== "string") return "";
   return str
@@ -2253,7 +2268,7 @@ const sanitizeInputText = (str) => {
     .trim();
 };
 
-// 1. Submit Feedback (Authenticated User)
+// 1. Submit Feedback (Streamlined 20-30s Form for Authenticated Student)
 app.post("/api/feedback", requireAuthUser, async (req, res) => {
   try {
     const userId = req.auth?.userId || req.headers["x-user-id"] || "";
@@ -2264,9 +2279,10 @@ app.post("/api/feedback", requireAuthUser, async (req, res) => {
       req.body?.userEmail ||
       ""
     ).toLowerCase().trim();
-    const userName = req.headers["x-user-name"] || req.body?.userName || "";
+    const userName = req.headers["x-user-name"] || req.body?.userName || req.body?.studentName || "";
 
     const {
+      problemType,
       feedbackType,
       relatedTo,
       studentName,
@@ -2280,32 +2296,36 @@ app.post("/api/feedback", requireAuthUser, async (req, res) => {
       subject,
       paperId,
       paperTitle,
+      examYear,
+      searchQuery,
+      source,
       rating,
       message,
       followUpRequested,
       anonymous,
     } = req.body;
 
-    // Validation: Type & Message
-    if (!feedbackType || !feedbackType.trim()) {
-      return res.status(400).json({ error: "Please select a feedback category/type." });
-    }
+    const resolvedType = (problemType || feedbackType || "General feedback").trim();
 
+    // Validation: Clean Message (Max 1000 chars as per specification)
     const cleanMessage = sanitizeInputText(message || "");
-    if (!cleanMessage || cleanMessage.length < 10) {
-      return res.status(400).json({ error: "Feedback message must contain at least 10 characters describing your experience." });
+    if (!cleanMessage || cleanMessage.length < 3) {
+      return res.status(400).json({ error: "Please enter a brief description (at least 3 characters)." });
     }
-    if (cleanMessage.length > 3000) {
-      return res.status(400).json({ error: "Feedback message cannot exceed 3000 characters." });
-    }
-
-    // Validation: Rating
-    const numRating = Number(rating);
-    if (isNaN(numRating) || numRating < 1 || numRating > 5) {
-      return res.status(400).json({ error: "Please provide a valid rating between 1 and 5 stars." });
+    if (cleanMessage.length > 1000) {
+      return res.status(400).json({ error: "Feedback message cannot exceed 1000 characters." });
     }
 
-    // Duplicate submission protection (45s debounce per user)
+    // Validation: Rating (Optional and secondary)
+    let numRating = null;
+    if (rating !== undefined && rating !== null && rating !== "") {
+      const parsedRating = Number(rating);
+      if (!isNaN(parsedRating) && parsedRating >= 1 && parsedRating <= 5) {
+        numRating = parsedRating;
+      }
+    }
+
+    // Duplicate submission protection (45s debounce per user for exact message)
     const duplicate = await Feedback.findOne({
       userId,
       message: cleanMessage,
@@ -2321,21 +2341,30 @@ app.post("/api/feedback", requireAuthUser, async (req, res) => {
     // Generate unique reference ID (e.g. PB-FB-104281)
     const referenceId = await generateFeedbackReferenceId();
 
-    // Default priority: High for critical bug/performance issues, otherwise Medium
-    const highPriorityTypes = ["Report a Bug", "Report a Problem", "Performance Issue", "Account/Login Issue"];
-    const initialPriority = highPriorityTypes.includes(feedbackType) ? "High" : "Medium";
+    // Default priority
+    const highPriorityTypes = [
+      "Report a Bug",
+      "Report a Problem",
+      "Performance Issue",
+      "Account/Login Issue",
+      "Website problem",
+      "Download problem",
+      "Wrong paper",
+    ];
+    const initialPriority = highPriorityTypes.includes(resolvedType) ? "High" : "Medium";
 
     const isAnonymous = Boolean(anonymous);
 
     const newFeedback = await Feedback.create({
       referenceId,
       userId: userId || "anonymous_user",
-      userNameSnapshot: isAnonymous ? "Anonymous Student" : sanitizeInputText(userName || "Student"),
+      userNameSnapshot: isAnonymous ? "Anonymous Student" : sanitizeInputText(studentName || userName || "Student"),
       userEmailSnapshot: isAnonymous ? "" : userEmail,
       anonymous: isAnonymous,
-      feedbackType: feedbackType.trim(),
+      feedbackType: resolvedType,
+      problemType: resolvedType,
       relatedTo: relatedTo || "Website",
-      studentName: sanitizeInputText(studentName || ""),
+      studentName: sanitizeInputText(studentName || userName || ""),
       teacherName: sanitizeInputText(teacherName || ""),
       courseId: courseId && mongoose.Types.ObjectId.isValid(courseId) ? courseId : null,
       course: sanitizeInputText(course || ""),
@@ -2346,6 +2375,9 @@ app.post("/api/feedback", requireAuthUser, async (req, res) => {
       subject: sanitizeInputText(subject || ""),
       paperId: paperId && mongoose.Types.ObjectId.isValid(paperId) ? paperId : null,
       paperTitle: sanitizeInputText(paperTitle || ""),
+      examYear: sanitizeInputText(String(examYear || "")),
+      searchQuery: sanitizeInputText(searchQuery || ""),
+      source: sanitizeInputText(source || "direct"),
       rating: numRating,
       message: cleanMessage,
       followUpRequested: Boolean(followUpRequested),
@@ -2369,10 +2401,12 @@ app.post("/api/feedback", requireAuthUser, async (req, res) => {
     res.status(201).json({
       success: true,
       message: "Your feedback has been successfully submitted to the PaperBridge team.",
+      referenceId: newFeedback.referenceId,
       feedback: {
         _id: newFeedback._id,
         referenceId: newFeedback.referenceId,
         feedbackType: newFeedback.feedbackType,
+        problemType: newFeedback.problemType,
         rating: newFeedback.rating,
         status: newFeedback.status,
         createdAt: newFeedback.createdAt,
@@ -2381,6 +2415,532 @@ app.post("/api/feedback", requireAuthUser, async (req, res) => {
   } catch (err) {
     console.error("Submit feedback error:", err);
     res.status(500).json({ error: err.message || "Failed to submit feedback" });
+  }
+});
+
+// ═════════════════════════════════════════════════════════════════════════════
+// 📄 PAPER REQUESTS & AVAILABILITY SYSTEM ENDPOINTS
+// ═════════════════════════════════════════════════════════════════════════════
+
+// 1. Submit Paper Request (Authenticated Student)
+app.post("/api/paper-requests", requireAuthUser, async (req, res) => {
+  try {
+    const userId = req.auth?.userId || req.headers["x-user-id"] || "";
+    const sessionClaims = req.auth?.sessionClaims || {};
+    const userEmail = (
+      req.headers["x-user-email"] ||
+      sessionClaims.email ||
+      req.body?.studentEmail ||
+      ""
+    ).toLowerCase().trim();
+    const studentName = req.headers["x-user-name"] || req.body?.studentName || "Student";
+
+    const {
+      course,
+      courseId,
+      academicYear,
+      subject,
+      subjectId,
+      examYear,
+      examType,
+      message,
+      notifyMe,
+    } = req.body;
+
+    if (!course || !course.trim()) {
+      return res.status(400).json({ error: "Please select or provide your course." });
+    }
+    if (!subject || !subject.trim()) {
+      return res.status(400).json({ error: "Please enter or select the subject name." });
+    }
+    if (!examYear) {
+      return res.status(400).json({ error: "Please provide the paper / exam year (e.g. 2026)." });
+    }
+
+    const cleanCourse = sanitizeInputText(course);
+    const cleanSubject = sanitizeInputText(subject);
+    const numExamYear = parseInt(examYear, 10);
+    if (isNaN(numExamYear) || numExamYear < 2000 || numExamYear > 2040) {
+      return res.status(400).json({ error: "Please enter a valid examination year between 2000 and 2040." });
+    }
+
+    const cleanMessage = sanitizeInputText(message || "");
+    if (cleanMessage.length > 1000) {
+      return res.status(400).json({ error: "Message cannot exceed 1000 characters." });
+    }
+
+    // Duplicate protection: check if same user already requested this paper
+    const existing = await PaperRequest.findOne({
+      userId,
+      course: cleanCourse,
+      subject: cleanSubject,
+      examYear: numExamYear,
+    });
+
+    if (existing) {
+      return res.status(409).json({
+        alreadyRequested: true,
+        message: "You have already requested this paper. We'll notify you when it becomes available.",
+        referenceId: existing.referenceId,
+        request: existing,
+      });
+    }
+
+    // Reference ID (e.g. PB-REQ-104281)
+    const referenceId = await generatePaperRequestReferenceId();
+
+    // Upsert or retrieve PaperAvailability entry
+    let availability = await PaperAvailability.findOne({
+      course: cleanCourse,
+      subject: cleanSubject,
+      examYear: numExamYear,
+    });
+
+    if (!availability) {
+      availability = await PaperAvailability.create({
+        courseId: courseId && mongoose.Types.ObjectId.isValid(courseId) ? courseId : null,
+        course: cleanCourse,
+        academicYear: sanitizeInputText(academicYear || "1st Year"),
+        subjectId: subjectId && mongoose.Types.ObjectId.isValid(subjectId) ? subjectId : null,
+        subject: cleanSubject,
+        examYear: numExamYear,
+        examType: sanitizeInputText(examType || "End Semester"),
+        status: "REQUESTED",
+        requestCount: 1,
+      });
+    } else {
+      availability.requestCount = (availability.requestCount || 0) + 1;
+      // Only set to REQUESTED if not already marked AVAILABLE, COMING_SOON or NOT_AVAILABLE by admin
+      if (
+        availability.status !== "AVAILABLE" &&
+        availability.status !== "COMING_SOON" &&
+        availability.status !== "NOT_AVAILABLE"
+      ) {
+        availability.status = "REQUESTED";
+      }
+      await availability.save();
+    }
+
+    const newRequest = await PaperRequest.create({
+      referenceId,
+      userId,
+      studentName: sanitizeInputText(studentName),
+      studentEmail: userEmail,
+      availabilityId: availability._id,
+      courseId: courseId && mongoose.Types.ObjectId.isValid(courseId) ? courseId : null,
+      course: cleanCourse,
+      academicYear: sanitizeInputText(academicYear || "1st Year"),
+      subjectId: subjectId && mongoose.Types.ObjectId.isValid(subjectId) ? subjectId : null,
+      subject: cleanSubject,
+      examYear: numExamYear,
+      examType: sanitizeInputText(examType || "End Semester"),
+      message: cleanMessage,
+      notifyMe: notifyMe !== false,
+      status: availability.status === "COMING_SOON" ? "COMING_SOON" : "NEW",
+    });
+
+    // Send transactional admin notification email (fault-tolerant asynchronous)
+    sendPaperRequestNotificationEmail(newRequest, availability.requestCount).catch((err) => {
+      console.warn("[EmailService] Paper request notification email warning:", err.message);
+    });
+
+    res.status(201).json({
+      success: true,
+      message: "Paper request submitted successfully! We'll work on adding this paper.",
+      referenceId: newRequest.referenceId,
+      request: newRequest,
+      availability,
+    });
+  } catch (err) {
+    if (err.code === 11000) {
+      return res.status(409).json({
+        alreadyRequested: true,
+        message: "You have already requested this paper.",
+      });
+    }
+    console.error("Submit paper request error:", err);
+    res.status(500).json({ error: err.message || "Failed to submit paper request" });
+  }
+});
+
+// 2. User's Paper Request History
+app.get("/api/paper-requests/my", requireAuthUser, async (req, res) => {
+  try {
+    const userId = req.auth?.userId;
+    const sessionClaims = req.auth?.sessionClaims || {};
+    const userEmail = (
+      req.headers["x-user-email"] ||
+      sessionClaims.email ||
+      req.query?.email ||
+      ""
+    ).toLowerCase().trim();
+
+    const queryConditions = [];
+    if (userId) queryConditions.push({ userId });
+    if (userEmail) queryConditions.push({ studentEmail: userEmail });
+
+    if (queryConditions.length === 0) return res.json([]);
+
+    const requests = await PaperRequest.find({ $or: queryConditions })
+      .select("-internalNotes")
+      .populate("availabilityId", "status requestCount adminNote expectedDate")
+      .populate("paperId", "title fileUrl academicYear year examType")
+      .sort({ createdAt: -1 });
+
+    res.json(requests);
+  } catch (err) {
+    console.error("Fetch user paper requests error:", err);
+    res.status(500).json({ error: "Failed to load paper requests" });
+  }
+});
+
+// 3. Check if user already requested a specific paper
+app.get("/api/paper-requests/check", requireAuthUser, async (req, res) => {
+  try {
+    const userId = req.auth?.userId;
+    const { course, subject, examYear } = req.query;
+
+    if (!userId || !course || !subject || !examYear) {
+      return res.json({ requested: false });
+    }
+
+    const numYear = parseInt(examYear, 10);
+    const existing = await PaperRequest.findOne({
+      userId,
+      course: course.trim(),
+      subject: subject.trim(),
+      examYear: numYear,
+    }).select("-internalNotes");
+
+    res.json({
+      requested: Boolean(existing),
+      request: existing || null,
+    });
+  } catch (err) {
+    res.json({ requested: false });
+  }
+});
+
+// 4. Public Paper Availability (for Browse & Subject pages)
+app.get("/api/paper-availability", async (req, res) => {
+  try {
+    const { course, subject, examYear, status } = req.query;
+    const filter = {};
+    if (course && course !== "All") filter.course = { $regex: course.trim(), $options: "i" };
+    if (subject && subject !== "All") filter.subject = { $regex: subject.trim(), $options: "i" };
+    if (examYear) filter.examYear = parseInt(examYear, 10);
+    if (status && status !== "All") filter.status = status;
+
+    const records = await PaperAvailability.find(filter)
+      .populate("paperId", "title fileUrl examType year academicYear")
+      .sort({ examYear: -1, requestCount: -1 });
+
+    res.json(records);
+  } catch (err) {
+    console.error("Fetch paper availability error:", err);
+    res.status(500).json({ error: "Failed to load availability records" });
+  }
+});
+
+// 5. Admin Paper Availability Management
+app.get("/api/admin/paper-availability", requireAdmin, async (req, res) => {
+  try {
+    const { status, course, search } = req.query;
+    const filter = {};
+    if (status && status !== "All" && status !== "all") filter.status = status;
+    if (course && course !== "All" && course !== "all") filter.course = { $regex: course, $options: "i" };
+    if (search && search.trim()) {
+      filter.$or = [
+        { subject: { $regex: search.trim(), $options: "i" } },
+        { course: { $regex: search.trim(), $options: "i" } },
+      ];
+    }
+
+    const records = await PaperAvailability.find(filter)
+      .populate("paperId", "title fileUrl")
+      .populate("courseId", "name code")
+      .populate("subjectId", "name code")
+      .sort({ requestCount: -1, createdAt: -1 });
+
+    res.json(records);
+  } catch (err) {
+    console.error("Admin paper availability fetch error:", err);
+    res.status(500).json({ error: "Failed to load availability records" });
+  }
+});
+
+// 6. Admin Add Expected Paper
+app.post("/api/admin/paper-availability", requireAdmin, async (req, res) => {
+  try {
+    const { course, courseId, academicYear, subject, subjectId, examYear, examType, status, adminNote } = req.body;
+    if (!course || !subject || !examYear) {
+      return res.status(400).json({ error: "Course, subject, and exam year are required." });
+    }
+
+    const cleanCourse = sanitizeInputText(course);
+    const cleanSubject = sanitizeInputText(subject);
+    const numExamYear = parseInt(examYear, 10);
+
+    let record = await PaperAvailability.findOne({
+      course: cleanCourse,
+      subject: cleanSubject,
+      examYear: numExamYear,
+    });
+
+    if (record) {
+      record.status = status || record.status;
+      if (adminNote !== undefined) record.adminNote = sanitizeInputText(adminNote);
+      await record.save();
+      return res.json({ success: true, message: "Availability record updated", record });
+    }
+
+    record = await PaperAvailability.create({
+      courseId: courseId && mongoose.Types.ObjectId.isValid(courseId) ? courseId : null,
+      course: cleanCourse,
+      academicYear: sanitizeInputText(academicYear || "1st Year"),
+      subjectId: subjectId && mongoose.Types.ObjectId.isValid(subjectId) ? subjectId : null,
+      subject: cleanSubject,
+      examYear: numExamYear,
+      examType: sanitizeInputText(examType || "End Semester"),
+      status: status || "COMING_SOON",
+      adminNote: sanitizeInputText(adminNote || ""),
+      createdBy: "admin",
+    });
+
+    res.status(201).json({ success: true, message: "Expected paper entry created", record });
+  } catch (err) {
+    console.error("Admin add paper availability error:", err);
+    res.status(500).json({ error: err.message || "Failed to create expected paper entry" });
+  }
+});
+
+// 7. Admin Update Availability Status (Coming Soon -> Available, link paper)
+app.patch("/api/admin/paper-availability/:id", requireAdmin, async (req, res) => {
+  try {
+    const { status, paperId, adminNote } = req.body;
+    const availability = await PaperAvailability.findById(req.params.id);
+    if (!availability) return res.status(404).json({ error: "Record not found" });
+
+    if (status) availability.status = status;
+    if (adminNote !== undefined) availability.adminNote = sanitizeInputText(adminNote);
+
+    if (paperId && mongoose.Types.ObjectId.isValid(paperId)) {
+      availability.paperId = paperId;
+    }
+
+    await availability.save();
+
+    // When marked AVAILABLE, cascade to update all matching student requests
+    if (status === "AVAILABLE") {
+      await PaperRequest.updateMany(
+        { availabilityId: availability._id },
+        {
+          $set: {
+            status: "AVAILABLE",
+            ...(availability.paperId ? { paperId: availability.paperId } : {}),
+          },
+        }
+      );
+    } else if (status === "COMING_SOON") {
+      await PaperRequest.updateMany(
+        { availabilityId: availability._id, status: { $ne: "AVAILABLE" } },
+        { $set: { status: "COMING_SOON" } }
+      );
+    }
+
+    res.json({ success: true, message: "Availability updated successfully", availability });
+  } catch (err) {
+    console.error("Update availability error:", err);
+    res.status(500).json({ error: "Failed to update availability" });
+  }
+});
+
+// 8. Admin Delete Availability Record
+app.delete("/api/admin/paper-availability/:id", requireAdmin, async (req, res) => {
+  try {
+    const availability = await PaperAvailability.findByIdAndDelete(req.params.id);
+    if (!availability) return res.status(404).json({ error: "Record not found" });
+    res.json({ success: true, message: "Availability record removed" });
+  } catch (err) {
+    res.status(500).json({ error: "Failed to delete availability record" });
+  }
+});
+
+// 9. Admin List All Paper Requests (Paginated, Searchable, Filterable)
+app.get("/api/admin/paper-requests", requireAdmin, async (req, res) => {
+  try {
+    const {
+      page = 1,
+      limit = 20,
+      status,
+      course,
+      search,
+      sortBy = "newest",
+    } = req.query;
+
+    const pageNum = Math.max(1, parseInt(page, 10) || 1);
+    const limitNum = Math.min(100, Math.max(1, parseInt(limit, 10) || 20));
+    const skip = (pageNum - 1) * limitNum;
+
+    const filter = {};
+    if (status && status !== "all" && status !== "All") filter.status = status;
+    if (course && course !== "all" && course !== "All") filter.course = { $regex: course, $options: "i" };
+
+    if (search && search.trim()) {
+      const q = search.trim();
+      filter.$or = [
+        { referenceId: { $regex: q, $options: "i" } },
+        { studentName: { $regex: q, $options: "i" } },
+        { studentEmail: { $regex: q, $options: "i" } },
+        { subject: { $regex: q, $options: "i" } },
+        { course: { $regex: q, $options: "i" } },
+        { message: { $regex: q, $options: "i" } },
+      ];
+    }
+
+    let sortObj = { createdAt: -1 };
+    if (sortBy === "oldest") sortObj = { createdAt: 1 };
+
+    const [requests, total, countsByStatus] = await Promise.all([
+      PaperRequest.find(filter)
+        .populate("paperId", "title fileUrl")
+        .populate("availabilityId", "status requestCount")
+        .sort(sortObj)
+        .skip(skip)
+        .limit(limitNum),
+      PaperRequest.countDocuments(filter),
+      PaperRequest.aggregate([
+        { $group: { _id: "$status", count: { $sum: 1 } } },
+      ]),
+    ]);
+
+    const statusCountsMap = {
+      all: await PaperRequest.countDocuments(),
+      new: 0,
+      inProgress: 0,
+      comingSoon: 0,
+      available: 0,
+      rejected: 0,
+      resolved: 0,
+    };
+
+    countsByStatus.forEach((item) => {
+      const k = String(item._id).toUpperCase();
+      if (k === "NEW") statusCountsMap.new = item.count;
+      else if (k === "IN_PROGRESS") statusCountsMap.inProgress = item.count;
+      else if (k === "COMING_SOON") statusCountsMap.comingSoon = item.count;
+      else if (k === "AVAILABLE") statusCountsMap.available = item.count;
+      else if (k === "REJECTED") statusCountsMap.rejected = item.count;
+      else if (k === "RESOLVED") statusCountsMap.resolved = item.count;
+    });
+
+    res.json({
+      requests,
+      total,
+      page: pageNum,
+      totalPages: Math.ceil(total / limitNum) || 1,
+      counts: statusCountsMap,
+    });
+  } catch (err) {
+    console.error("Admin paper requests fetch error:", err);
+    res.status(500).json({ error: "Failed to load paper requests" });
+  }
+});
+
+// 10. Admin Most Requested Papers (Real DB Aggregation)
+app.get("/api/admin/paper-requests/most-requested", requireAdmin, async (req, res) => {
+  try {
+    const mostRequested = await PaperRequest.aggregate([
+      {
+        $group: {
+          _id: {
+            course: "$course",
+            subject: "$subject",
+            examYear: "$examYear",
+          },
+          requestCount: { $sum: 1 },
+          uniqueStudents: { $addToSet: "$studentEmail" },
+          latestRequestAt: { $max: "$createdAt" },
+        },
+      },
+      {
+        $project: {
+          _id: 0,
+          course: "$_id.course",
+          subject: "$_id.subject",
+          examYear: "$_id.examYear",
+          requestCount: 1,
+          uniqueStudentCount: { $size: "$uniqueStudents" },
+          latestRequestAt: 1,
+        },
+      },
+      { $sort: { requestCount: -1, uniqueStudentCount: -1 } },
+      { $limit: 10 },
+    ]);
+
+    res.json(mostRequested);
+  } catch (err) {
+    console.error("Most requested papers aggregation error:", err);
+    res.status(500).json({ error: "Failed to aggregate most requested papers" });
+  }
+});
+
+// 11. Admin Update Paper Request (Status, Response, Internal Notes)
+app.patch("/api/admin/paper-requests/:id", requireAdmin, async (req, res) => {
+  try {
+    const { status, adminResponse, internalNote, paperId } = req.body;
+    const adminEmail = (
+      req.headers["x-user-email"] ||
+      req.headers["x-admin-email"] ||
+      "admin@paperbridge.com"
+    ).toLowerCase().trim();
+
+    const request = await PaperRequest.findById(req.params.id);
+    if (!request) return res.status(404).json({ error: "Paper request not found" });
+
+    if (status) request.status = status;
+    if (paperId && mongoose.Types.ObjectId.isValid(paperId)) request.paperId = paperId;
+
+    if (typeof adminResponse === "string" && adminResponse.trim()) {
+      request.adminResponse = {
+        message: sanitizeInputText(adminResponse),
+        respondedBy: adminEmail,
+        respondedAt: new Date(),
+      };
+    }
+
+    if (typeof internalNote === "string" && internalNote.trim()) {
+      request.internalNotes.push({
+        note: sanitizeInputText(internalNote),
+        author: adminEmail,
+        createdAt: new Date(),
+      });
+    }
+
+    await request.save();
+
+    res.json({ success: true, message: "Paper request updated successfully", request });
+  } catch (err) {
+    console.error("Update paper request error:", err);
+    res.status(500).json({ error: "Failed to update paper request" });
+  }
+});
+
+// 12. Admin Notification Badge Counts (Feedback + Paper Requests)
+app.get("/api/admin/notification-badge", requireAdmin, async (req, res) => {
+  try {
+    const [newFeedbackCount, newRequestCount] = await Promise.all([
+      Feedback.countDocuments({ status: "New" }),
+      PaperRequest.countDocuments({ status: "NEW" }),
+    ]);
+
+    res.json({
+      feedbackBadge: newFeedbackCount,
+      requestsBadge: newRequestCount,
+      totalPending: newFeedbackCount + newRequestCount,
+    });
+  } catch (err) {
+    res.json({ feedbackBadge: 0, requestsBadge: 0, totalPending: 0 });
   }
 });
 

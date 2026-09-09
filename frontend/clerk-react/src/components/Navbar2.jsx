@@ -330,6 +330,16 @@ function Navbar() {
             >
               Upload Paper
             </Link>
+            <Link
+              to="/feedback"
+              className={`px-3.5 py-1.5 rounded-full transition text-xs font-semibold ${
+                isActive("/feedback")
+                  ? "bg-[#EAE2D8] dark:bg-[#24201C] text-[#2B231B] dark:text-[#FAF8F5] font-bold shadow-2xs"
+                  : "hover:bg-[#F4EFEA] dark:hover:bg-[#1C1916] hover:text-[#2B231B] dark:hover:text-[#FAF8F5]"
+              }`}
+            >
+              Feedback
+            </Link>
 
             {isAdmin && (
               <Link

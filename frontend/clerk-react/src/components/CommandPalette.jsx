@@ -13,6 +13,7 @@ import {
     FaUpload,
     FaHome,
     FaShieldAlt,
+    FaCommentDots,
 } from "react-icons/fa";
 import PDFViewer from "./PDFViewer";
 
@@ -75,6 +76,7 @@ export default function CommandPalette() {
         { id: "act_notes", title: "Browse Study Notes & Summaries", type: "action", icon: FaStickyNote, path: "/notes" },
         { id: "act_upload", title: "Upload Academic Paper / Notes", type: "action", icon: FaUpload, path: "/upload" },
         { id: "act_dash", title: "Student Dashboard & Bookmarks", type: "action", icon: FaBook, path: "/dashboard" },
+        { id: "act_feedback", title: "Submit Feedback & Request Papers", type: "action", icon: FaCommentDots, path: "/feedback" },
     ];
 
     // Filter results

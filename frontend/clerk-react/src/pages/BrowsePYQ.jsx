@@ -129,6 +129,8 @@ function BrowsePYQ() {
     const searchInputRef = useRef(null);
 
     const [papers, setPapers] = useState([]);
+    const [availabilities, setAvailabilities] = useState([]);
+    const [myRequestedKeys, setMyRequestedKeys] = useState(new Set());
     const [universities, setUniversities] = useState(FALLBACK_UNIVERSITIES);
     const [courses, setCourses] = useState(FALLBACK_COURSES);
     const [semesters, setSemesters] = useState([]);
@@ -198,16 +200,22 @@ function BrowsePYQ() {
         loadAcademicEntities();
     }, []);
 
-    // Fetch papers from API
+    // Fetch papers & availability from API
     const fetchPapers = useCallback(async () => {
         setLoading(true);
         setError("");
         try {
-            const res = await axios.get(`${API_URL}/api/pyqs`, { timeout: 60000 });
-            if (Array.isArray(res.data)) {
-                setPapers(res.data);
+            const [pyqRes, availRes] = await Promise.all([
+                axios.get(`${API_URL}/api/pyqs`, { timeout: 60000 }).catch(() => ({ data: [] })),
+                axios.get(`${API_URL}/api/paper-availability`, { timeout: 30000 }).catch(() => ({ data: [] })),
+            ]);
+            if (Array.isArray(pyqRes.data)) {
+                setPapers(pyqRes.data);
             } else {
                 setPapers([]);
+            }
+            if (Array.isArray(availRes.data)) {
+                setAvailabilities(availRes.data);
             }
         } catch (err) {
             console.error("BrowsePYQ fetch error:", err);
@@ -225,6 +233,27 @@ function BrowsePYQ() {
     useEffect(() => {
         fetchPapers();
     }, [fetchPapers]);
+
+    // Check user's requested papers to prevent duplicate requests
+    const { getToken } = useAuth();
+    useEffect(() => {
+        if (!isSignedIn) return;
+        (async () => {
+            try {
+                const token = await getToken();
+                const headers = token ? { Authorization: `Bearer ${token}` } : {};
+                const res = await axios.get(`${API_URL}/api/paper-requests/my`, { headers, timeout: 10000 });
+                if (Array.isArray(res.data)) {
+                    const keys = new Set(
+                        res.data.map((r) => `${(r.course || "").toLowerCase().trim()}__${(r.subject || "").toLowerCase().trim()}__${r.examYear}`)
+                    );
+                    setMyRequestedKeys(keys);
+                }
+            } catch {
+                // ignore
+            }
+        })();
+    }, [isSignedIn, getToken]);
 
     // Keyboard shortcut '/' to search
     useEffect(() => {
@@ -503,6 +532,31 @@ function BrowsePYQ() {
         return result;
     }, [papers, debouncedSearch, universityFilter, courseFilter, semesterFilter, subjectFilter, yearFilter, examFilter, sortBy]);
 
+    // Filtered Paper Availability records (Coming Soon, Requested, Not Available)
+    const filteredAvailabilities = useMemo(() => {
+        let result = availabilities.filter((a) => a.status !== "AVAILABLE");
+
+        if (debouncedSearch) {
+            const q = debouncedSearch.toLowerCase().trim();
+            result = result.filter(
+                (a) =>
+                    (a.subject || "").toLowerCase().includes(q) ||
+                    (a.course || "").toLowerCase().includes(q) ||
+                    String(a.examYear || "").includes(q)
+            );
+        }
+
+        if (courseFilter !== "All") {
+            result = result.filter((a) => (a.course || "").toLowerCase().includes(courseFilter.toLowerCase()));
+        }
+
+        if (subjectFilter !== "All") {
+            result = result.filter((a) => (a.subject || "").toLowerCase().includes(subjectFilter.toLowerCase()));
+        }
+
+        return result;
+    }, [availabilities, debouncedSearch, courseFilter, subjectFilter]);
+
     // Active filters count
     const activeFiltersCount =
         (debouncedSearch ? 1 : 0) +
@@ -554,6 +608,10 @@ function BrowsePYQ() {
         setSelectedPdf({
             fileUrl: paper.fileUrl,
             title: `${paper.title} (${formatCourseBadge(paper.courseId?.name || paper.course)})`,
+            course: paper.courseId?.name || paper.course || "",
+            subject: paper.title || paper.subject || "",
+            examYear: paper.year || paper.examYear || "",
+            paperId: paper._id || "",
         });
     };
 
@@ -903,32 +961,126 @@ function BrowsePYQ() {
                     </div>
                 )}
 
-                {/* EMPTY STATE */}
-                {!loading && !error && filteredPapers.length === 0 && (
-                    <div className="bg-white dark:bg-[#161412] border border-[#EAE2D8] dark:border-[#2E2822] rounded-3xl p-10 sm:p-14 text-center shadow-xs max-w-lg mx-auto my-8">
+                {/* EXPECTED PAPERS & COMING SOON SECTION (Parts 16-24) */}
+                {!loading && !error && filteredAvailabilities.length > 0 && (
+                    <div className="mb-8">
+                        <div className="flex items-center justify-between mb-3 px-1">
+                            <div>
+                                <h3 className="text-sm font-serif font-bold text-[#1A1614] dark:text-[#FAF8F5] flex items-center gap-1.5">
+                                    <span>⏳</span> Expected Papers & Availability Status
+                                </h3>
+                                <p className="text-[11px] text-[#8C7862] dark:text-[#A8957E]">
+                                    Upcoming question papers requested by students or in preparation.
+                                </p>
+                            </div>
+                            <span className="text-xs font-bold text-[#8C6239] dark:text-[#E5C378]">
+                                {filteredAvailabilities.length} upcoming
+                            </span>
+                        </div>
+
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                            {filteredAvailabilities.map((item) => {
+                                const reqKey = `${(item.course || "").toLowerCase().trim()}__${(item.subject || "").toLowerCase().trim()}__${item.examYear}`;
+                                const alreadyRequested = myRequestedKeys.has(reqKey);
+                                const isComingSoon = item.status === "COMING_SOON";
+                                const isRequested = item.status === "REQUESTED";
+                                const isNotAvailable = item.status === "NOT_AVAILABLE";
+
+                                return (
+                                    <div
+                                        key={item._id}
+                                        className="bg-white dark:bg-[#161412] rounded-3xl border border-[#EAE2D8] dark:border-[#2E2822] p-5 shadow-xs flex flex-col justify-between"
+                                    >
+                                        <div>
+                                            <div className="flex items-center justify-between mb-2.5">
+                                                {isComingSoon ? (
+                                                    <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-purple-50 dark:bg-purple-950/40 text-purple-700 dark:text-purple-300 border border-purple-200 dark:border-purple-800">
+                                                        ⏳ Coming Soon
+                                                    </span>
+                                                ) : isRequested ? (
+                                                    <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800">
+                                                        📨 Requested ({item.requestCount || 1})
+                                                    </span>
+                                                ) : (
+                                                    <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-stone-100 dark:bg-stone-800 text-stone-700 dark:text-stone-300 border border-stone-200 dark:border-stone-700">
+                                                        ○ Not Available
+                                                    </span>
+                                                )}
+                                                <span className="font-semibold text-xs text-[#8C7862] dark:text-[#A8957E]">
+                                                    {item.examYear}
+                                                </span>
+                                            </div>
+
+                                            <h4 className="font-serif font-bold text-sm text-[#1A1614] dark:text-[#FAF8F5] mb-1">
+                                                {item.subject}
+                                            </h4>
+                                            <p className="text-[11px] text-[#8C7862] dark:text-[#A8957E] mb-2">
+                                                {item.course} {item.academicYear ? `• ${item.academicYear}` : ""}
+                                            </p>
+
+                                            <p className="text-[11px] text-[#6B5B49] dark:text-[#C2B3A0] italic mb-4">
+                                                {isComingSoon
+                                                    ? "We're working on adding this paper."
+                                                    : isRequested
+                                                    ? `${item.requestCount || 1} student${(item.requestCount || 1) > 1 ? "s have" : " has"} requested this paper.`
+                                                    : "This paper is currently unavailable from official sources."}
+                                            </p>
+                                        </div>
+
+                                        <div className="pt-3 border-t border-[#EAE2D8] dark:border-[#2E2822]">
+                                            {alreadyRequested ? (
+                                                <div className="text-center py-2 px-3 rounded-full bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 text-[11px] font-bold text-emerald-700 dark:text-emerald-300 flex items-center justify-center gap-1.5">
+                                                    <FaCheckCircle className="text-[10px]" />
+                                                    <span>✓ Requested</span>
+                                                </div>
+                                            ) : (
+                                                <Link
+                                                    to={`/feedback?problem=Request a paper&course=${encodeURIComponent(item.course || "")}&subject=${encodeURIComponent(item.subject || "")}&examYear=${encodeURIComponent(item.examYear || "")}`}
+                                                    className="w-full py-2 px-4 rounded-full bg-[#FAF8F5] dark:bg-[#1C1916] hover:bg-[#F4EFEA] text-[#4A3E31] dark:text-[#FAF8F5] border border-[#EAE2D8] dark:border-[#2E2822] text-[11px] font-bold text-center block transition shadow-2xs"
+                                                >
+                                                    + Request This Paper
+                                                </Link>
+                                            )}
+                                        </div>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    </div>
+                )}
+
+                {/* ZERO SEARCH RESULTS STATE (Parts 21, 22, 62) */}
+                {!loading && !error && filteredPapers.length === 0 && filteredAvailabilities.length === 0 && (
+                    <div className="bg-white dark:bg-[#161412] border border-[#EAE2D8] dark:border-[#2E2822] rounded-3xl p-8 sm:p-14 text-center shadow-xs max-w-lg mx-auto my-8 animate-in fade-in duration-200">
                         <div className="w-14 h-14 bg-[#F4EFEA] dark:bg-[#24201C] text-[#8C6239] dark:text-[#E5C378] rounded-2xl flex items-center justify-center mx-auto text-2xl mb-4 border border-[#EAE2D8] dark:border-[#2E2822]">
-                            <FaFilePdf />
+                            🔍
                         </div>
                         <h3 className="text-lg font-serif font-bold text-[#1A1614] dark:text-[#FAF8F5] mb-1">
-                            No question papers found
+                            No paper found
                         </h3>
-                        <p className="text-xs text-[#8C7862] dark:text-[#A8957E] mb-6 max-w-sm mx-auto leading-relaxed">
-                            Try changing your search query or relaxing your filters to see more previous year examination papers.
+                        <p className="text-xs text-[#8C7862] dark:text-[#A8957E] mb-3">
+                            We don't have this paper on PaperBridge yet.
                         </p>
-                        <div className="flex items-center justify-center gap-3">
+                        {debouncedSearch && (
+                            <div className="mb-5 inline-block px-3.5 py-1.5 rounded-xl bg-[#FAF8F5] dark:bg-[#1C1916] border border-[#EAE2D8] dark:border-[#2E2822] text-xs">
+                                <span className="text-[#8C7862] dark:text-[#A8957E]">Looking for: </span>
+                                <strong className="text-[#1A1614] dark:text-[#FAF8F5]">"{debouncedSearch}"</strong>
+                            </div>
+                        )}
+                        <div className="flex flex-wrap items-center justify-center gap-3">
+                            <Link
+                                to={`/feedback?problem=Paper not found&query=${encodeURIComponent(debouncedSearch || "")}&course=${encodeURIComponent(courseFilter !== "All" ? courseFilter : "")}&subject=${encodeURIComponent(subjectFilter !== "All" ? subjectFilter : "")}`}
+                                className="px-6 py-2.5 bg-[#4A2E1B] hover:bg-[#331F12] dark:bg-[#C5A059] dark:hover:bg-[#E5C378] text-white dark:text-[#0D1B2A] text-xs font-bold rounded-full transition shadow-xs flex items-center gap-1.5"
+                            >
+                                <span>+ Request This Paper</span>
+                            </Link>
                             <button
                                 type="button"
                                 onClick={clearAllFilters}
-                                className="px-5 py-2.5 bg-[#4A2E1B] hover:bg-[#331F12] dark:bg-[#C5A059] dark:hover:bg-[#E5C378] text-white dark:text-[#0D1B2A] text-xs font-bold rounded-full transition shadow-xs cursor-pointer min-h-[40px]"
+                                className="px-5 py-2.5 bg-[#FAF8F5] dark:bg-[#1C1916] hover:bg-[#F4EFEA] text-[#4A3E31] dark:text-[#FAF8F5] border border-[#EAE2D8] dark:border-[#2E2822] text-xs font-bold rounded-full transition cursor-pointer"
                             >
                                 Clear All Filters
                             </button>
-                            <Link
-                                to="/upload"
-                                className="px-5 py-2.5 bg-[#FAF8F5] dark:bg-[#1C1916] hover:bg-[#F4EFEA] text-[#4A3E31] dark:text-[#FAF8F5] border border-[#EAE2D8] dark:border-[#2E2822] text-xs font-bold rounded-full transition shadow-2xs min-h-[40px] flex items-center"
-                            >
-                                + Upload Paper
-                            </Link>
                         </div>
                     </div>
                 )}
@@ -1288,6 +1440,10 @@ function BrowsePYQ() {
                 <PDFViewer
                     fileUrl={selectedPdf.fileUrl}
                     title={selectedPdf.title}
+                    course={selectedPdf.course}
+                    subject={selectedPdf.subject}
+                    examYear={selectedPdf.examYear}
+                    paperId={selectedPdf.paperId}
                     onClose={() => setSelectedPdf(null)}
                 />
             )}

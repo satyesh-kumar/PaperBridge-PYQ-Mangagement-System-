@@ -77,6 +77,7 @@ function Dashboard() {
     const [myPapers, setMyPapers] = useState([]);
     const [myNotes, setMyNotes] = useState([]);
     const [myFeedbacks, setMyFeedbacks] = useState([]);
+    const [myRequests, setMyRequests] = useState([]);
     const [bookmarks, setBookmarks] = useState(getBookmarks());
     const [allPapersCount, setAllPapersCount] = useState(0);
     const [allNotesCount, setAllNotesCount] = useState(0);
@@ -122,17 +123,19 @@ function Dashboard() {
                 ...(token ? { Authorization: `Bearer ${token}` } : {}),
             };
 
-            const [myRes, notesRes, allRes, allNotesRes, feedbackRes] = await Promise.all([
+            const [myRes, notesRes, allRes, allNotesRes, feedbackRes, requestRes] = await Promise.all([
                 axios.get(`${API_URL}/api/my-pyqs?email=${encodeURIComponent(userEmail)}&userId=${encodeURIComponent(userId)}`, { headers: authHeaders, timeout: 20000 }).catch(() => ({ data: [] })),
                 axios.get(`${API_URL}/api/my-notes?email=${encodeURIComponent(userEmail)}&userId=${encodeURIComponent(userId)}`, { headers: authHeaders, timeout: 20000 }).catch(() => ({ data: [] })),
                 axios.get(`${API_URL}/api/pyqs`, { timeout: 20000 }).catch(() => ({ data: [] })),
                 axios.get(`${API_URL}/api/notes`, { timeout: 20000 }).catch(() => ({ data: [] })),
                 axios.get(`${API_URL}/api/feedback/my`, { headers: authHeaders, timeout: 20000 }).catch(() => ({ data: [] })),
+                axios.get(`${API_URL}/api/paper-requests/my`, { headers: authHeaders, timeout: 20000 }).catch(() => ({ data: [] })),
             ]);
 
             setMyPapers(Array.isArray(myRes.data) ? myRes.data : []);
             setMyNotes(Array.isArray(notesRes.data) ? notesRes.data : []);
             setMyFeedbacks(Array.isArray(feedbackRes.data) ? feedbackRes.data : []);
+            setMyRequests(Array.isArray(requestRes.data) ? requestRes.data : []);
             setAllPapersCount(Array.isArray(allRes.data) ? allRes.data.length : 0);
             setAllNotesCount(Array.isArray(allNotesRes.data) ? allNotesRes.data.length : 0);
         } catch (err) {
@@ -257,6 +260,29 @@ function Dashboard() {
                     />
                 </div>
 
+                {/* Prominent Feedback CTA Card (Part 2 & Part 72) */}
+                <div className="bg-gradient-to-r from-[#FAF8F5] to-[#F4EFEA] dark:from-[#1A1714] dark:to-[#161412] border border-[#EAE2D8] dark:border-[#2E2822] rounded-2xl sm:rounded-3xl p-4 sm:p-5 mb-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-2xs">
+                    <div className="flex items-start sm:items-center gap-3.5">
+                        <div className="w-10 h-10 rounded-2xl bg-[#F4EFEA] dark:bg-[#24201C] text-[#8C6239] dark:text-[#E5C378] flex items-center justify-center text-lg shrink-0 border border-[#EAE2D8] dark:border-[#2E2822]">
+                            💬
+                        </div>
+                        <div>
+                            <h3 className="font-serif font-bold text-sm sm:text-base text-[#1A1614] dark:text-[#FAF8F5]">
+                                Help improve PaperBridge
+                            </h3>
+                            <p className="text-xs text-[#8C7862] dark:text-[#A8957E] mt-0.5">
+                                Can't find your paper? Found a mistake? Want us to add something? Tell us in 20 seconds.
+                            </p>
+                        </div>
+                    </div>
+                    <Link
+                        to="/feedback"
+                        className="w-full sm:w-auto text-center px-5 py-2.5 rounded-full bg-[#4A2E1B] hover:bg-[#331F12] dark:bg-[#C5A059] dark:hover:bg-[#E5C378] text-white dark:text-[#0F0E0D] text-xs font-bold shadow-xs shrink-0 transition whitespace-nowrap"
+                    >
+                        Give Feedback →
+                    </Link>
+                </div>
+
                 {/* Quick Actions — Responsive Grid */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-3 mb-6 sm:mb-8">
                     {[
@@ -281,10 +307,10 @@ function Dashboard() {
                     <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 mb-5 border-b border-[#EAE2D8] dark:border-[#2E2822] pb-4">
                         <div>
                             <h2 className="text-lg font-serif font-bold text-[#1A1614] dark:text-[#FAF8F5]">
-                                My Uploads & Review Status
+                                My Activity & Submissions
                             </h2>
                             <p className="text-xs text-[#8C7862] dark:text-[#A8957E]">
-                                Direct access to your uploaded papers, review feedback, and saved bookmarks.
+                                Access your uploads, paper requests, review feedback, and saved bookmarks.
                             </p>
                         </div>
 
@@ -300,6 +326,17 @@ function Dashboard() {
                                 }`}
                             >
                                 <FaFilePdf className="text-xs" /> Question Papers ({myPapers.length})
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => setActiveTab("requests")}
+                                className={`px-3.5 sm:px-4 py-1.5 rounded-full text-xs font-semibold transition flex items-center gap-1.5 shrink-0 cursor-pointer min-h-[34px] ${
+                                    activeTab === "requests"
+                                        ? "bg-white dark:bg-[#24201C] text-[#4A2E1B] dark:text-[#E5C378] shadow-2xs font-bold"
+                                        : "text-[#8C7862] hover:text-[#2B231B] dark:hover:text-white"
+                                }`}
+                            >
+                                <span>📄</span> Paper Requests ({myRequests.length})
                             </button>
                             <button
                                 type="button"
@@ -321,7 +358,7 @@ function Dashboard() {
                                         : "text-[#8C7862] hover:text-[#2B231B] dark:hover:text-white"
                                 }`}
                             >
-                                <FaBookmark className="text-amber-500 text-xs" /> Saved Bookmarks ({bookmarks.length})
+                                <FaBookmark className="text-amber-500 text-xs" /> Bookmarks ({bookmarks.length})
                             </button>
                             <button
                                 type="button"
@@ -332,7 +369,7 @@ function Dashboard() {
                                         : "text-[#8C7862] hover:text-[#2B231B] dark:hover:text-white"
                                 }`}
                             >
-                                <FaCommentDots className="text-xs" /> My Feedback ({myFeedbacks.length})
+                                <FaCommentDots className="text-xs" /> Feedback ({myFeedbacks.length})
                             </button>
                         </div>
                     </div>
@@ -607,6 +644,125 @@ function Dashboard() {
                                             </div>
                                         </div>
                                     ))}
+                                </div>
+                            )}
+                        </>
+                    )}
+
+                    {/* TAB: MY PAPER REQUESTS (Part 31) */}
+                    {!loading && activeTab === "requests" && (
+                        <>
+                            <div className="flex items-center justify-between mb-4">
+                                <p className="text-xs text-[#8C7862] dark:text-[#A8957E]">
+                                    Previous year question papers you've requested from the PaperBridge community.
+                                </p>
+                                <Link
+                                    to="/feedback?problem=Request a paper"
+                                    className="inline-flex items-center gap-1.5 px-4 py-1.5 rounded-full bg-[#4A2E1B] hover:bg-[#331F12] dark:bg-[#C5A059] dark:hover:bg-[#E5C378] text-white dark:text-[#0F0E0D] text-xs font-bold shadow-xs transition"
+                                >
+                                    + Request Another Paper
+                                </Link>
+                            </div>
+
+                            {myRequests.length === 0 ? (
+                                <div className="bg-white dark:bg-[#161412] rounded-3xl border border-[#EAE2D8] dark:border-[#2E2822] p-8 sm:p-12 text-center shadow-xs">
+                                    <div className="w-12 h-12 rounded-2xl bg-[#F4EFEA] dark:bg-[#24201C] text-[#8C6239] dark:text-[#E5C378] flex items-center justify-center text-xl mx-auto mb-3">
+                                        <FaFilePdf />
+                                    </div>
+                                    <h3 className="text-base font-serif font-bold text-[#1A1614] dark:text-[#FAF8F5] mb-1">
+                                        No paper requests yet
+                                    </h3>
+                                    <p className="text-xs text-[#8C7862] dark:text-[#A8957E] max-w-sm mx-auto mb-5">
+                                        Can't find an exam paper you need? Request it in 20 seconds and we'll track down and add it.
+                                    </p>
+                                    <Link
+                                        to="/feedback?problem=Request a paper"
+                                        className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full bg-[#4A2E1B] hover:bg-[#331F12] dark:bg-[#C5A059] dark:hover:bg-[#E5C378] text-white dark:text-[#0F0E0D] text-xs font-bold transition shadow-xs"
+                                    >
+                                        + Request a Missing Paper
+                                    </Link>
+                                </div>
+                            ) : (
+                                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                                    {myRequests.map((req) => {
+                                        const isAvailable = req.status === "AVAILABLE" || req.availabilityId?.status === "AVAILABLE" || req.paperId;
+                                        const isComingSoon = req.status === "COMING_SOON" || req.availabilityId?.status === "COMING_SOON";
+                                        const isNotAvailable = req.status === "REJECTED" || req.availabilityId?.status === "NOT_AVAILABLE";
+
+                                        return (
+                                            <div
+                                                key={req._id}
+                                                className="bg-white dark:bg-[#161412] border border-[#EAE2D8] dark:border-[#2E2822] rounded-3xl p-5 shadow-xs flex flex-col justify-between"
+                                            >
+                                                <div>
+                                                    <div className="flex items-center justify-between mb-3">
+                                                        <span className="font-mono text-[11px] font-bold text-[#4A2E1B] dark:text-[#E5C378]">
+                                                            {req.referenceId}
+                                                        </span>
+                                                        {isAvailable ? (
+                                                            <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-emerald-50 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 flex items-center gap-1">
+                                                                <FaCheckCircle className="text-[10px]" /> Available
+                                                            </span>
+                                                        ) : isComingSoon ? (
+                                                            <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-purple-50 dark:bg-purple-950/50 text-purple-700 dark:text-purple-300 border border-purple-200 dark:border-purple-800">
+                                                                ⏳ Coming Soon
+                                                            </span>
+                                                        ) : isNotAvailable ? (
+                                                            <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-stone-100 dark:bg-stone-800 text-stone-700 dark:text-stone-300 border border-stone-200 dark:border-stone-700">
+                                                                ○ Not Available
+                                                            </span>
+                                                        ) : (
+                                                            <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-blue-50 dark:bg-blue-950/50 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800">
+                                                                📨 Requested
+                                                            </span>
+                                                        )}
+                                                    </div>
+
+                                                    <h3 className="font-serif font-bold text-sm text-[#1A1614] dark:text-[#FAF8F5] mb-1">
+                                                        {req.subject} {req.examYear}
+                                                    </h3>
+                                                    <p className="text-[11px] text-[#8C7862] dark:text-[#A8957E] mb-3">
+                                                        {req.course} • {req.academicYear || "All Semesters"}
+                                                    </p>
+
+                                                    {/* Explanatory subtitle based on status */}
+                                                    <p className="text-[11px] text-[#6B5B49] dark:text-[#C2B3A0] mb-4 italic">
+                                                        {isAvailable
+                                                            ? "Great news! This paper has been uploaded and is ready to view."
+                                                            : isComingSoon
+                                                            ? "We're working on adding this paper."
+                                                            : isNotAvailable
+                                                            ? "This paper is currently unavailable from official sources."
+                                                            : "Your request is registered. We'll update the community soon."}
+                                                    </p>
+
+                                                    {req.adminResponse?.message && (
+                                                        <div className="p-2.5 rounded-xl bg-emerald-50/50 dark:bg-emerald-950/30 border border-emerald-500/20 text-[11px] text-[#1A1614] dark:text-[#FAF8F5] mb-3">
+                                                            <strong>Team note:</strong> {req.adminResponse.message}
+                                                        </div>
+                                                    )}
+                                                </div>
+
+                                                <div className="pt-3 border-t border-[#EAE2D8] dark:border-[#2E2822] flex items-center justify-between text-xs">
+                                                    <span className="text-[11px] text-[#8C7862]">
+                                                        {new Date(req.createdAt).toLocaleDateString("en-IN", { month: "short", day: "numeric", year: "numeric" })}
+                                                    </span>
+                                                    {isAvailable && req.paperId?.fileUrl && (
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => setSelectedPdf({
+                                                                fileUrl: req.paperId.fileUrl,
+                                                                title: `${req.subject} ${req.examYear}`,
+                                                            })}
+                                                            className="px-3.5 py-1.5 rounded-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[11px] inline-flex items-center gap-1.5 shadow-2xs transition"
+                                                        >
+                                                            <FaEye className="text-[10px]" /> View Paper
+                                                        </button>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        );
+                                    })}
                                 </div>
                             )}
                         </>

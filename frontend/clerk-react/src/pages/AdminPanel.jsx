@@ -37,6 +37,11 @@ import {
     FaCheckDouble,
     FaUserSecret,
     FaChartBar,
+    FaQuestionCircle,
+    FaInbox,
+    FaHourglassHalf,
+    FaCalendarAlt,
+    FaPaperPlane,
 } from "react-icons/fa";
 import toast from "react-hot-toast";
 import confetti from "canvas-confetti";
@@ -156,6 +161,41 @@ export default function AdminPanel() {
     const [adminResponseInput, setAdminResponseInput] = useState("");
     const [internalNoteInput, setInternalNoteInput] = useState("");
     const [feedbackUpdating, setFeedbackUpdating] = useState(false);
+
+    // ── FEEDBACK & REQUEST SUB-TABS & BADGES ─────────────────────────────────
+    const [feedbackSubTab, setFeedbackSubTab] = useState("submissions"); // "submissions" | "requests" | "availability"
+    const [notificationBadge, setNotificationBadge] = useState({ pendingFeedback: 0, pendingPaperRequests: 0, totalPending: 0 });
+
+    // Paper Requests State
+    const [paperRequests, setPaperRequests] = useState([]);
+    const [paperRequestsLoading, setPaperRequestsLoading] = useState(false);
+    const [paperRequestsTotal, setPaperRequestsTotal] = useState(0);
+    const [paperRequestsTotalPages, setPaperRequestsTotalPages] = useState(1);
+    const [paperRequestsPage, setPaperRequestsPage] = useState(1);
+    const [reqStatusFilter, setReqStatusFilter] = useState("all");
+    const [reqCourseFilter, setReqCourseFilter] = useState("all");
+    const [reqSearch, setReqSearch] = useState("");
+    const [mostRequested, setMostRequested] = useState([]);
+    const [selectedRequest, setSelectedRequest] = useState(null);
+    const [reqResponseInput, setReqResponseInput] = useState("");
+    const [reqInternalNoteInput, setReqInternalNoteInput] = useState("");
+    const [reqUpdating, setReqUpdating] = useState(false);
+
+    // Paper Availability State
+    const [availabilities, setAvailabilities] = useState([]);
+    const [availabilitiesLoading, setAvailabilitiesLoading] = useState(false);
+    const [availStatusFilter, setAvailStatusFilter] = useState("all");
+    const [availCourseFilter, setAvailCourseFilter] = useState("all");
+    const [availModalOpen, setAvailModalOpen] = useState(false);
+    const [editingAvail, setEditingAvail] = useState(null);
+    const [availForm, setAvailForm] = useState({
+        course: "B.Tech Computer Science and Engineering",
+        academicYear: "2024-25",
+        subject: "",
+        examYear: "2024",
+        status: "COMING_SOON",
+        adminNote: "",
+    });
 
     // Selection for bulk moderation
     const [selectedIds, setSelectedIds] = useState(new Set());
@@ -759,12 +799,205 @@ export default function AdminPanel() {
         }
     }, [getAuthHeaders, fbStatusFilter, fbPriorityFilter, fbTypeFilter, fbCourseFilter, fbRatingFilter, fbSearch, fbSort]);
 
+    // Fetch notification badge counts
+    const fetchNotificationBadge = useCallback(async () => {
+        try {
+            const headers = await getAuthHeaders();
+            const res = await axios.get(`${API_URL}/api/admin/notification-badge`, { headers, timeout: 15000 });
+            if (res.data) setNotificationBadge(res.data);
+        } catch {
+            // ignore
+        }
+    }, [getAuthHeaders]);
+
+    // Fetch paper requests
+    const fetchPaperRequests = useCallback(async (page = 1) => {
+        try {
+            setPaperRequestsLoading(true);
+            const headers = await getAuthHeaders();
+            const params = new URLSearchParams();
+            if (reqStatusFilter !== "all") params.append("status", reqStatusFilter);
+            if (reqCourseFilter !== "all") params.append("course", reqCourseFilter);
+            if (reqSearch.trim()) params.append("search", reqSearch.trim());
+            params.append("page", page);
+            params.append("limit", "20");
+
+            const [reqRes, mostRes] = await Promise.all([
+                axios.get(`${API_URL}/api/admin/paper-requests?${params.toString()}`, { headers, timeout: 20000 }),
+                axios.get(`${API_URL}/api/admin/paper-requests/most-requested`, { headers, timeout: 20000 }).catch(() => ({ data: [] })),
+            ]);
+
+            if (reqRes.data) {
+                setPaperRequests(reqRes.data.requests || []);
+                setPaperRequestsTotal(reqRes.data.total || 0);
+                setPaperRequestsTotalPages(reqRes.data.totalPages || 1);
+                setPaperRequestsPage(reqRes.data.page || 1);
+            }
+            if (Array.isArray(mostRes.data)) {
+                setMostRequested(mostRes.data);
+            }
+        } catch (err) {
+            console.warn("Could not load paper requests:", err.message);
+        } finally {
+            setPaperRequestsLoading(false);
+        }
+    }, [getAuthHeaders, reqStatusFilter, reqCourseFilter, reqSearch]);
+
+    // Fetch expected paper availabilities
+    const fetchAvailabilities = useCallback(async () => {
+        try {
+            setAvailabilitiesLoading(true);
+            const headers = await getAuthHeaders();
+            const params = new URLSearchParams();
+            if (availStatusFilter !== "all") params.append("status", availStatusFilter);
+            if (availCourseFilter !== "all") params.append("course", availCourseFilter);
+
+            const res = await axios.get(`${API_URL}/api/admin/paper-availability?${params.toString()}`, { headers, timeout: 20000 });
+            if (Array.isArray(res.data)) {
+                setAvailabilities(res.data);
+            }
+        } catch (err) {
+            console.warn("Could not load paper availabilities:", err.message);
+        } finally {
+            setAvailabilitiesLoading(false);
+        }
+    }, [getAuthHeaders, availStatusFilter, availCourseFilter]);
+
+    // Initial badge load
+    useEffect(() => {
+        fetchNotificationBadge();
+    }, [fetchNotificationBadge]);
+
     // Fetch feedback data when activeTab becomes 'feedback' or filters change
     useEffect(() => {
         if (activeTab === "feedback") {
-            fetchFeedbackData(feedbackPage);
+            fetchNotificationBadge();
+            if (feedbackSubTab === "submissions") {
+                fetchFeedbackData(feedbackPage);
+            } else if (feedbackSubTab === "requests") {
+                fetchPaperRequests(paperRequestsPage);
+            } else if (feedbackSubTab === "availability") {
+                fetchAvailabilities();
+            }
         }
-    }, [activeTab, fbStatusFilter, fbPriorityFilter, fbTypeFilter, fbCourseFilter, fbRatingFilter, fbSearch, fbSort, feedbackPage, fetchFeedbackData]);
+    }, [
+        activeTab,
+        feedbackSubTab,
+        fbStatusFilter,
+        fbPriorityFilter,
+        fbTypeFilter,
+        fbCourseFilter,
+        fbRatingFilter,
+        fbSearch,
+        fbSort,
+        feedbackPage,
+        fetchFeedbackData,
+        reqStatusFilter,
+        reqCourseFilter,
+        reqSearch,
+        paperRequestsPage,
+        fetchPaperRequests,
+        availStatusFilter,
+        availCourseFilter,
+        fetchAvailabilities,
+        fetchNotificationBadge,
+    ]);
+
+    const handleUpdateRequestStatus = async (requestId, newStatus) => {
+        try {
+            setReqUpdating(true);
+            const headers = await getAuthHeaders();
+            const res = await axios.patch(
+                `${API_URL}/api/admin/paper-requests/${requestId}`,
+                { status: newStatus },
+                { headers }
+            );
+            toast.success(`Request marked as '${newStatus}'`);
+            fetchPaperRequests(paperRequestsPage);
+            fetchNotificationBadge();
+            if (selectedRequest?._id === requestId) {
+                setSelectedRequest(res.data.request);
+            }
+        } catch {
+            toast.error("Failed to update request status");
+        } finally {
+            setReqUpdating(false);
+        }
+    };
+
+    const handleSaveRequestResponse = async (requestId) => {
+        if (!reqResponseInput.trim() && !reqInternalNoteInput.trim()) {
+            toast.error("Please enter a response or internal note before saving.");
+            return;
+        }
+        try {
+            setReqUpdating(true);
+            const headers = await getAuthHeaders();
+            const body = {};
+            if (reqResponseInput.trim()) body.adminResponse = reqResponseInput.trim();
+            if (reqInternalNoteInput.trim()) body.internalNotes = reqInternalNoteInput.trim();
+
+            const res = await axios.patch(
+                `${API_URL}/api/admin/paper-requests/${requestId}`,
+                body,
+                { headers }
+            );
+            toast.success("Response saved successfully!");
+            setReqResponseInput("");
+            setReqInternalNoteInput("");
+            fetchPaperRequests(paperRequestsPage);
+            if (selectedRequest?._id === requestId) {
+                setSelectedRequest(res.data.request);
+            }
+        } catch {
+            toast.error("Failed to save response");
+        } finally {
+            setReqUpdating(false);
+        }
+    };
+
+    const handleSaveAvailability = async (e) => {
+        e.preventDefault();
+        try {
+            const headers = await getAuthHeaders();
+            if (editingAvail) {
+                await axios.patch(`${API_URL}/api/admin/paper-availability/${editingAvail._id}`, availForm, { headers });
+                toast.success("Availability updated successfully!");
+            } else {
+                await axios.post(`${API_URL}/api/admin/paper-availability`, availForm, { headers });
+                toast.success("Expected paper availability added!");
+            }
+            setAvailModalOpen(false);
+            setEditingAvail(null);
+            fetchAvailabilities();
+        } catch (err) {
+            toast.error(err.response?.data?.message || "Failed to save availability item");
+        }
+    };
+
+    const handleChangeAvailabilityStatus = async (id, newStatus) => {
+        try {
+            const headers = await getAuthHeaders();
+            await axios.patch(`${API_URL}/api/admin/paper-availability/${id}`, { status: newStatus }, { headers });
+            toast.success(`Availability changed to '${newStatus}'`);
+            fetchAvailabilities();
+            fetchPaperRequests(paperRequestsPage);
+        } catch {
+            toast.error("Failed to update status");
+        }
+    };
+
+    const handleDeleteAvailability = async (id) => {
+        if (!window.confirm("Remove this expected paper entry from the availability tracker?")) return;
+        try {
+            const headers = await getAuthHeaders();
+            await axios.delete(`${API_URL}/api/admin/paper-availability/${id}`, { headers });
+            toast.success("Availability record removed");
+            fetchAvailabilities();
+        } catch {
+            toast.error("Failed to delete record");
+        }
+    };
 
     // Deep link handling (e.g. ?tab=feedback&id=...)
     useEffect(() => {
@@ -932,10 +1165,12 @@ export default function AdminPanel() {
         { id: "users", label: "Registered Users", icon: <FaUsers />, count: users.length },
         {
             id: "feedback",
-            label: "Feedback",
+            label: "Feedback & Requests",
             icon: <FaComments />,
-            count: feedbackStats?.totalCount !== undefined ? feedbackStats.totalCount : feedbacks.length,
-            alert: (feedbackStats?.newCount || 0) > 0,
+            count: notificationBadge.totalPending > 0
+                ? notificationBadge.totalPending
+                : (feedbackStats?.totalCount !== undefined ? feedbackStats.totalCount : feedbacks.length),
+            alert: notificationBadge.totalPending > 0 || (feedbackStats?.newCount || 0) > 0,
         },
     ];
 
@@ -1994,36 +2229,128 @@ export default function AdminPanel() {
                                     <div>
                                         <div className="flex items-center gap-2">
                                             <h2 className="text-xl font-serif font-bold text-[#0D1B2A] dark:text-[#FAF8F5]">
-                                                Feedback & Suggestions
+                                                Feedback, Requests & Paper Availability
                                             </h2>
                                             <span className="px-2.5 py-0.5 rounded-full bg-[#F4EFEA] dark:bg-[#24201C] text-[#8C6239] dark:text-[#E5C378] text-[10px] font-bold uppercase border border-[#DDD2C4] dark:border-[#2E2822]">
-                                                Community Voice
+                                                Admin Control
                                             </span>
                                         </div>
                                         <p className="text-xs text-[#8C7862] dark:text-[#A8957E] mt-0.5">
-                                            Review and manage suggestions, bug reports, and user experience feedback from students and teachers.
+                                            Track and address student feedback, missing paper requests, and schedule expected question papers.
                                         </p>
                                     </div>
                                     <div className="flex items-center gap-2">
                                         <button
                                             type="button"
-                                            onClick={() => fetchFeedbackData(feedbackPage)}
+                                            onClick={() => {
+                                                fetchNotificationBadge();
+                                                if (feedbackSubTab === "submissions") fetchFeedbackData(feedbackPage);
+                                                if (feedbackSubTab === "requests") fetchPaperRequests(paperRequestsPage);
+                                                if (feedbackSubTab === "availability") fetchAvailabilities();
+                                            }}
                                             className="p-2.5 rounded-full bg-white dark:bg-[#1C1916] text-[#4A3E31] dark:text-[#FAF8F5] border border-[#EAE2D8] dark:border-[#2E2822] hover:bg-[#FAF8F5] transition cursor-pointer shadow-2xs"
-                                            title="Refresh feedback list"
+                                            title="Refresh current tab"
                                         >
-                                            <FaSyncAlt className={`text-xs ${feedbackLoading ? "animate-spin" : ""}`} />
+                                            <FaSyncAlt className={`text-xs ${feedbackLoading || paperRequestsLoading || availabilitiesLoading ? "animate-spin" : ""}`} />
                                         </button>
-                                        <button
-                                            type="button"
-                                            onClick={handleExportFeedbackCSV}
-                                            className="inline-flex items-center gap-1.5 px-4 py-2 rounded-full bg-white dark:bg-[#1C1916] text-[#4A3E31] dark:text-[#FAF8F5] border border-[#EAE2D8] dark:border-[#2E2822] text-xs font-semibold hover:bg-[#FAF8F5] transition shadow-2xs cursor-pointer"
-                                        >
-                                            <FaFileCsv className="text-emerald-600" /> Export CSV
-                                        </button>
+                                        {feedbackSubTab === "submissions" && (
+                                            <button
+                                                type="button"
+                                                onClick={handleExportFeedbackCSV}
+                                                className="inline-flex items-center gap-1.5 px-4 py-2 rounded-full bg-white dark:bg-[#1C1916] text-[#4A3E31] dark:text-[#FAF8F5] border border-[#EAE2D8] dark:border-[#2E2822] text-xs font-semibold hover:bg-[#FAF8F5] transition shadow-2xs cursor-pointer"
+                                            >
+                                                <FaFileCsv className="text-emerald-600" /> Export CSV
+                                            </button>
+                                        )}
+                                        {feedbackSubTab === "availability" && (
+                                            <button
+                                                type="button"
+                                                onClick={() => {
+                                                    setEditingAvail(null);
+                                                    setAvailForm({
+                                                        course: courses[0]?.name || "B.Tech Computer Science and Engineering",
+                                                        academicYear: "2024-25",
+                                                        subject: "",
+                                                        examYear: "2024",
+                                                        status: "COMING_SOON",
+                                                        adminNote: "",
+                                                    });
+                                                    setAvailModalOpen(true);
+                                                }}
+                                                className="inline-flex items-center gap-1.5 px-4 py-2 rounded-full bg-[#0D1B2A] hover:bg-[#1E293B] text-white dark:bg-[#C89D5C] dark:hover:bg-[#E5C378] dark:text-[#0D1B2A] text-xs font-bold transition shadow-xs cursor-pointer"
+                                            >
+                                                <FaPlus className="text-xs" /> Add Expected Paper
+                                            </button>
+                                        )}
                                     </div>
                                 </div>
 
-                                {/* 6 Top Statistics Overview Cards */}
+                                {/* Sub-navigation Tabs */}
+                                <div className="flex items-center gap-2 border-b border-[#EAE2D8] dark:border-[#2E2822] pb-3 overflow-x-auto no-scrollbar">
+                                    <button
+                                        type="button"
+                                        onClick={() => setFeedbackSubTab("submissions")}
+                                        className={`inline-flex items-center gap-2 px-4 py-2 rounded-full text-xs font-semibold transition shrink-0 cursor-pointer ${
+                                            feedbackSubTab === "submissions"
+                                                ? "bg-[#0D1B2A] text-white dark:bg-[#C89D5C] dark:text-[#0D1B2A] font-bold shadow-xs"
+                                                : "bg-white dark:bg-[#161412] text-[#6B5B49] dark:text-[#C2B3A0] border border-[#EAE2D8] dark:border-[#2E2822] hover:bg-[#F4EFEA]"
+                                        }`}
+                                    >
+                                        <FaComments className="text-xs" />
+                                        <span>Student Feedback</span>
+                                        <span className="px-2 py-0.5 rounded-full text-[10px] bg-black/10 dark:bg-white/20">
+                                            {feedbackStats?.totalCount ?? feedbackTotal}
+                                        </span>
+                                    </button>
+
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            setFeedbackSubTab("requests");
+                                            fetchPaperRequests(1);
+                                        }}
+                                        className={`inline-flex items-center gap-2 px-4 py-2 rounded-full text-xs font-semibold transition shrink-0 cursor-pointer ${
+                                            feedbackSubTab === "requests"
+                                                ? "bg-[#0D1B2A] text-white dark:bg-[#C89D5C] dark:text-[#0D1B2A] font-bold shadow-xs"
+                                                : "bg-white dark:bg-[#161412] text-[#6B5B49] dark:text-[#C2B3A0] border border-[#EAE2D8] dark:border-[#2E2822] hover:bg-[#F4EFEA]"
+                                        }`}
+                                    >
+                                        <FaPaperPlane className="text-xs" />
+                                        <span>Paper Requests</span>
+                                        {notificationBadge.pendingPaperRequests > 0 ? (
+                                            <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-500 text-white animate-pulse">
+                                                {notificationBadge.pendingPaperRequests} new
+                                            </span>
+                                        ) : (
+                                            <span className="px-2 py-0.5 rounded-full text-[10px] bg-black/10 dark:bg-white/20">
+                                                {paperRequestsTotal}
+                                            </span>
+                                        )}
+                                    </button>
+
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            setFeedbackSubTab("availability");
+                                            fetchAvailabilities();
+                                        }}
+                                        className={`inline-flex items-center gap-2 px-4 py-2 rounded-full text-xs font-semibold transition shrink-0 cursor-pointer ${
+                                            feedbackSubTab === "availability"
+                                                ? "bg-[#0D1B2A] text-white dark:bg-[#C89D5C] dark:text-[#0D1B2A] font-bold shadow-xs"
+                                                : "bg-white dark:bg-[#161412] text-[#6B5B49] dark:text-[#C2B3A0] border border-[#EAE2D8] dark:border-[#2E2822] hover:bg-[#F4EFEA]"
+                                        }`}
+                                    >
+                                        <FaCalendarAlt className="text-xs" />
+                                        <span>Expected Papers & Availability</span>
+                                        <span className="px-2 py-0.5 rounded-full text-[10px] bg-black/10 dark:bg-white/20">
+                                            {availabilities.length}
+                                        </span>
+                                    </button>
+                                </div>
+
+                                {feedbackSubTab === "submissions" && (
+                                  <div className="space-y-6">
+                                    {/* 6 Top Statistics Overview Cards */}
                                 <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
                                     <div className="bg-white dark:bg-[#161412] border border-[#EAE2D8] dark:border-[#2E2822] rounded-2xl p-4 shadow-2xs">
                                         <p className="text-[10px] font-bold uppercase tracking-wider text-[#8C7862] dark:text-[#A8957E]">
@@ -2480,7 +2807,422 @@ export default function AdminPanel() {
                                             </button>
                                         </div>
                                     </div>
+                                    </div>
                                 </div>
+                                )}
+
+                                {/* ── SUBTAB 2: PAPER REQUESTS ───────────────────────────── */}
+                                {feedbackSubTab === "requests" && (
+                                    <div className="space-y-6 animate-in fade-in duration-200">
+                                        {/* Most Requested Papers Aggregation Card */}
+                                        {mostRequested.length > 0 && (
+                                            <div className="bg-white dark:bg-[#161412] border border-[#EAE2D8] dark:border-[#2E2822] rounded-3xl p-5 sm:p-6 shadow-xs">
+                                                <div className="flex items-center justify-between mb-4">
+                                                    <div className="flex items-center gap-2.5">
+                                                        <div className="w-8 h-8 rounded-xl bg-rose-500/10 text-rose-500 flex items-center justify-center text-sm font-bold">
+                                                            <FaChartBar />
+                                                        </div>
+                                                        <div>
+                                                            <h3 className="font-serif font-bold text-sm sm:text-base text-[#0D1B2A] dark:text-[#FAF8F5]">
+                                                                Top Most Requested Question Papers
+                                                            </h3>
+                                                            <p className="text-[11px] text-[#8C7862] dark:text-[#A8957E]">
+                                                                Ranked by verified student demand. Prioritize sourcing these papers.
+                                                            </p>
+                                                        </div>
+                                                    </div>
+                                                </div>
+
+                                                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                                                    {mostRequested.slice(0, 6).map((item, idx) => (
+                                                        <div
+                                                            key={idx}
+                                                            className="p-3.5 rounded-2xl bg-[#FAF8F5] dark:bg-[#1C1916] border border-[#EAE2D8] dark:border-[#2E2822] flex flex-col justify-between gap-3 hover:border-[#C89D5C] transition group"
+                                                        >
+                                                            <div>
+                                                                <div className="flex items-center justify-between gap-2">
+                                                                    <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-[#EAE2D8] dark:bg-[#24201C] text-[#4A2E1B] dark:text-[#E5C378] truncate">
+                                                                        {item._id.course || "Course"}
+                                                                    </span>
+                                                                    <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-500/10 text-rose-600 dark:text-rose-400 shrink-0">
+                                                                        🔥 {item.requestCount} student{item.requestCount > 1 ? "s" : ""}
+                                                                    </span>
+                                                                </div>
+                                                                <h4 className="text-xs font-bold font-serif text-[#0D1B2A] dark:text-[#FAF8F5] mt-2 line-clamp-2">
+                                                                    {item._id.subject}
+                                                                </h4>
+                                                                <p className="text-[11px] text-[#8C7862] dark:text-[#A8957E] mt-0.5">
+                                                                    Exam Year: <strong className="text-[#0D1B2A] dark:text-[#FAF8F5]">{item._id.examYear || "Any"}</strong>
+                                                                </p>
+                                                            </div>
+
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => {
+                                                                    setEditingAvail(null);
+                                                                    setAvailForm({
+                                                                        course: item._id.course || (courses[0]?.name || "B.Tech Computer Science and Engineering"),
+                                                                        academicYear: "2024-25",
+                                                                        subject: item._id.subject || "",
+                                                                        examYear: item._id.examYear || "2024",
+                                                                        status: "COMING_SOON",
+                                                                        adminNote: `High student demand (${item.requestCount} requests)`,
+                                                                    });
+                                                                    setFeedbackSubTab("availability");
+                                                                    setAvailModalOpen(true);
+                                                                }}
+                                                                className="w-full py-1.5 px-3 rounded-xl bg-white dark:bg-[#24201C] border border-[#DDD2C4] dark:border-[#332E28] hover:bg-[#C89D5C] hover:text-[#0D1B2A] hover:border-transparent text-[11px] font-semibold text-[#4A3E31] dark:text-[#FAF8F5] transition text-center cursor-pointer shadow-2xs"
+                                                            >
+                                                                + Add to Availability Tracker
+                                                            </button>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        )}
+
+                                        {/* Filter Bar */}
+                                        <div className="bg-white dark:bg-[#161412] border border-[#EAE2D8] dark:border-[#2E2822] rounded-2xl p-4 shadow-2xs flex flex-col md:flex-row md:items-center justify-between gap-3">
+                                            <div className="flex flex-wrap items-center gap-2 flex-1">
+                                                {/* Search */}
+                                                <div className="relative min-w-[200px] flex-1">
+                                                    <FaSearch className="absolute left-3 top-1/2 -translate-y-1/2 text-xs text-[#8C7862]" />
+                                                    <input
+                                                        type="text"
+                                                        placeholder="Search student, subject or ref ID..."
+                                                        value={reqSearch}
+                                                        onChange={(e) => setReqSearch(e.target.value)}
+                                                        className="w-full pl-8 pr-3 py-1.5 rounded-full bg-[#FAF8F5] dark:bg-[#1C1916] border border-[#EAE2D8] dark:border-[#2E2822] text-xs focus:outline-none focus:border-[#C89D5C]"
+                                                    />
+                                                </div>
+
+                                                {/* Status Filter */}
+                                                <select
+                                                    value={reqStatusFilter}
+                                                    onChange={(e) => setReqStatusFilter(e.target.value)}
+                                                    className="px-3 py-1.5 rounded-full bg-[#FAF8F5] dark:bg-[#1C1916] border border-[#EAE2D8] dark:border-[#2E2822] text-xs font-medium cursor-pointer"
+                                                >
+                                                    <option value="all">All Statuses</option>
+                                                    <option value="PENDING">Pending Review</option>
+                                                    <option value="IN_PROGRESS">In Progress / Sourcing</option>
+                                                    <option value="AVAILABLE">Available / Uploaded</option>
+                                                    <option value="CANNOT_FULFILL">Cannot Fulfill</option>
+                                                </select>
+
+                                                {/* Course Filter */}
+                                                <select
+                                                    value={reqCourseFilter}
+                                                    onChange={(e) => setReqCourseFilter(e.target.value)}
+                                                    className="px-3 py-1.5 rounded-full bg-[#FAF8F5] dark:bg-[#1C1916] border border-[#EAE2D8] dark:border-[#2E2822] text-xs font-medium cursor-pointer max-w-[200px]"
+                                                >
+                                                    <option value="all">All Courses</option>
+                                                    {courses.map((c) => (
+                                                        <option key={c._id} value={c.name}>{c.name}</option>
+                                                    ))}
+                                                </select>
+                                            </div>
+
+                                            <div className="text-xs text-[#8C7862] shrink-0 font-medium">
+                                                {paperRequestsTotal} request{paperRequestsTotal === 1 ? "" : "s"} found
+                                            </div>
+                                        </div>
+
+                                        {/* Requests Table */}
+                                        <div className="bg-white dark:bg-[#161412] border border-[#EAE2D8] dark:border-[#2E2822] rounded-3xl overflow-hidden shadow-2xs">
+                                            <div className="overflow-x-auto">
+                                                <table className="w-full text-left text-xs">
+                                                    <thead className="bg-[#FAF8F5] dark:bg-[#1C1916] border-b border-[#EAE2D8] dark:border-[#2E2822] text-[#8C7862] uppercase tracking-wider font-semibold">
+                                                        <tr>
+                                                            <th className="px-4 py-3">Reference & Student</th>
+                                                            <th className="px-4 py-3">Paper Requested</th>
+                                                            <th className="px-4 py-3">Status</th>
+                                                            <th className="px-4 py-3">Submitted</th>
+                                                            <th className="px-4 py-3 text-right">Actions</th>
+                                                        </tr>
+                                                    </thead>
+                                                    <tbody className="divide-y divide-[#EAE2D8] dark:divide-[#2E2822]">
+                                                        {paperRequestsLoading ? (
+                                                            <tr>
+                                                                <td colSpan="5" className="py-16 text-center text-[#8C7862]">
+                                                                    <FaSpinner className="animate-spin text-xl mx-auto mb-2 text-[#C89D5C]" />
+                                                                    Loading student requests...
+                                                                </td>
+                                                            </tr>
+                                                        ) : paperRequests.length === 0 ? (
+                                                            <tr>
+                                                                <td colSpan="5" className="py-16 text-center text-[#8C7862]">
+                                                                    <div className="w-12 h-12 rounded-full bg-[#FAF8F5] dark:bg-[#1C1916] flex items-center justify-center mx-auto mb-2 text-xl">
+                                                                        <FaInbox />
+                                                                    </div>
+                                                                    <p className="font-semibold text-sm text-[#0D1B2A] dark:text-[#FAF8F5]">No Paper Requests Found</p>
+                                                                    <p className="text-xs mt-1">Students have not submitted any matching requests yet.</p>
+                                                                </td>
+                                                            </tr>
+                                                        ) : (
+                                                            paperRequests.map((req) => (
+                                                                <tr key={req._id} className="hover:bg-[#FAF8F5]/60 dark:hover:bg-[#1C1916]/60 transition">
+                                                                    <td className="px-4 py-3">
+                                                                        <span className="font-mono text-[11px] font-bold text-[#8C6239] dark:text-[#E5C378]">
+                                                                            {req.referenceId}
+                                                                        </span>
+                                                                        <p className="font-bold text-[#0D1B2A] dark:text-[#FAF8F5] mt-0.5">
+                                                                            {req.studentName || "Student"}
+                                                                        </p>
+                                                                        <p className="text-[11px] text-[#8C7862] dark:text-[#A8957E]">
+                                                                            {req.studentEmail}
+                                                                        </p>
+                                                                    </td>
+                                                                    <td className="px-4 py-3">
+                                                                        <p className="font-bold text-[#0D1B2A] dark:text-[#FAF8F5]">
+                                                                            {req.subject}
+                                                                        </p>
+                                                                        <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
+                                                                            <span className="px-2 py-0.2 rounded text-[10px] bg-[#EAE2D8] dark:bg-[#24201C] text-[#4A2E1B] dark:text-[#FAF8F5]">
+                                                                                {req.course}
+                                                                            </span>
+                                                                            <span className="text-[11px] text-[#8C7862]">
+                                                                                Exam Year: {req.examYear}
+                                                                            </span>
+                                                                        </div>
+                                                                    </td>
+                                                                    <td className="px-4 py-3">
+                                                                        <select
+                                                                            value={req.status}
+                                                                            disabled={reqUpdating}
+                                                                            onChange={(e) => handleUpdateRequestStatus(req._id, e.target.value)}
+                                                                            className={`px-2.5 py-1 rounded-full text-[10px] font-bold border cursor-pointer ${
+                                                                                req.status === "AVAILABLE"
+                                                                                    ? "bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-emerald-500/30"
+                                                                                    : req.status === "IN_PROGRESS"
+                                                                                    ? "bg-blue-500/10 text-blue-700 dark:text-blue-400 border-blue-500/30"
+                                                                                    : req.status === "CANNOT_FULFILL"
+                                                                                    ? "bg-rose-500/10 text-rose-700 dark:text-rose-400 border-rose-500/30"
+                                                                                    : "bg-amber-500/10 text-amber-700 dark:text-amber-400 border-amber-500/30"
+                                                                            }`}
+                                                                        >
+                                                                            <option value="PENDING">PENDING</option>
+                                                                            <option value="IN_PROGRESS">IN_PROGRESS</option>
+                                                                            <option value="AVAILABLE">AVAILABLE</option>
+                                                                            <option value="CANNOT_FULFILL">CANNOT_FULFILL</option>
+                                                                        </select>
+                                                                    </td>
+                                                                    <td className="px-4 py-3 text-[11px] text-[#8C7862]">
+                                                                        {new Date(req.createdAt).toLocaleDateString("en-IN")}
+                                                                    </td>
+                                                                    <td className="px-4 py-3 text-right">
+                                                                        <button
+                                                                            type="button"
+                                                                            onClick={() => {
+                                                                                setSelectedRequest(req);
+                                                                                setReqResponseInput(req.adminResponse || "");
+                                                                                setReqInternalNoteInput(req.internalNotes || "");
+                                                                            }}
+                                                                            className="px-3 py-1.5 rounded-full bg-[#FAF8F5] dark:bg-[#24201C] hover:bg-[#EAE2D8] text-[#0D1B2A] dark:text-[#FAF8F5] border border-[#DDD2C4] dark:border-[#2E2822] text-xs font-semibold cursor-pointer transition shadow-2xs"
+                                                                        >
+                                                                            Review & Reply
+                                                                        </button>
+                                                                    </td>
+                                                                </tr>
+                                                            ))
+                                                        )}
+                                                    </tbody>
+                                                </table>
+                                            </div>
+
+                                            {/* Pagination Controls */}
+                                            <div className="p-4 border-t border-[#EAE2D8] dark:border-[#2E2822] bg-[#FAF8F5]/50 dark:bg-[#1C1916]/50 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-[#8C7862]">
+                                                <p>
+                                                    Showing {paperRequests.length > 0 ? (paperRequestsPage - 1) * 20 + 1 : 0}–
+                                                    {Math.min(paperRequestsPage * 20, paperRequestsTotal)} of {paperRequestsTotal} requests
+                                                </p>
+                                                <div className="flex items-center gap-2">
+                                                    <button
+                                                        type="button"
+                                                        disabled={paperRequestsPage <= 1 || paperRequestsLoading}
+                                                        onClick={() => {
+                                                            setPaperRequestsPage((p) => Math.max(1, p - 1));
+                                                            fetchPaperRequests(paperRequestsPage - 1);
+                                                        }}
+                                                        className="px-3 py-1.5 rounded-full bg-white dark:bg-[#1C1916] border border-[#EAE2D8] dark:border-[#2E2822] font-semibold disabled:opacity-40 cursor-pointer shadow-2xs"
+                                                    >
+                                                        ← Previous
+                                                    </button>
+                                                    <span className="font-bold text-[#0D1B2A] dark:text-[#FAF8F5]">
+                                                        Page {paperRequestsPage} of {paperRequestsTotalPages}
+                                                    </span>
+                                                    <button
+                                                        type="button"
+                                                        disabled={paperRequestsPage >= paperRequestsTotalPages || paperRequestsLoading}
+                                                        onClick={() => {
+                                                            setPaperRequestsPage((p) => Math.min(paperRequestsTotalPages, p + 1));
+                                                            fetchPaperRequests(paperRequestsPage + 1);
+                                                        }}
+                                                        className="px-3 py-1.5 rounded-full bg-white dark:bg-[#1C1916] border border-[#EAE2D8] dark:border-[#2E2822] font-semibold disabled:opacity-40 cursor-pointer shadow-2xs"
+                                                    >
+                                                        Next →
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                )}
+
+                                {/* ── SUBTAB 3: PAPER AVAILABILITY & COMING SOON ───────────── */}
+                                {feedbackSubTab === "availability" && (
+                                    <div className="space-y-6 animate-in fade-in duration-200">
+                                        {/* Availability Filter & Action Bar */}
+                                        <div className="bg-white dark:bg-[#161412] border border-[#EAE2D8] dark:border-[#2E2822] rounded-2xl p-4 shadow-2xs flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                                            <div className="flex flex-wrap items-center gap-2 flex-1">
+                                                <select
+                                                    value={availStatusFilter}
+                                                    onChange={(e) => setAvailStatusFilter(e.target.value)}
+                                                    className="px-3 py-1.5 rounded-full bg-[#FAF8F5] dark:bg-[#1C1916] border border-[#EAE2D8] dark:border-[#2E2822] text-xs font-medium cursor-pointer"
+                                                >
+                                                    <option value="all">All Availability Statuses</option>
+                                                    <option value="COMING_SOON">Coming Soon</option>
+                                                    <option value="AVAILABLE">Available</option>
+                                                    <option value="REQUESTED">Requested</option>
+                                                    <option value="NOT_AVAILABLE">Not Available</option>
+                                                    <option value="ARCHIVED">Archived</option>
+                                                </select>
+
+                                                <select
+                                                    value={availCourseFilter}
+                                                    onChange={(e) => setAvailCourseFilter(e.target.value)}
+                                                    className="px-3 py-1.5 rounded-full bg-[#FAF8F5] dark:bg-[#1C1916] border border-[#EAE2D8] dark:border-[#2E2822] text-xs font-medium cursor-pointer max-w-[200px]"
+                                                >
+                                                    <option value="all">All Courses</option>
+                                                    {courses.map((c) => (
+                                                        <option key={c._id} value={c.name}>{c.name}</option>
+                                                    ))}
+                                                </select>
+                                            </div>
+
+                                            <div className="text-xs text-[#8C7862] shrink-0 font-medium">
+                                                {availabilities.length} tracked item{availabilities.length === 1 ? "" : "s"}
+                                            </div>
+                                        </div>
+
+                                        {/* Availability Table */}
+                                        <div className="bg-white dark:bg-[#161412] border border-[#EAE2D8] dark:border-[#2E2822] rounded-3xl overflow-hidden shadow-2xs">
+                                            <div className="overflow-x-auto">
+                                                <table className="w-full text-left text-xs">
+                                                    <thead className="bg-[#FAF8F5] dark:bg-[#1C1916] border-b border-[#EAE2D8] dark:border-[#2E2822] text-[#8C7862] uppercase tracking-wider font-semibold">
+                                                        <tr>
+                                                            <th className="px-4 py-3">Subject & Exam Year</th>
+                                                            <th className="px-4 py-3">Course & Academic Year</th>
+                                                            <th className="px-4 py-3">Availability Status</th>
+                                                            <th className="px-4 py-3">Student Waiting</th>
+                                                            <th className="px-4 py-3">Admin Note</th>
+                                                            <th className="px-4 py-3 text-right">Actions</th>
+                                                        </tr>
+                                                    </thead>
+                                                    <tbody className="divide-y divide-[#EAE2D8] dark:divide-[#2E2822]">
+                                                        {availabilitiesLoading ? (
+                                                            <tr>
+                                                                <td colSpan="6" className="py-16 text-center text-[#8C7862]">
+                                                                    <FaSpinner className="animate-spin text-xl mx-auto mb-2 text-[#C89D5C]" />
+                                                                    Loading availability items...
+                                                                </td>
+                                                            </tr>
+                                                        ) : availabilities.length === 0 ? (
+                                                            <tr>
+                                                                <td colSpan="6" className="py-16 text-center text-[#8C7862]">
+                                                                    <div className="w-12 h-12 rounded-full bg-[#FAF8F5] dark:bg-[#1C1916] flex items-center justify-center mx-auto mb-2 text-xl">
+                                                                        <FaCalendarAlt />
+                                                                    </div>
+                                                                    <p className="font-semibold text-sm text-[#0D1B2A] dark:text-[#FAF8F5]">No Expected Papers Tracked</p>
+                                                                    <p className="text-xs mt-1">Click '+ Add Expected Paper' to register papers currently being sourced.</p>
+                                                                </td>
+                                                            </tr>
+                                                        ) : (
+                                                            availabilities.map((item) => (
+                                                                <tr key={item._id} className="hover:bg-[#FAF8F5]/60 dark:hover:bg-[#1C1916]/60 transition">
+                                                                    <td className="px-4 py-3 font-bold text-[#0D1B2A] dark:text-[#FAF8F5]">
+                                                                        <div className="flex items-center gap-2">
+                                                                            <span>{item.subject}</span>
+                                                                            <span className="px-2 py-0.5 rounded-full text-[10px] bg-[#EAE2D8] dark:bg-[#24201C] text-[#8C6239] dark:text-[#E5C378]">
+                                                                                {item.examYear}
+                                                                            </span>
+                                                                        </div>
+                                                                    </td>
+                                                                    <td className="px-4 py-3 text-[#4A3E31] dark:text-[#C2B3A0]">
+                                                                        <p className="font-medium truncate max-w-xs">{item.course}</p>
+                                                                        <p className="text-[11px] text-[#8C7862]">{item.academicYear}</p>
+                                                                    </td>
+                                                                    <td className="px-4 py-3">
+                                                                        <select
+                                                                            value={item.status}
+                                                                            onChange={(e) => handleChangeAvailabilityStatus(item._id, e.target.value)}
+                                                                            className={`px-2.5 py-1 rounded-full text-[10px] font-bold border cursor-pointer ${
+                                                                                item.status === "AVAILABLE"
+                                                                                    ? "bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-emerald-500/30"
+                                                                                    : item.status === "COMING_SOON"
+                                                                                    ? "bg-amber-500/10 text-amber-700 dark:text-amber-400 border-amber-500/30"
+                                                                                    : item.status === "REQUESTED"
+                                                                                    ? "bg-blue-500/10 text-blue-700 dark:text-blue-400 border-blue-500/30"
+                                                                                    : "bg-stone-500/10 text-stone-700 dark:text-stone-400 border-stone-500/30"
+                                                                            }`}
+                                                                        >
+                                                                            <option value="COMING_SOON">COMING_SOON</option>
+                                                                            <option value="AVAILABLE">AVAILABLE</option>
+                                                                            <option value="REQUESTED">REQUESTED</option>
+                                                                            <option value="NOT_AVAILABLE">NOT_AVAILABLE</option>
+                                                                            <option value="ARCHIVED">ARCHIVED</option>
+                                                                        </select>
+                                                                    </td>
+                                                                    <td className="px-4 py-3">
+                                                                        <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                                                                            (item.requestCount || 0) > 2
+                                                                                ? "bg-rose-500/10 text-rose-600 dark:text-rose-400 font-bold"
+                                                                                : "bg-[#FAF8F5] dark:bg-[#1C1916] text-[#8C6239]"
+                                                                        }`}>
+                                                                            {item.requestCount || 0} student{(item.requestCount || 0) === 1 ? "" : "s"}
+                                                                        </span>
+                                                                    </td>
+                                                                    <td className="px-4 py-3 text-[#8C7862] text-[11px] max-w-xs truncate">
+                                                                        {item.adminNote || "—"}
+                                                                    </td>
+                                                                    <td className="px-4 py-3 text-right">
+                                                                        <div className="flex items-center justify-end gap-1.5">
+                                                                            <button
+                                                                                type="button"
+                                                                                onClick={() => {
+                                                                                    setEditingAvail(item);
+                                                                                    setAvailForm({
+                                                                                        course: item.course,
+                                                                                        academicYear: item.academicYear,
+                                                                                        subject: item.subject,
+                                                                                        examYear: item.examYear,
+                                                                                        status: item.status,
+                                                                                        adminNote: item.adminNote || "",
+                                                                                    });
+                                                                                    setAvailModalOpen(true);
+                                                                                }}
+                                                                                className="p-1.5 rounded-full text-[#8C7862] hover:text-[#0D1B2A] dark:hover:text-white transition cursor-pointer"
+                                                                                title="Edit expected paper"
+                                                                            >
+                                                                                <FaEdit className="text-xs" />
+                                                                            </button>
+                                                                            <button
+                                                                                type="button"
+                                                                                onClick={() => handleDeleteAvailability(item._id)}
+                                                                                className="p-1.5 rounded-full text-[#8C7862] hover:text-rose-600 transition cursor-pointer"
+                                                                                title="Delete expected paper"
+                                                                            >
+                                                                                <FaTrash className="text-xs" />
+                                                                            </button>
+                                                                        </div>
+                                                                    </td>
+                                                                </tr>
+                                                            ))
+                                                        )}
+                                                    </tbody>
+                                                </table>
+                                            </div>
+                                        </div>
+                                    </div>
+                                )}
                             </div>
                         )}
                     </>
@@ -3261,6 +4003,283 @@ export default function AdminPanel() {
                                 </div>
                             </div>
                         </div>
+                    </div>
+                </div>
+            )}
+
+            {/* PAPER REQUEST DETAIL & REPLY MODAL */}
+            {selectedRequest && (
+                <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto">
+                    <div className="bg-white dark:bg-[#161412] border border-[#EAE2D8] dark:border-[#2E2822] rounded-3xl shadow-2xl w-full max-w-2xl p-6 sm:p-8 animate-in fade-in zoom-in-95 duration-200 max-h-[92vh] overflow-y-auto space-y-6">
+                        {/* Modal Header */}
+                        <div className="flex items-start justify-between border-b border-[#EAE2D8] dark:border-[#2E2822] pb-4">
+                            <div>
+                                <div className="flex items-center gap-2">
+                                    <span className="font-mono text-base font-bold text-[#4A2E1B] dark:text-[#E5C378]">
+                                        {selectedRequest.referenceId}
+                                    </span>
+                                    <span className={`px-2.5 py-0.5 rounded-full text-xs font-bold border ${
+                                        selectedRequest.status === "AVAILABLE"
+                                            ? "bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-emerald-500/30"
+                                            : selectedRequest.status === "IN_PROGRESS"
+                                            ? "bg-blue-500/10 text-blue-700 dark:text-blue-400 border-blue-500/30"
+                                            : selectedRequest.status === "CANNOT_FULFILL"
+                                            ? "bg-rose-500/10 text-rose-700 dark:text-rose-400 border-rose-500/30"
+                                            : "bg-amber-500/10 text-amber-700 dark:text-amber-400 border-amber-500/30"
+                                    }`}>
+                                        {selectedRequest.status}
+                                    </span>
+                                </div>
+                                <p className="text-xs text-[#8C7862] dark:text-[#A8957E] mt-1">
+                                    Submitted on {new Date(selectedRequest.createdAt).toLocaleString("en-IN", { timeZone: "Asia/Kolkata" })}
+                                </p>
+                            </div>
+                            <button
+                                type="button"
+                                onClick={() => setSelectedRequest(null)}
+                                className="text-[#8C7862] hover:text-[#0D1B2A] dark:hover:text-white p-1 cursor-pointer"
+                            >
+                                <FaTimes />
+                            </button>
+                        </div>
+
+                        {/* Request Details Grid */}
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 bg-[#FAF8F5] dark:bg-[#1C1916] p-4 rounded-2xl border border-[#EAE2D8] dark:border-[#2E2822] text-xs">
+                            <div>
+                                <p className="text-[10px] uppercase font-bold text-[#8C7862]">Student</p>
+                                <p className="font-bold text-[#0D1B2A] dark:text-[#FAF8F5] mt-0.5">{selectedRequest.studentName || "Student"}</p>
+                                <p className="text-[#8C7862]">{selectedRequest.studentEmail}</p>
+                            </div>
+                            <div>
+                                <p className="text-[10px] uppercase font-bold text-[#8C7862]">Course & Program</p>
+                                <p className="font-bold text-[#0D1B2A] dark:text-[#FAF8F5] mt-0.5">{selectedRequest.course}</p>
+                            </div>
+                            <div>
+                                <p className="text-[10px] uppercase font-bold text-[#8C7862]">Subject Requested</p>
+                                <p className="font-bold text-[#0D1B2A] dark:text-[#FAF8F5] mt-0.5">{selectedRequest.subject}</p>
+                            </div>
+                            <div>
+                                <p className="text-[10px] uppercase font-bold text-[#8C7862]">Exam Year</p>
+                                <p className="font-bold text-[#0D1B2A] dark:text-[#FAF8F5] mt-0.5">{selectedRequest.examYear}</p>
+                            </div>
+                        </div>
+
+                        {/* Student Note */}
+                        {selectedRequest.message && (
+                            <div className="space-y-1">
+                                <p className="text-[10px] uppercase font-bold text-[#8C7862]">Student Note</p>
+                                <div className="p-3.5 rounded-2xl bg-[#FAF8F5] dark:bg-[#1C1916] border border-[#EAE2D8] dark:border-[#2E2822] text-xs text-[#2B231B] dark:text-[#FAF8F5] leading-relaxed">
+                                    {selectedRequest.message}
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Status Update Quick Buttons */}
+                        <div className="space-y-1.5">
+                            <p className="text-[10px] uppercase font-bold text-[#8C7862]">Update Status</p>
+                            <div className="flex flex-wrap gap-2">
+                                {[
+                                    { status: "PENDING", label: "Pending Review", color: "hover:bg-amber-500 hover:text-white" },
+                                    { status: "IN_PROGRESS", label: "In Progress / Sourcing", color: "hover:bg-blue-500 hover:text-white" },
+                                    { status: "AVAILABLE", label: "Mark Available", color: "hover:bg-emerald-600 hover:text-white" },
+                                    { status: "CANNOT_FULFILL", label: "Cannot Fulfill", color: "hover:bg-rose-600 hover:text-white" },
+                                ].map((btn) => (
+                                    <button
+                                        key={btn.status}
+                                        type="button"
+                                        disabled={reqUpdating}
+                                        onClick={() => handleUpdateRequestStatus(selectedRequest._id, btn.status)}
+                                        className={`px-3 py-1.5 rounded-xl border text-xs font-semibold transition cursor-pointer ${
+                                            selectedRequest.status === btn.status
+                                                ? "bg-[#0D1B2A] text-white dark:bg-[#C89D5C] dark:text-[#0D1B2A] border-transparent font-bold shadow-2xs"
+                                                : "bg-[#FAF8F5] dark:bg-[#1C1916] text-[#4A3E31] dark:text-[#C2B3A0] border-[#EAE2D8] dark:border-[#2E2822] " + btn.color
+                                        }`}
+                                    >
+                                        {btn.label}
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+
+                        {/* Official Response to Student */}
+                        <div className="space-y-2 p-4 rounded-2xl bg-emerald-50/50 dark:bg-emerald-950/20 border border-emerald-200/80 dark:border-emerald-900/50">
+                            <div className="flex items-center justify-between">
+                                <p className="font-bold uppercase tracking-wider text-[10px] text-emerald-800 dark:text-emerald-300 flex items-center gap-1.5">
+                                    <FaReply /> Official Response
+                                </p>
+                                <span className="text-[10px] text-emerald-700 dark:text-emerald-400">Visible to student on dashboard & email</span>
+                            </div>
+                            <textarea
+                                rows={3}
+                                value={reqResponseInput}
+                                onChange={(e) => setReqResponseInput(e.target.value)}
+                                placeholder="e.g. Sourced from the 2024 Examination Department archive and uploaded! Thank you for requesting."
+                                className="w-full p-3 bg-white dark:bg-[#161412] border border-emerald-200 dark:border-emerald-800 rounded-xl text-xs text-[#1A1614] dark:text-[#FAF8F5] focus:outline-hidden focus:border-emerald-500"
+                            />
+                        </div>
+
+                        {/* Admin Internal Notes (Admin-only) */}
+                        <div className="space-y-2 p-4 rounded-2xl bg-stone-100/70 dark:bg-stone-900/30 border border-stone-200 dark:border-stone-800">
+                            <div className="flex items-center justify-between">
+                                <p className="font-bold uppercase tracking-wider text-[10px] text-stone-700 dark:text-stone-300 flex items-center gap-1.5">
+                                    <FaUserSecret /> Internal Admin Notes
+                                </p>
+                                <span className="text-[10px] text-stone-500">Admins only • Hidden from student</span>
+                            </div>
+                            <textarea
+                                rows={2}
+                                value={reqInternalNoteInput}
+                                onChange={(e) => setReqInternalNoteInput(e.target.value)}
+                                placeholder="e.g. Contacted Prof. Verma for CSE semester 4 question paper copy."
+                                className="w-full p-3 bg-white dark:bg-[#161412] border border-stone-200 dark:border-stone-700 rounded-xl text-xs text-[#1A1614] dark:text-[#FAF8F5] focus:outline-hidden"
+                            />
+                        </div>
+
+                        {/* Footer Buttons */}
+                        <div className="flex items-center justify-end gap-2 pt-2 border-t border-[#EAE2D8] dark:border-[#2E2822]">
+                            <button
+                                type="button"
+                                onClick={() => setSelectedRequest(null)}
+                                className="px-4 py-2 rounded-full border border-[#DDD2C4] dark:border-[#2E2822] text-xs font-semibold hover:bg-[#FAF8F5] cursor-pointer"
+                            >
+                                Close
+                            </button>
+                            <button
+                                type="button"
+                                disabled={reqUpdating}
+                                onClick={() => handleSaveRequestResponse(selectedRequest._id)}
+                                className="px-5 py-2 rounded-full bg-[#0D1B2A] hover:bg-[#1E293B] text-white dark:bg-[#C89D5C] dark:hover:bg-[#E5C378] dark:text-[#0D1B2A] text-xs font-bold transition shadow-xs cursor-pointer disabled:opacity-50"
+                            >
+                                {reqUpdating ? "Saving..." : "Save Response & Notes"}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* ADD / EDIT EXPECTED PAPER AVAILABILITY MODAL */}
+            {availModalOpen && (
+                <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
+                    <div className="bg-white dark:bg-[#161412] border border-[#EAE2D8] dark:border-[#2E2822] rounded-3xl shadow-2xl w-full max-w-lg p-6 sm:p-8 animate-in fade-in zoom-in-95 duration-200">
+                        <div className="flex items-center justify-between pb-4 mb-5 border-b border-[#EAE2D8] dark:border-[#2E2822]">
+                            <h3 className="font-serif font-bold text-lg text-[#0D1B2A] dark:text-[#FAF8F5]">
+                                {editingAvail ? "Edit Expected Paper" : "Add Expected Paper to Tracker"}
+                            </h3>
+                            <button
+                                onClick={() => setAvailModalOpen(false)}
+                                className="text-[#8C7862] hover:text-[#0D1B2A] dark:hover:text-white cursor-pointer"
+                            >
+                                <FaTimes />
+                            </button>
+                        </div>
+
+                        <form onSubmit={handleSaveAvailability} className="space-y-4 text-xs">
+                            <div>
+                                <label className="block text-[11px] font-bold text-[#4A3E31] dark:text-[#C2B3A0] mb-1">
+                                    Course / Academic Program
+                                </label>
+                                <select
+                                    value={availForm.course}
+                                    onChange={(e) => setAvailForm({ ...availForm, course: e.target.value })}
+                                    className="w-full px-3.5 py-2.5 rounded-xl bg-[#FAF8F5] dark:bg-[#1C1916] border border-[#EAE2D8] dark:border-[#2E2822] text-[#0D1B2A] dark:text-[#FAF8F5] font-semibold"
+                                >
+                                    {courses.map((c) => (
+                                        <option key={c._id} value={c.name}>{c.name}</option>
+                                    ))}
+                                </select>
+                            </div>
+
+                            <div className="grid grid-cols-2 gap-3">
+                                <div>
+                                    <label className="block text-[11px] font-bold text-[#4A3E31] dark:text-[#C2B3A0] mb-1">
+                                        Academic Year
+                                    </label>
+                                    <select
+                                        value={availForm.academicYear}
+                                        onChange={(e) => setAvailForm({ ...availForm, academicYear: e.target.value })}
+                                        className="w-full px-3.5 py-2.5 rounded-xl bg-[#FAF8F5] dark:bg-[#1C1916] border border-[#EAE2D8] dark:border-[#2E2822] text-[#0D1B2A] dark:text-[#FAF8F5] font-semibold"
+                                    >
+                                        {ACADEMIC_YEARS.map((y) => (
+                                            <option key={y} value={y}>{y}</option>
+                                        ))}
+                                    </select>
+                                </div>
+
+                                <div>
+                                    <label className="block text-[11px] font-bold text-[#4A3E31] dark:text-[#C2B3A0] mb-1">
+                                        Exam Year
+                                    </label>
+                                    <input
+                                        type="text"
+                                        value={availForm.examYear}
+                                        onChange={(e) => setAvailForm({ ...availForm, examYear: e.target.value })}
+                                        placeholder="e.g. 2024"
+                                        required
+                                        className="w-full px-3.5 py-2.5 rounded-xl bg-[#FAF8F5] dark:bg-[#1C1916] border border-[#EAE2D8] dark:border-[#2E2822] text-[#0D1B2A] dark:text-[#FAF8F5] font-semibold"
+                                    />
+                                </div>
+                            </div>
+
+                            <div>
+                                <label className="block text-[11px] font-bold text-[#4A3E31] dark:text-[#C2B3A0] mb-1">
+                                    Subject Name
+                                </label>
+                                <input
+                                    type="text"
+                                    value={availForm.subject}
+                                    onChange={(e) => setAvailForm({ ...availForm, subject: e.target.value })}
+                                    placeholder="e.g. Computer Networks & Security"
+                                    required
+                                    className="w-full px-3.5 py-2.5 rounded-xl bg-[#FAF8F5] dark:bg-[#1C1916] border border-[#EAE2D8] dark:border-[#2E2822] text-[#0D1B2A] dark:text-[#FAF8F5] font-semibold"
+                                />
+                            </div>
+
+                            <div>
+                                <label className="block text-[11px] font-bold text-[#4A3E31] dark:text-[#C2B3A0] mb-1">
+                                    Availability Status
+                                </label>
+                                <select
+                                    value={availForm.status}
+                                    onChange={(e) => setAvailForm({ ...availForm, status: e.target.value })}
+                                    className="w-full px-3.5 py-2.5 rounded-xl bg-[#FAF8F5] dark:bg-[#1C1916] border border-[#EAE2D8] dark:border-[#2E2822] text-[#0D1B2A] dark:text-[#FAF8F5] font-semibold"
+                                >
+                                    <option value="COMING_SOON">COMING_SOON (Display Coming Soon badge)</option>
+                                    <option value="AVAILABLE">AVAILABLE (Live in repository)</option>
+                                    <option value="REQUESTED">REQUESTED (Students waiting)</option>
+                                    <option value="NOT_AVAILABLE">NOT_AVAILABLE (Paper not released by university)</option>
+                                    <option value="ARCHIVED">ARCHIVED</option>
+                                </select>
+                            </div>
+
+                            <div>
+                                <label className="block text-[11px] font-bold text-[#4A3E31] dark:text-[#C2B3A0] mb-1">
+                                    Public Admin Note / Status Note
+                                </label>
+                                <input
+                                    type="text"
+                                    value={availForm.adminNote}
+                                    onChange={(e) => setAvailForm({ ...availForm, adminNote: e.target.value })}
+                                    placeholder="e.g. Sourcing from exam cell by Friday before midterms"
+                                    className="w-full px-3.5 py-2.5 rounded-xl bg-[#FAF8F5] dark:bg-[#1C1916] border border-[#EAE2D8] dark:border-[#2E2822] text-[#0D1B2A] dark:text-[#FAF8F5]"
+                                />
+                            </div>
+
+                            <div className="flex items-center justify-end gap-2 pt-4 border-t border-[#EAE2D8] dark:border-[#2E2822]">
+                                <button
+                                    type="button"
+                                    onClick={() => setAvailModalOpen(false)}
+                                    className="px-4 py-2 rounded-full border border-[#DDD2C4] dark:border-[#2E2822] text-xs font-semibold hover:bg-[#FAF8F5] cursor-pointer"
+                                >
+                                    Cancel
+                                </button>
+                                <button
+                                    type="submit"
+                                    className="px-5 py-2 rounded-full bg-[#0D1B2A] hover:bg-[#1E293B] text-white dark:bg-[#C89D5C] dark:hover:bg-[#E5C378] dark:text-[#0D1B2A] text-xs font-bold transition shadow-xs cursor-pointer"
+                                >
+                                    {editingAvail ? "Update Expected Paper" : "Add to Tracker"}
+                                </button>
+                            </div>
+                        </form>
                     </div>
                 </div>
             )}
