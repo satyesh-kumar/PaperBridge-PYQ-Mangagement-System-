@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useMemo, useCallback } from "react";
 import axios from "axios";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { useAuth, useUser } from "@clerk/react";
 import {
     FaShieldAlt,
@@ -31,6 +31,12 @@ import {
     FaCompress,
     FaUserCheck,
     FaDownload,
+    FaComments,
+    FaStar,
+    FaReply,
+    FaCheckDouble,
+    FaUserSecret,
+    FaChartBar,
 } from "react-icons/fa";
 import toast from "react-hot-toast";
 import confetti from "canvas-confetti";
@@ -117,8 +123,11 @@ export default function AdminPanel() {
     const [loading, setLoading] = useState(true);
     const [actionLoading, setActionLoading] = useState(false);
 
-    // Active Navigation Tab: 'overview' | 'courses' | 'moderation' | 'papers' | 'notes' | 'users'
-    const [activeTab, setActiveTab] = useState("overview");
+    // Active Navigation Tab: 'overview' | 'courses' | 'moderation' | 'papers' | 'notes' | 'users' | 'feedback'
+    const [searchParams] = useSearchParams();
+    const [activeTab, setActiveTab] = useState(
+        searchParams.get("tab") === "feedback" ? "feedback" : "overview"
+    );
 
     // Moderation sub-filter: 'all' | 'pyq' | 'note'
     const [moderationFilter, setModerationFilter] = useState("all");
@@ -128,6 +137,25 @@ export default function AdminPanel() {
     const [selectedCourseFilter, setSelectedCourseFilter] = useState("all");
     const [selectedSemFilter, setSelectedSemFilter] = useState("all");
     const [statusFilter, setStatusFilter] = useState("all");
+
+    // ── FEEDBACK STATE ───────────────────────────────────────────────────────
+    const [feedbacks, setFeedbacks] = useState([]);
+    const [feedbackStats, setFeedbackStats] = useState(null);
+    const [feedbackLoading, setFeedbackLoading] = useState(false);
+    const [feedbackPage, setFeedbackPage] = useState(1);
+    const [feedbackTotalPages, setFeedbackTotalPages] = useState(1);
+    const [feedbackTotal, setFeedbackTotal] = useState(0);
+    const [fbStatusFilter, setFbStatusFilter] = useState("all");
+    const [fbPriorityFilter, setFbPriorityFilter] = useState("all");
+    const [fbTypeFilter, setFbTypeFilter] = useState("all");
+    const [fbCourseFilter, setFbCourseFilter] = useState("all");
+    const [fbRatingFilter, setFbRatingFilter] = useState("all");
+    const [fbSearch, setFbSearch] = useState("");
+    const [fbSort, setFbSort] = useState("newest");
+    const [selectedFeedback, setSelectedFeedback] = useState(null);
+    const [adminResponseInput, setAdminResponseInput] = useState("");
+    const [internalNoteInput, setInternalNoteInput] = useState("");
+    const [feedbackUpdating, setFeedbackUpdating] = useState(false);
 
     // Selection for bulk moderation
     const [selectedIds, setSelectedIds] = useState(new Set());
@@ -244,6 +272,11 @@ export default function AdminPanel() {
             setPapers(loadedPapers);
             setNotes(loadedNotes);
             setUsers(loadedUsers);
+
+            // Fetch feedback overview count in background
+            axios.get(`${API_URL}/api/admin/feedback/stats`, { headers, timeout: 20000 })
+                .then((res) => { if (res.data) setFeedbackStats(res.data); })
+                .catch(() => {});
 
             if (statsSettled.status === "fulfilled" && statsSettled.value?.data) {
                 setStats(statsSettled.value.data);
@@ -688,6 +721,207 @@ export default function AdminPanel() {
         });
     }, [users, search]);
 
+    // ── FEEDBACK FUNCTIONS & HANDLERS ──────────────────────────────────────
+    const fetchFeedbackData = useCallback(async (page = 1) => {
+        try {
+            setFeedbackLoading(true);
+            const headers = await getAuthHeaders();
+            const params = new URLSearchParams({
+                page: String(page),
+                limit: "20",
+                sortBy: fbSort,
+            });
+            if (fbStatusFilter !== "all") params.append("status", fbStatusFilter);
+            if (fbPriorityFilter !== "all") params.append("priority", fbPriorityFilter);
+            if (fbTypeFilter !== "all") params.append("feedbackType", fbTypeFilter);
+            if (fbCourseFilter !== "all") params.append("course", fbCourseFilter);
+            if (fbRatingFilter !== "all") params.append("rating", fbRatingFilter);
+            if (fbSearch.trim()) params.append("search", fbSearch.trim());
+
+            const [listRes, statsRes] = await Promise.all([
+                axios.get(`${API_URL}/api/admin/feedback?${params.toString()}`, { headers, timeout: 20000 }),
+                axios.get(`${API_URL}/api/admin/feedback/stats`, { headers, timeout: 20000 }).catch(() => ({ data: null })),
+            ]);
+
+            if (listRes.data) {
+                setFeedbacks(listRes.data.feedbacks || []);
+                setFeedbackTotal(listRes.data.total || 0);
+                setFeedbackTotalPages(listRes.data.totalPages || 1);
+                setFeedbackPage(listRes.data.page || 1);
+            }
+            if (statsRes.data) {
+                setFeedbackStats(statsRes.data);
+            }
+        } catch (err) {
+            console.warn("Could not load feedback records:", err.message);
+        } finally {
+            setFeedbackLoading(false);
+        }
+    }, [getAuthHeaders, fbStatusFilter, fbPriorityFilter, fbTypeFilter, fbCourseFilter, fbRatingFilter, fbSearch, fbSort]);
+
+    // Fetch feedback data when activeTab becomes 'feedback' or filters change
+    useEffect(() => {
+        if (activeTab === "feedback") {
+            fetchFeedbackData(feedbackPage);
+        }
+    }, [activeTab, fbStatusFilter, fbPriorityFilter, fbTypeFilter, fbCourseFilter, fbRatingFilter, fbSearch, fbSort, feedbackPage, fetchFeedbackData]);
+
+    // Deep link handling (e.g. ?tab=feedback&id=...)
+    useEffect(() => {
+        const targetId = searchParams.get("id");
+        if (targetId) {
+            setActiveTab("feedback");
+            (async () => {
+                try {
+                    const headers = await getAuthHeaders();
+                    const res = await axios.get(`${API_URL}/api/admin/feedback/${targetId}`, { headers });
+                    if (res.data) setSelectedFeedback(res.data);
+                } catch {
+                    // ignore
+                }
+            })();
+        }
+    }, [searchParams, getAuthHeaders]);
+
+    const handleUpdateFeedbackStatus = async (feedbackId, newStatus) => {
+        try {
+            setFeedbackUpdating(true);
+            const headers = await getAuthHeaders();
+            const res = await axios.patch(
+                `${API_URL}/api/admin/feedback/${feedbackId}`,
+                { status: newStatus },
+                { headers }
+            );
+            toast.success(`Status changed to '${newStatus}'`);
+            fetchFeedbackData(feedbackPage);
+            if (selectedFeedback?._id === feedbackId) {
+                setSelectedFeedback(res.data.feedback);
+            }
+        } catch {
+            toast.error("Failed to update status");
+        } finally {
+            setFeedbackUpdating(false);
+        }
+    };
+
+    const handleUpdateFeedbackPriority = async (feedbackId, newPriority) => {
+        try {
+            setFeedbackUpdating(true);
+            const headers = await getAuthHeaders();
+            const res = await axios.patch(
+                `${API_URL}/api/admin/feedback/${feedbackId}`,
+                { priority: newPriority },
+                { headers }
+            );
+            toast.success(`Priority set to '${newPriority}'`);
+            fetchFeedbackData(feedbackPage);
+            if (selectedFeedback?._id === feedbackId) {
+                setSelectedFeedback(res.data.feedback);
+            }
+        } catch {
+            toast.error("Failed to update priority");
+        } finally {
+            setFeedbackUpdating(false);
+        }
+    };
+
+    const handleSaveAdminResponse = async (feedbackId) => {
+        if (!adminResponseInput.trim()) {
+            toast.error("Please enter a response message before saving.");
+            return;
+        }
+        try {
+            setFeedbackUpdating(true);
+            const headers = await getAuthHeaders();
+            const res = await axios.patch(
+                `${API_URL}/api/admin/feedback/${feedbackId}`,
+                { adminResponse: adminResponseInput.trim() },
+                { headers }
+            );
+            toast.success("Official team response saved and visible to student!");
+            setAdminResponseInput("");
+            fetchFeedbackData(feedbackPage);
+            if (selectedFeedback?._id === feedbackId) {
+                setSelectedFeedback(res.data.feedback);
+            }
+        } catch {
+            toast.error("Failed to save response");
+        } finally {
+            setFeedbackUpdating(false);
+        }
+    };
+
+    const handleAddInternalNote = async (feedbackId) => {
+        if (!internalNoteInput.trim()) return;
+        try {
+            setFeedbackUpdating(true);
+            const headers = await getAuthHeaders();
+            const res = await axios.patch(
+                `${API_URL}/api/admin/feedback/${feedbackId}`,
+                { internalNote: internalNoteInput.trim() },
+                { headers }
+            );
+            toast.success("Internal note added (visible only to admins)");
+            setInternalNoteInput("");
+            fetchFeedbackData(feedbackPage);
+            if (selectedFeedback?._id === feedbackId) {
+                setSelectedFeedback(res.data.feedback);
+            }
+        } catch {
+            toast.error("Failed to add note");
+        } finally {
+            setFeedbackUpdating(false);
+        }
+    };
+
+    const handleDeleteFeedback = async (feedbackId) => {
+        if (!window.confirm("Are you sure you want to permanently delete this feedback submission?")) return;
+        try {
+            setFeedbackUpdating(true);
+            const headers = await getAuthHeaders();
+            await axios.delete(`${API_URL}/api/admin/feedback/${feedbackId}`, { headers });
+            toast.success("Feedback record permanently removed");
+            setSelectedFeedback(null);
+            fetchFeedbackData(feedbackPage);
+        } catch {
+            toast.error("Failed to delete feedback");
+        } finally {
+            setFeedbackUpdating(false);
+        }
+    };
+
+    const handleExportFeedbackCSV = () => {
+        if (feedbacks.length === 0) {
+            toast.error("No feedback submissions to export.");
+            return;
+        }
+        const csvHeaders = ["Reference ID", "Date", "User", "Email", "Type", "Related To", "Course", "Department", "Rating", "Priority", "Status", "Message"];
+        const rows = feedbacks.map((f) => [
+            f.referenceId,
+            new Date(f.createdAt).toISOString().split("T")[0],
+            f.anonymous ? "Anonymous" : `"${(f.userNameSnapshot || "Student").replace(/"/g, '""')}"`,
+            f.anonymous ? "Anonymous" : f.userEmailSnapshot || "",
+            `"${(f.feedbackType || "").replace(/"/g, '""')}"`,
+            `"${(f.relatedTo || "").replace(/"/g, '""')}"`,
+            `"${(f.course || "").replace(/"/g, '""')}"`,
+            `"${(f.department || "").replace(/"/g, '""')}"`,
+            f.rating,
+            f.priority,
+            f.status,
+            `"${(f.message || "").replace(/"/g, '""').replace(/\n/g, ' ')}"`,
+        ]);
+        const csvContent = [csvHeaders.join(","), ...rows.map((r) => r.join(","))].join("\n");
+        const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement("a");
+        link.href = url;
+        link.setAttribute("download", `PaperBridge_Feedback_Export_${new Date().toISOString().split("T")[0]}.csv`);
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        toast.success(`Exported ${feedbacks.length} feedback submissions!`);
+    };
+
     // Navigation items
     const navTabs = [
         { id: "overview", label: "Overview", icon: <FaShieldAlt /> },
@@ -696,6 +930,13 @@ export default function AdminPanel() {
         { id: "papers", label: "Question Papers", icon: <FaFilePdf />, count: papers.length },
         { id: "notes", label: "Study Notes", icon: <FaStickyNote />, count: notes.length },
         { id: "users", label: "Registered Users", icon: <FaUsers />, count: users.length },
+        {
+            id: "feedback",
+            label: "Feedback",
+            icon: <FaComments />,
+            count: feedbackStats?.totalCount !== undefined ? feedbackStats.totalCount : feedbacks.length,
+            alert: (feedbackStats?.newCount || 0) > 0,
+        },
     ];
 
     return (
@@ -1742,6 +1983,506 @@ export default function AdminPanel() {
                                 </div>
                             </div>
                         )}
+
+                        {/* ═══════════════════════════════════════════════════════
+                            7. FEEDBACK & SUGGESTIONS MANAGEMENT TAB
+                        ═══════════════════════════════════════════════════════ */}
+                        {activeTab === "feedback" && (
+                            <div className="space-y-6 animate-in fade-in duration-200">
+                                {/* Header Title Banner */}
+                                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-[#EAE2D8] dark:border-[#2E2822] pb-4">
+                                    <div>
+                                        <div className="flex items-center gap-2">
+                                            <h2 className="text-xl font-serif font-bold text-[#0D1B2A] dark:text-[#FAF8F5]">
+                                                Feedback & Suggestions
+                                            </h2>
+                                            <span className="px-2.5 py-0.5 rounded-full bg-[#F4EFEA] dark:bg-[#24201C] text-[#8C6239] dark:text-[#E5C378] text-[10px] font-bold uppercase border border-[#DDD2C4] dark:border-[#2E2822]">
+                                                Community Voice
+                                            </span>
+                                        </div>
+                                        <p className="text-xs text-[#8C7862] dark:text-[#A8957E] mt-0.5">
+                                            Review and manage suggestions, bug reports, and user experience feedback from students and teachers.
+                                        </p>
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                        <button
+                                            type="button"
+                                            onClick={() => fetchFeedbackData(feedbackPage)}
+                                            className="p-2.5 rounded-full bg-white dark:bg-[#1C1916] text-[#4A3E31] dark:text-[#FAF8F5] border border-[#EAE2D8] dark:border-[#2E2822] hover:bg-[#FAF8F5] transition cursor-pointer shadow-2xs"
+                                            title="Refresh feedback list"
+                                        >
+                                            <FaSyncAlt className={`text-xs ${feedbackLoading ? "animate-spin" : ""}`} />
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={handleExportFeedbackCSV}
+                                            className="inline-flex items-center gap-1.5 px-4 py-2 rounded-full bg-white dark:bg-[#1C1916] text-[#4A3E31] dark:text-[#FAF8F5] border border-[#EAE2D8] dark:border-[#2E2822] text-xs font-semibold hover:bg-[#FAF8F5] transition shadow-2xs cursor-pointer"
+                                        >
+                                            <FaFileCsv className="text-emerald-600" /> Export CSV
+                                        </button>
+                                    </div>
+                                </div>
+
+                                {/* 6 Top Statistics Overview Cards */}
+                                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+                                    <div className="bg-white dark:bg-[#161412] border border-[#EAE2D8] dark:border-[#2E2822] rounded-2xl p-4 shadow-2xs">
+                                        <p className="text-[10px] font-bold uppercase tracking-wider text-[#8C7862] dark:text-[#A8957E]">
+                                            Total Feedback
+                                        </p>
+                                        <p className="text-2xl font-serif font-bold text-[#0D1B2A] dark:text-[#FAF8F5] mt-1">
+                                            {feedbackStats?.totalCount ?? feedbackTotal}
+                                        </p>
+                                        <p className="text-[10px] text-[#8C7862] dark:text-[#A8957E] mt-0.5">All Submissions</p>
+                                    </div>
+
+                                    <div
+                                        onClick={() => setFbStatusFilter("New")}
+                                        className="cursor-pointer bg-white dark:bg-[#161412] border border-[#EAE2D8] dark:border-[#2E2822] hover:border-blue-500 rounded-2xl p-4 shadow-2xs transition"
+                                    >
+                                        <div className="flex items-center justify-between">
+                                            <p className="text-[10px] font-bold uppercase tracking-wider text-blue-600 dark:text-blue-400">
+                                                New
+                                            </p>
+                                            {(feedbackStats?.newCount || 0) > 0 && (
+                                                <span className="w-2 h-2 rounded-full bg-blue-500 animate-pulse" />
+                                            )}
+                                        </div>
+                                        <p className="text-2xl font-serif font-bold text-blue-700 dark:text-blue-300 mt-1">
+                                            {feedbackStats?.newCount ?? 0}
+                                        </p>
+                                        <p className="text-[10px] text-[#8C7862] dark:text-[#A8957E] mt-0.5">Awaiting Review</p>
+                                    </div>
+
+                                    <div
+                                        onClick={() => setFbStatusFilter("Under Review")}
+                                        className="cursor-pointer bg-white dark:bg-[#161412] border border-[#EAE2D8] dark:border-[#2E2822] hover:border-amber-500 rounded-2xl p-4 shadow-2xs transition"
+                                    >
+                                        <p className="text-[10px] font-bold uppercase tracking-wider text-amber-600 dark:text-amber-400">
+                                            Under Review
+                                        </p>
+                                        <p className="text-2xl font-serif font-bold text-amber-700 dark:text-amber-300 mt-1">
+                                            {feedbackStats?.underReviewCount ?? 0}
+                                        </p>
+                                        <p className="text-[10px] text-[#8C7862] dark:text-[#A8957E] mt-0.5">Being Evaluated</p>
+                                    </div>
+
+                                    <div
+                                        onClick={() => setFbStatusFilter("In Progress")}
+                                        className="cursor-pointer bg-white dark:bg-[#161412] border border-[#EAE2D8] dark:border-[#2E2822] hover:border-orange-500 rounded-2xl p-4 shadow-2xs transition"
+                                    >
+                                        <p className="text-[10px] font-bold uppercase tracking-wider text-orange-600 dark:text-orange-400">
+                                            In Progress
+                                        </p>
+                                        <p className="text-2xl font-serif font-bold text-orange-700 dark:text-orange-300 mt-1">
+                                            {feedbackStats?.inProgressCount ?? 0}
+                                        </p>
+                                        <p className="text-[10px] text-[#8C7862] dark:text-[#A8957E] mt-0.5">Under Implementation</p>
+                                    </div>
+
+                                    <div
+                                        onClick={() => setFbStatusFilter("Resolved")}
+                                        className="cursor-pointer bg-white dark:bg-[#161412] border border-[#EAE2D8] dark:border-[#2E2822] hover:border-emerald-500 rounded-2xl p-4 shadow-2xs transition"
+                                    >
+                                        <p className="text-[10px] font-bold uppercase tracking-wider text-emerald-600 dark:text-emerald-400">
+                                            Resolved
+                                        </p>
+                                        <p className="text-2xl font-serif font-bold text-emerald-700 dark:text-emerald-300 mt-1">
+                                            {feedbackStats?.resolvedCount ?? 0}
+                                        </p>
+                                        <p className="text-[10px] text-[#8C7862] dark:text-[#A8957E] mt-0.5">
+                                            {feedbackStats?.resolutionRate ?? 0}% rate
+                                        </p>
+                                    </div>
+
+                                    <div
+                                        onClick={() => setFbPriorityFilter("High")}
+                                        className="cursor-pointer bg-white dark:bg-[#161412] border border-[#EAE2D8] dark:border-[#2E2822] hover:border-rose-500 rounded-2xl p-4 shadow-2xs transition"
+                                    >
+                                        <p className="text-[10px] font-bold uppercase tracking-wider text-rose-600 dark:text-rose-400">
+                                            High / Critical
+                                        </p>
+                                        <p className="text-2xl font-serif font-bold text-rose-700 dark:text-rose-300 mt-1">
+                                            {feedbackStats?.counts?.highPriority ?? 0}
+                                        </p>
+                                        <p className="text-[10px] text-[#8C7862] dark:text-[#A8957E] mt-0.5">Urgent Attention</p>
+                                    </div>
+                                </div>
+
+                                {/* Analytics Breakdown Panel */}
+                                {feedbackStats && (
+                                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                        {/* Metric Card 1: Rating & Resolution */}
+                                        <div className="bg-white dark:bg-[#161412] border border-[#EAE2D8] dark:border-[#2E2822] rounded-2xl p-5 shadow-2xs space-y-3">
+                                            <div className="flex items-center justify-between">
+                                                <h4 className="text-xs font-bold uppercase tracking-wider text-[#8C7862] dark:text-[#A8957E]">
+                                                    User Satisfaction & Volume
+                                                </h4>
+                                                <FaChartBar className="text-[#C89D5C] text-xs" />
+                                            </div>
+                                            <div className="flex items-center gap-4">
+                                                <div>
+                                                    <p className="text-3xl font-serif font-bold text-amber-500">
+                                                        ★ {feedbackStats.averageRating || 5.0}
+                                                    </p>
+                                                    <p className="text-[10px] text-[#8C7862] dark:text-[#A8957E]">Average Platform Rating</p>
+                                                </div>
+                                                <div className="border-l border-[#EAE2D8] dark:border-[#2E2822] pl-4">
+                                                    <p className="text-3xl font-serif font-bold text-emerald-600 dark:text-emerald-400">
+                                                        {feedbackStats.resolutionRate}%
+                                                    </p>
+                                                    <p className="text-[10px] text-[#8C7862] dark:text-[#A8957E]">Resolution Rate</p>
+                                                </div>
+                                            </div>
+                                            <div className="pt-2 border-t border-[#EAE2D8] dark:border-[#2E2822] text-[11px] text-[#6B5B49] dark:text-[#C2B3A0] flex items-center justify-between">
+                                                <span>Last 7d: <strong>{feedbackStats.volume?.last7Days || 0}</strong></span>
+                                                <span>Last 30d: <strong>{feedbackStats.volume?.last30Days || 0}</strong></span>
+                                                <span>Last 90d: <strong>{feedbackStats.volume?.last90Days || 0}</strong></span>
+                                            </div>
+                                        </div>
+
+                                        {/* Metric Card 2: Most Requested Improvements */}
+                                        <div className="bg-white dark:bg-[#161412] border border-[#EAE2D8] dark:border-[#2E2822] rounded-2xl p-5 shadow-2xs space-y-3">
+                                            <h4 className="text-xs font-bold uppercase tracking-wider text-[#8C7862] dark:text-[#A8957E]">
+                                                Most Requested Improvements
+                                            </h4>
+                                            {feedbackStats.mostRequestedImprovements && feedbackStats.mostRequestedImprovements.length > 0 ? (
+                                                <div className="space-y-1.5">
+                                                    {feedbackStats.mostRequestedImprovements.slice(0, 4).map((item, idx) => (
+                                                        <div key={idx} className="flex items-center justify-between text-xs">
+                                                            <span className="truncate max-w-[200px] text-[#1A1614] dark:text-[#FAF8F5]">
+                                                                {item.label}
+                                                            </span>
+                                                            <span className="font-bold text-[#8C6239] dark:text-[#E5C378] bg-[#FAF8F5] dark:bg-[#24201C] px-2 py-0.5 rounded-full text-[10px]">
+                                                                {item.count} requests
+                                                            </span>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            ) : (
+                                                <p className="text-xs text-[#8C7862] dark:text-[#A8957E]">Gathering feedback requests...</p>
+                                            )}
+                                        </div>
+
+                                        {/* Metric Card 3: Top Category Distribution */}
+                                        <div className="bg-white dark:bg-[#161412] border border-[#EAE2D8] dark:border-[#2E2822] rounded-2xl p-5 shadow-2xs space-y-3">
+                                            <h4 className="text-xs font-bold uppercase tracking-wider text-[#8C7862] dark:text-[#A8957E]">
+                                                Feedback Categories
+                                            </h4>
+                                            <div className="flex flex-wrap gap-1.5">
+                                                {feedbackStats.categoryDistribution && feedbackStats.categoryDistribution.slice(0, 6).map((c, i) => (
+                                                    <span
+                                                        key={i}
+                                                        onClick={() => setFbTypeFilter(c.category)}
+                                                        className="cursor-pointer text-[10px] font-semibold px-2.5 py-1 rounded-full bg-[#FAF8F5] dark:bg-[#24201C] text-[#8C6239] dark:text-[#E5C378] border border-[#EAE2D8] dark:border-[#2E2822] hover:bg-[#F4EFEA]"
+                                                    >
+                                                        {c.category} ({c.count})
+                                                    </span>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    </div>
+                                )}
+
+                                {/* Search, Filter & Sort Controls */}
+                                <div className="bg-white dark:bg-[#161412] border border-[#EAE2D8] dark:border-[#2E2822] rounded-2xl p-4 shadow-2xs space-y-3">
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-2.5">
+                                        {/* Search Input */}
+                                        <div className="relative lg:col-span-2">
+                                            <FaSearch className="absolute left-3.5 top-1/2 -translate-y-1/2 text-xs text-[#8C7862]" />
+                                            <input
+                                                type="text"
+                                                placeholder="Search ID, user, email, message..."
+                                                value={fbSearch}
+                                                onChange={(e) => setFbSearch(e.target.value)}
+                                                className="w-full pl-9 pr-3 py-2 bg-[#FAF8F5] dark:bg-[#1C1916] border border-[#EAE2D8] dark:border-[#2E2822] rounded-xl text-xs text-[#1A1614] dark:text-[#FAF8F5] placeholder:text-[#A8957E] focus:outline-hidden focus:border-[#C89D5C]"
+                                            />
+                                        </div>
+
+                                        {/* Status Filter */}
+                                        <div>
+                                            <select
+                                                value={fbStatusFilter}
+                                                onChange={(e) => setFbStatusFilter(e.target.value)}
+                                                className="w-full px-3 py-2 bg-[#FAF8F5] dark:bg-[#1C1916] border border-[#EAE2D8] dark:border-[#2E2822] rounded-xl text-xs text-[#1A1614] dark:text-[#FAF8F5] focus:outline-hidden focus:border-[#C89D5C]"
+                                            >
+                                                <option value="all">Status: All</option>
+                                                <option value="New">New</option>
+                                                <option value="Under Review">Under Review</option>
+                                                <option value="In Progress">In Progress</option>
+                                                <option value="Resolved">Resolved</option>
+                                                <option value="Rejected">Rejected</option>
+                                                <option value="Archived">Archived</option>
+                                            </select>
+                                        </div>
+
+                                        {/* Priority Filter */}
+                                        <div>
+                                            <select
+                                                value={fbPriorityFilter}
+                                                onChange={(e) => setFbPriorityFilter(e.target.value)}
+                                                className="w-full px-3 py-2 bg-[#FAF8F5] dark:bg-[#1C1916] border border-[#EAE2D8] dark:border-[#2E2822] rounded-xl text-xs text-[#1A1614] dark:text-[#FAF8F5] focus:outline-hidden focus:border-[#C89D5C]"
+                                            >
+                                                <option value="all">Priority: All</option>
+                                                <option value="Critical">Critical</option>
+                                                <option value="High">High</option>
+                                                <option value="Medium">Medium</option>
+                                                <option value="Low">Low</option>
+                                            </select>
+                                        </div>
+
+                                        {/* Rating Filter */}
+                                        <div>
+                                            <select
+                                                value={fbRatingFilter}
+                                                onChange={(e) => setFbRatingFilter(e.target.value)}
+                                                className="w-full px-3 py-2 bg-[#FAF8F5] dark:bg-[#1C1916] border border-[#EAE2D8] dark:border-[#2E2822] rounded-xl text-xs text-[#1A1614] dark:text-[#FAF8F5] focus:outline-hidden focus:border-[#C89D5C]"
+                                            >
+                                                <option value="all">Rating: All</option>
+                                                <option value="5">5 Stars ★★★★★</option>
+                                                <option value="4">4 Stars ★★★★☆</option>
+                                                <option value="3">3 Stars ★★★☆☆</option>
+                                                <option value="2">2 Stars ★★☆☆☆</option>
+                                                <option value="1">1 Star ★☆☆☆☆</option>
+                                            </select>
+                                        </div>
+
+                                        {/* Sort By */}
+                                        <div>
+                                            <select
+                                                value={fbSort}
+                                                onChange={(e) => setFbSort(e.target.value)}
+                                                className="w-full px-3 py-2 bg-[#FAF8F5] dark:bg-[#1C1916] border border-[#EAE2D8] dark:border-[#2E2822] rounded-xl text-xs text-[#1A1614] dark:text-[#FAF8F5] focus:outline-hidden focus:border-[#C89D5C]"
+                                            >
+                                                <option value="newest">Sort: Newest</option>
+                                                <option value="oldest">Sort: Oldest</option>
+                                                <option value="rating_desc">Highest Rating</option>
+                                                <option value="rating_asc">Lowest Rating</option>
+                                            </select>
+                                        </div>
+                                    </div>
+
+                                    {/* Sub-filter row: Category filter + Clear filters */}
+                                    <div className="flex flex-wrap items-center justify-between gap-2 pt-1 text-xs">
+                                        <div className="flex items-center gap-2">
+                                            <span className="text-[#8C7862] text-[11px]">Type Filter:</span>
+                                            <select
+                                                value={fbTypeFilter}
+                                                onChange={(e) => setFbTypeFilter(e.target.value)}
+                                                className="px-2.5 py-1 bg-[#FAF8F5] dark:bg-[#1C1916] border border-[#EAE2D8] dark:border-[#2E2822] rounded-lg text-xs text-[#1A1614] dark:text-[#FAF8F5]"
+                                            >
+                                                <option value="all">All Feedback Types</option>
+                                                <option value="Suggest an Improvement">Suggest an Improvement</option>
+                                                <option value="Report a Problem">Report a Problem</option>
+                                                <option value="Report a Bug">Report a Bug</option>
+                                                <option value="Suggest a New Feature">Suggest a New Feature</option>
+                                                <option value="Paper/PYQ Issue">Paper/PYQ Issue</option>
+                                                <option value="Website Experience">Website Experience</option>
+                                                <option value="Content Quality">Content Quality</option>
+                                                <option value="UI/Design Feedback">UI/Design Feedback</option>
+                                                <option value="General Feedback">General Feedback</option>
+                                                <option value="Other">Other</option>
+                                            </select>
+                                        </div>
+
+                                        {(fbSearch || fbStatusFilter !== "all" || fbPriorityFilter !== "all" || fbTypeFilter !== "all" || fbRatingFilter !== "all") && (
+                                            <button
+                                                type="button"
+                                                onClick={() => {
+                                                    setFbSearch("");
+                                                    setFbStatusFilter("all");
+                                                    setFbPriorityFilter("all");
+                                                    setFbTypeFilter("all");
+                                                    setFbRatingFilter("all");
+                                                    setFbSort("newest");
+                                                }}
+                                                className="text-[#C89D5C] hover:underline font-semibold cursor-pointer text-xs"
+                                            >
+                                                Reset / Clear Filters
+                                            </button>
+                                        )}
+                                    </div>
+                                </div>
+
+                                {/* Feedback Submissions Table */}
+                                <div className="bg-white dark:bg-[#161412] border border-[#EAE2D8] dark:border-[#2E2822] rounded-3xl overflow-hidden shadow-xs">
+                                    <div className="overflow-x-auto">
+                                        <table className="w-full text-left border-collapse text-xs">
+                                            <thead>
+                                                <tr className="border-b border-[#EAE2D8] dark:border-[#2E2822] bg-[#FAF8F5]/80 dark:bg-[#1C1916]/80 text-[#8C7862] dark:text-[#A8957E] font-bold uppercase tracking-wider text-[10px]">
+                                                    <th className="p-4">Reference ID</th>
+                                                    <th className="p-4">User</th>
+                                                    <th className="p-4">Category / Type</th>
+                                                    <th className="p-4">Academic Context</th>
+                                                    <th className="p-4">Rating</th>
+                                                    <th className="p-4">Priority</th>
+                                                    <th className="p-4">Status</th>
+                                                    <th className="p-4">Date</th>
+                                                    <th className="p-4 text-right">Actions</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody className="divide-y divide-[#EAE2D8] dark:divide-[#2E2822]">
+                                                {feedbackLoading ? (
+                                                    <tr>
+                                                        <td colSpan="9" className="p-12 text-center text-[#8C7862]">
+                                                            <FaSpinner className="text-2xl text-[#C89D5C] animate-spin mx-auto mb-2" />
+                                                            Loading feedback submissions...
+                                                        </td>
+                                                    </tr>
+                                                ) : feedbacks.length === 0 ? (
+                                                    <tr>
+                                                        <td colSpan="9" className="p-12 text-center text-[#8C7862]">
+                                                            <p className="font-bold text-sm text-[#0D1B2A] dark:text-[#FAF8F5] mb-1">
+                                                                No feedback found
+                                                            </p>
+                                                            <p className="text-xs text-[#8C7862] dark:text-[#A8957E]">
+                                                                Try changing your search query or reset the applied filters.
+                                                            </p>
+                                                        </td>
+                                                    </tr>
+                                                ) : (
+                                                    feedbacks.map((item) => (
+                                                        <tr
+                                                            key={item._id}
+                                                            className="hover:bg-[#FAF8F5] dark:hover:bg-[#1C1916] transition group"
+                                                        >
+                                                            <td className="p-4 font-mono font-bold text-[#4A2E1B] dark:text-[#E5C378]">
+                                                                {item.referenceId}
+                                                            </td>
+                                                            <td className="p-4">
+                                                                {item.anonymous ? (
+                                                                    <span className="inline-flex items-center gap-1 text-[11px] text-stone-500 font-semibold bg-stone-100 dark:bg-stone-800 px-2 py-0.5 rounded-full">
+                                                                        <FaUserSecret className="text-[10px]" /> Anonymous
+                                                                    </span>
+                                                                ) : (
+                                                                    <div>
+                                                                        <div className="font-bold text-[#0D1B2A] dark:text-[#FAF8F5]">
+                                                                            {item.userNameSnapshot || "Student"}
+                                                                        </div>
+                                                                        <div className="text-[10px] text-[#8C7862] truncate max-w-[140px]">
+                                                                            {item.userEmailSnapshot || "No email"}
+                                                                        </div>
+                                                                    </div>
+                                                                )}
+                                                            </td>
+                                                            <td className="p-4">
+                                                                <span className="px-2 py-0.5 rounded-full bg-[#FAF8F5] dark:bg-[#24201C] text-[#8C6239] dark:text-[#E5C378] text-[10px] font-semibold border border-[#EAE2D8] dark:border-[#2E2822]">
+                                                                    {item.feedbackType}
+                                                                </span>
+                                                            </td>
+                                                            <td className="p-4 text-[#6B5B49] dark:text-[#C2B3A0]">
+                                                                {item.course ? (
+                                                                    <div>
+                                                                        <span className="font-semibold text-[#0D1B2A] dark:text-[#FAF8F5]">{item.course}</span>
+                                                                        {item.semester && <span className="text-[10px] block text-[#8C7862]">Sem {item.semester}</span>}
+                                                                    </div>
+                                                                ) : (
+                                                                    <span className="text-stone-400">—</span>
+                                                                )}
+                                                            </td>
+                                                            <td className="p-4 text-amber-500 font-bold whitespace-nowrap">
+                                                                ★ {item.rating}
+                                                            </td>
+                                                            <td className="p-4">
+                                                                <span
+                                                                    className={`px-2 py-0.5 rounded-full text-[10px] font-bold border ${
+                                                                        item.priority === "Critical"
+                                                                            ? "bg-rose-100 dark:bg-rose-950/40 text-rose-700 dark:text-rose-300 border-rose-300"
+                                                                            : item.priority === "High"
+                                                                            ? "bg-orange-100 dark:bg-orange-950/40 text-orange-700 dark:text-orange-300 border-orange-300"
+                                                                            : item.priority === "Low"
+                                                                            ? "bg-stone-100 dark:bg-stone-800 text-stone-600 dark:text-stone-300 border-stone-300"
+                                                                            : "bg-amber-100 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 border-amber-300"
+                                                                    }`}
+                                                                >
+                                                                    {item.priority}
+                                                                </span>
+                                                            </td>
+                                                            <td className="p-4">
+                                                                <span
+                                                                    className={`px-2.5 py-0.5 rounded-full text-[10px] font-semibold border ${
+                                                                        item.status === "New"
+                                                                            ? "bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300 border-blue-200"
+                                                                            : item.status === "Under Review"
+                                                                            ? "bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 border-amber-200"
+                                                                            : item.status === "In Progress"
+                                                                            ? "bg-orange-50 dark:bg-orange-950/40 text-orange-700 dark:text-orange-300 border-orange-200"
+                                                                            : item.status === "Resolved"
+                                                                            ? "bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border-emerald-200"
+                                                                            : item.status === "Rejected"
+                                                                            ? "bg-rose-50 dark:bg-rose-950/40 text-rose-700 dark:text-rose-300 border-rose-200"
+                                                                            : "bg-stone-100 dark:bg-stone-800 text-stone-600 border-stone-300"
+                                                                    }`}
+                                                                >
+                                                                    {item.status}
+                                                                </span>
+                                                            </td>
+                                                            <td className="p-4 text-[#8C7862] text-[11px] whitespace-nowrap">
+                                                                {new Date(item.createdAt).toLocaleDateString("en-IN", {
+                                                                    day: "numeric",
+                                                                    month: "short",
+                                                                    year: "numeric",
+                                                                })}
+                                                            </td>
+                                                            <td className="p-4 text-right whitespace-nowrap">
+                                                                <div className="flex items-center justify-end gap-1.5">
+                                                                    <button
+                                                                        type="button"
+                                                                        onClick={() => {
+                                                                            setSelectedFeedback(item);
+                                                                            setAdminResponseInput(item.adminResponse?.message || "");
+                                                                        }}
+                                                                        className="px-3 py-1 rounded-full bg-[#FAF8F5] dark:bg-[#24201C] hover:bg-[#EAE2D8] dark:hover:bg-[#2E2822] text-[#4A2E1B] dark:text-[#E5C378] border border-[#EAE2D8] dark:border-[#2E2822] font-semibold text-[11px] transition cursor-pointer"
+                                                                    >
+                                                                        Manage
+                                                                    </button>
+                                                                    <button
+                                                                        type="button"
+                                                                        onClick={() => handleDeleteFeedback(item._id)}
+                                                                        className="p-1.5 rounded-full text-[#8C7862] hover:text-rose-600 transition cursor-pointer"
+                                                                        title="Delete feedback"
+                                                                    >
+                                                                        <FaTrash className="text-xs" />
+                                                                    </button>
+                                                                </div>
+                                                            </td>
+                                                        </tr>
+                                                    ))
+                                                )}
+                                            </tbody>
+                                        </table>
+                                    </div>
+
+                                    {/* Pagination Controls */}
+                                    <div className="p-4 border-t border-[#EAE2D8] dark:border-[#2E2822] bg-[#FAF8F5]/50 dark:bg-[#1C1916]/50 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-[#8C7862]">
+                                        <p>
+                                            Showing {feedbacks.length > 0 ? (feedbackPage - 1) * 20 + 1 : 0}–
+                                            {Math.min(feedbackPage * 20, feedbackTotal)} of {feedbackTotal} feedback submissions
+                                        </p>
+                                        <div className="flex items-center gap-2">
+                                            <button
+                                                type="button"
+                                                disabled={feedbackPage <= 1 || feedbackLoading}
+                                                onClick={() => setFeedbackPage((p) => Math.max(1, p - 1))}
+                                                className="px-3 py-1.5 rounded-full bg-white dark:bg-[#1C1916] border border-[#EAE2D8] dark:border-[#2E2822] font-semibold disabled:opacity-40 cursor-pointer shadow-2xs"
+                                            >
+                                                ← Previous
+                                            </button>
+                                            <span className="font-bold text-[#0D1B2A] dark:text-[#FAF8F5]">
+                                                Page {feedbackPage} of {feedbackTotalPages}
+                                            </span>
+                                            <button
+                                                type="button"
+                                                disabled={feedbackPage >= feedbackTotalPages || feedbackLoading}
+                                                onClick={() => setFeedbackPage((p) => Math.min(feedbackTotalPages, p + 1))}
+                                                className="px-3 py-1.5 rounded-full bg-white dark:bg-[#1C1916] border border-[#EAE2D8] dark:border-[#2E2822] font-semibold disabled:opacity-40 cursor-pointer shadow-2xs"
+                                            >
+                                                Next →
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
                     </>
                 )}
             </main>
@@ -2227,6 +2968,301 @@ export default function AdminPanel() {
                     title={previewPdf.title}
                     onClose={() => setPreviewPdf(null)}
                 />
+            )}
+
+            {/* FEEDBACK DETAIL & MANAGEMENT MODAL */}
+            {selectedFeedback && (
+                <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto">
+                    <div className="bg-white dark:bg-[#161412] border border-[#EAE2D8] dark:border-[#2E2822] rounded-3xl shadow-2xl w-full max-w-4xl p-6 sm:p-8 animate-in fade-in zoom-in-95 duration-200 max-h-[92vh] overflow-y-auto space-y-6">
+                        {/* Modal Header */}
+                        <div className="flex items-start justify-between border-b border-[#EAE2D8] dark:border-[#2E2822] pb-4">
+                            <div>
+                                <div className="flex items-center gap-2">
+                                    <span className="font-mono text-base font-bold text-[#4A2E1B] dark:text-[#E5C378]">
+                                        {selectedFeedback.referenceId}
+                                    </span>
+                                    <span className="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-[#FAF8F5] dark:bg-[#24201C] text-[#8C6239] dark:text-[#E5C378] border border-[#EAE2D8] dark:border-[#2E2822]">
+                                        {selectedFeedback.feedbackType}
+                                    </span>
+                                    <span className="text-xs text-amber-500 font-bold">
+                                        ★ {selectedFeedback.rating}/5
+                                    </span>
+                                </div>
+                                <p className="text-xs text-[#8C7862] dark:text-[#A8957E] mt-0.5">
+                                    Submitted on {new Date(selectedFeedback.createdAt).toLocaleString("en-IN", { timeZone: "Asia/Kolkata" })}
+                                </p>
+                            </div>
+                            <button
+                                type="button"
+                                onClick={() => setSelectedFeedback(null)}
+                                className="p-2 rounded-full hover:bg-[#F4EFEA] dark:hover:bg-[#24201C] text-[#8C7862] transition cursor-pointer"
+                            >
+                                <FaTimes />
+                            </button>
+                        </div>
+
+                        {/* Modal Grid: Left (Submission details) | Right (Management & Response) */}
+                        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+                            {/* Left Column: Submitter & Content (7 cols) */}
+                            <div className="lg:col-span-7 space-y-4">
+                                {/* Submitter Details Card */}
+                                <div className="p-4 rounded-2xl bg-[#FAF8F5] dark:bg-[#1C1916] border border-[#EAE2D8] dark:border-[#2E2822] text-xs space-y-2">
+                                    <div className="flex items-center justify-between">
+                                        <p className="font-bold uppercase tracking-wider text-[10px] text-[#8C7862] dark:text-[#A8957E]">
+                                            Submitter Information
+                                        </p>
+                                        {selectedFeedback.anonymous && (
+                                            <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-stone-200 dark:bg-stone-800 text-stone-700 dark:text-stone-300 flex items-center gap-1">
+                                                <FaUserSecret className="text-[9px]" /> Anonymous
+                                            </span>
+                                        )}
+                                    </div>
+                                    <div className="grid grid-cols-2 gap-2">
+                                        <div>
+                                            <span className="text-[#8C7862] text-[11px] block">Name:</span>
+                                            <span className="font-semibold text-[#1A1614] dark:text-[#FAF8F5]">
+                                                {selectedFeedback.anonymous ? "Anonymous Student" : selectedFeedback.userNameSnapshot || "Student"}
+                                            </span>
+                                        </div>
+                                        <div>
+                                            <span className="text-[#8C7862] text-[11px] block">Email:</span>
+                                            <span className="font-semibold text-[#1A1614] dark:text-[#FAF8F5]">
+                                                {selectedFeedback.anonymous ? "[Hidden - Anonymous]" : selectedFeedback.userEmailSnapshot || "No email"}
+                                            </span>
+                                        </div>
+                                        <div>
+                                            <span className="text-[#8C7862] text-[11px] block">User ID:</span>
+                                            <span className="font-mono text-[10px] text-[#8C7862]">
+                                                {selectedFeedback.anonymous ? "[Masked]" : selectedFeedback.userId}
+                                            </span>
+                                        </div>
+                                        <div>
+                                            <span className="text-[#8C7862] text-[11px] block">Follow-up:</span>
+                                            <span className="font-semibold">
+                                                {selectedFeedback.followUpRequested ? "✅ Yes, requested" : "No"}
+                                            </span>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* Academic & Entity Context */}
+                                <div className="p-4 rounded-2xl bg-[#FAF8F5] dark:bg-[#1C1916] border border-[#EAE2D8] dark:border-[#2E2822] text-xs space-y-2">
+                                    <p className="font-bold uppercase tracking-wider text-[10px] text-[#8C7862] dark:text-[#A8957E]">
+                                        Academic & Subject Context
+                                    </p>
+                                    <div className="grid grid-cols-2 gap-2">
+                                        <div>
+                                            <span className="text-[#8C7862] text-[11px] block">Course:</span>
+                                            <span className="font-semibold text-[#1A1614] dark:text-[#FAF8F5]">
+                                                {selectedFeedback.course || "General / Not Specified"}
+                                            </span>
+                                        </div>
+                                        <div>
+                                            <span className="text-[#8C7862] text-[11px] block">Department / Branch:</span>
+                                            <span className="font-semibold text-[#1A1614] dark:text-[#FAF8F5]">
+                                                {selectedFeedback.department || "—"}
+                                            </span>
+                                        </div>
+                                        <div>
+                                            <span className="text-[#8C7862] text-[11px] block">Year & Semester:</span>
+                                            <span className="font-semibold text-[#1A1614] dark:text-[#FAF8F5]">
+                                                {selectedFeedback.academicYear || ""} {selectedFeedback.semester ? `• Sem ${selectedFeedback.semester}` : ""}
+                                            </span>
+                                        </div>
+                                        <div>
+                                            <span className="text-[#8C7862] text-[11px] block">Subject:</span>
+                                            <span className="font-semibold text-[#1A1614] dark:text-[#FAF8F5]">
+                                                {selectedFeedback.subject || "—"}
+                                            </span>
+                                        </div>
+                                        {selectedFeedback.teacherName && (
+                                            <div className="col-span-2">
+                                                <span className="text-[#8C7862] text-[11px] block">Teacher / Faculty:</span>
+                                                <span className="font-semibold text-[#1A1614] dark:text-[#FAF8F5]">
+                                                    {selectedFeedback.teacherName}
+                                                </span>
+                                            </div>
+                                        )}
+                                        {selectedFeedback.paperTitle && (
+                                            <div className="col-span-2">
+                                                <span className="text-[#8C7862] text-[11px] block">Paper Title:</span>
+                                                <span className="font-semibold text-[#1A1614] dark:text-[#FAF8F5]">
+                                                    {selectedFeedback.paperTitle}
+                                                </span>
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+
+                                {/* Message Content */}
+                                <div>
+                                    <label className="block text-[11px] font-bold uppercase tracking-wider text-[#8C7862] dark:text-[#A8957E] mb-1">
+                                        Feedback Message
+                                    </label>
+                                    <div className="p-4 rounded-2xl bg-[#FAF8F5] dark:bg-[#1C1916] border border-[#EAE2D8] dark:border-[#2E2822] text-xs leading-relaxed text-[#1A1614] dark:text-[#FAF8F5] whitespace-pre-wrap font-sans">
+                                        {selectedFeedback.message}
+                                    </div>
+                                </div>
+
+                                {/* Audit Trail Timeline */}
+                                {selectedFeedback.auditLog && selectedFeedback.auditLog.length > 0 && (
+                                    <div className="space-y-1.5 pt-2">
+                                        <p className="text-[10px] font-bold uppercase tracking-wider text-[#8C7862]">
+                                            Audit Trail
+                                        </p>
+                                        <div className="space-y-1 max-h-32 overflow-y-auto">
+                                            {selectedFeedback.auditLog.map((log, i) => (
+                                                <div key={i} className="text-[10px] text-[#8C7862] flex items-center justify-between bg-stone-50 dark:bg-stone-900/50 p-1.5 rounded-lg">
+                                                    <span><strong>{log.action}</strong> by {log.actor} — {log.details}</span>
+                                                    <span>{new Date(log.timestamp).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</span>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+
+                            {/* Right Column: Management Controls, Response & Notes (5 cols) */}
+                            <div className="lg:col-span-5 space-y-4 border-t lg:border-t-0 lg:border-l border-[#EAE2D8] dark:border-[#2E2822] lg:pl-6 pt-4 lg:pt-0">
+                                {/* Status & Priority Controls */}
+                                <div className="space-y-3 p-4 rounded-2xl bg-[#FAF8F5] dark:bg-[#1C1916] border border-[#EAE2D8] dark:border-[#2E2822]">
+                                    <p className="font-bold uppercase tracking-wider text-[10px] text-[#8C7862] dark:text-[#A8957E]">
+                                        Moderation Controls
+                                    </p>
+
+                                    <div>
+                                        <label className="block text-[11px] font-semibold text-[#6B5B49] dark:text-[#C2B3A0] mb-1">
+                                            Feedback Status
+                                        </label>
+                                        <select
+                                            disabled={feedbackUpdating}
+                                            value={selectedFeedback.status}
+                                            onChange={(e) => handleUpdateFeedbackStatus(selectedFeedback._id, e.target.value)}
+                                            className="w-full px-3 py-2 bg-white dark:bg-[#161412] border border-[#EAE2D8] dark:border-[#2E2822] rounded-xl text-xs font-semibold text-[#1A1614] dark:text-[#FAF8F5] focus:outline-hidden focus:border-[#C89D5C]"
+                                        >
+                                            <option value="New">New</option>
+                                            <option value="Under Review">Under Review</option>
+                                            <option value="In Progress">In Progress</option>
+                                            <option value="Resolved">Resolved</option>
+                                            <option value="Rejected">Rejected</option>
+                                            <option value="Archived">Archived</option>
+                                        </select>
+                                    </div>
+
+                                    <div>
+                                        <label className="block text-[11px] font-semibold text-[#6B5B49] dark:text-[#C2B3A0] mb-1">
+                                            Priority Level
+                                        </label>
+                                        <select
+                                            disabled={feedbackUpdating}
+                                            value={selectedFeedback.priority}
+                                            onChange={(e) => handleUpdateFeedbackPriority(selectedFeedback._id, e.target.value)}
+                                            className="w-full px-3 py-2 bg-white dark:bg-[#161412] border border-[#EAE2D8] dark:border-[#2E2822] rounded-xl text-xs font-semibold text-[#1A1614] dark:text-[#FAF8F5] focus:outline-hidden focus:border-[#C89D5C]"
+                                        >
+                                            <option value="Low">Low</option>
+                                            <option value="Medium">Medium</option>
+                                            <option value="High">High</option>
+                                            <option value="Critical">Critical</option>
+                                        </select>
+                                    </div>
+                                </div>
+
+                                {/* Official Admin Response */}
+                                <div className="space-y-2 p-4 rounded-2xl bg-emerald-50/50 dark:bg-emerald-950/20 border border-emerald-200/80 dark:border-emerald-900/50">
+                                    <p className="font-bold uppercase tracking-wider text-[10px] text-emerald-800 dark:text-emerald-300 flex items-center gap-1.5">
+                                        <FaReply /> Official Admin Response
+                                    </p>
+                                    <p className="text-[10px] text-[#8C7862] dark:text-[#A8957E]">
+                                        Visible directly to the student under "My Feedback".
+                                    </p>
+                                    {selectedFeedback.adminResponse?.message && (
+                                        <div className="p-3 rounded-xl bg-white dark:bg-[#161412] border border-emerald-200 dark:border-emerald-800 text-xs text-emerald-950 dark:text-emerald-100">
+                                            <p className="leading-relaxed">{selectedFeedback.adminResponse.message}</p>
+                                            <p className="text-[10px] opacity-70 mt-1">
+                                                Responded by {selectedFeedback.adminResponse.respondedBy || "Admin"} on{" "}
+                                                {new Date(selectedFeedback.adminResponse.respondedAt).toLocaleDateString("en-IN")}
+                                            </p>
+                                        </div>
+                                    )}
+                                    <textarea
+                                        rows={3}
+                                        value={adminResponseInput}
+                                        onChange={(e) => setAdminResponseInput(e.target.value)}
+                                        placeholder="Write an official response to the student..."
+                                        className="w-full p-3 bg-white dark:bg-[#161412] border border-[#EAE2D8] dark:border-[#2E2822] rounded-xl text-xs text-[#1A1614] dark:text-[#FAF8F5] placeholder:text-[#A8957E] focus:outline-hidden focus:border-emerald-600"
+                                    />
+                                    <button
+                                        type="button"
+                                        disabled={feedbackUpdating || !adminResponseInput.trim()}
+                                        onClick={() => handleSaveAdminResponse(selectedFeedback._id)}
+                                        className="w-full py-2 rounded-full bg-emerald-700 hover:bg-emerald-800 text-white text-xs font-bold transition disabled:opacity-50 cursor-pointer shadow-2xs"
+                                    >
+                                        {feedbackUpdating ? "Saving..." : "Save & Publish Response"}
+                                    </button>
+                                </div>
+
+                                {/* Internal Notes (Admin-only) */}
+                                <div className="space-y-2 p-4 rounded-2xl bg-[#FAF8F5] dark:bg-[#1C1916] border border-[#EAE2D8] dark:border-[#2E2822]">
+                                    <p className="font-bold uppercase tracking-wider text-[10px] text-[#8C7862] dark:text-[#A8957E] flex items-center gap-1.5">
+                                        <FaShieldAlt className="text-[#C89D5C]" /> Internal Notes (Private)
+                                    </p>
+                                    <p className="text-[10px] text-[#8C7862] dark:text-[#A8957E]">
+                                        Never shown to normal users or students.
+                                    </p>
+
+                                    {selectedFeedback.internalNotes && selectedFeedback.internalNotes.length > 0 && (
+                                        <div className="space-y-1.5 max-h-36 overflow-y-auto">
+                                            {selectedFeedback.internalNotes.map((n, i) => (
+                                                <div key={i} className="p-2.5 rounded-xl bg-white dark:bg-[#161412] border border-[#EAE2D8] dark:border-[#2E2822] text-xs">
+                                                    <p className="text-[#1A1614] dark:text-[#FAF8F5]">{n.note}</p>
+                                                    <p className="text-[9px] text-[#8C7862] mt-0.5">
+                                                        {n.author} • {new Date(n.createdAt).toLocaleDateString("en-IN")}
+                                                    </p>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    )}
+
+                                    <div className="flex items-center gap-2">
+                                        <input
+                                            type="text"
+                                            value={internalNoteInput}
+                                            onChange={(e) => setInternalNoteInput(e.target.value)}
+                                            placeholder="Add private note..."
+                                            className="flex-1 px-3 py-2 bg-white dark:bg-[#161412] border border-[#EAE2D8] dark:border-[#2E2822] rounded-xl text-xs text-[#1A1614] dark:text-[#FAF8F5] focus:outline-hidden focus:border-[#C89D5C]"
+                                        />
+                                        <button
+                                            type="button"
+                                            disabled={feedbackUpdating || !internalNoteInput.trim()}
+                                            onClick={() => handleAddInternalNote(selectedFeedback._id)}
+                                            className="px-4 py-2 rounded-full bg-[#0D1B2A] text-white dark:bg-[#C89D5C] dark:text-[#0D1B2A] text-xs font-bold disabled:opacity-50 cursor-pointer"
+                                        >
+                                            Add
+                                        </button>
+                                    </div>
+                                </div>
+
+                                {/* Danger zone: Delete */}
+                                <div className="pt-2 flex items-center justify-between">
+                                    <button
+                                        type="button"
+                                        onClick={() => handleDeleteFeedback(selectedFeedback._id)}
+                                        className="text-xs text-rose-600 hover:text-rose-700 font-semibold cursor-pointer"
+                                    >
+                                        Delete Feedback
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => setSelectedFeedback(null)}
+                                        className="px-5 py-2 rounded-full border border-[#DDD2C4] dark:border-[#2E2822] text-xs font-semibold cursor-pointer hover:bg-[#FAF8F5]"
+                                    >
+                                        Close
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
             )}
 
             <Footer />

@@ -10,6 +10,7 @@ import UploadPYQ from "./pages/UploadPYQ";
 import BrowsePYQ from "./pages/BrowsePYQ";
 import BrowseNotes from "./pages/BrowseNotes";
 import AdminPanel from "./pages/AdminPanel.jsx";
+import Feedback from "./pages/Feedback.jsx";
 import AdminRoute from "./components/AdminRoute.jsx";
 import ScrollToTop from "./components/ScrollToTop.jsx";
 import CommandPalette from "./components/CommandPalette.jsx";
@@ -49,6 +50,14 @@ function App() {
           element={
             <ProtectedRoute>
               <Dashboard />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/feedback"
+          element={
+            <ProtectedRoute>
+              <Feedback />
             </ProtectedRoute>
           }
         />

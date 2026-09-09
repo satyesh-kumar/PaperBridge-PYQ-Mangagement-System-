@@ -23,6 +23,7 @@ import {
   FaSignOutAlt,
   FaThLarge,
   FaSpinner,
+  FaCommentDots,
 } from "react-icons/fa";
 import { useIsAdmin } from "../hooks/useIsAdmin";
 import ThemeToggle from "./ThemeToggle";
@@ -589,6 +590,7 @@ function Navbar() {
                 { to: "/notes", label: "Study Notes", icon: <FaStickyNote className="text-sky-500" /> },
                 { to: "/upload", label: "Upload Paper", icon: <FaUpload className="text-[#8C6239] dark:text-[#E5C378]" /> },
                 { to: "/dashboard", label: "Dashboard", icon: <FaThLarge className="text-amber-500" /> },
+                { to: "/feedback", label: "Feedback & Suggestions", icon: <FaCommentDots className="text-emerald-500" /> },
               ].map((link) => (
                 <Link
                   key={link.to}

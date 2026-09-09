@@ -153,6 +153,12 @@ export default function Footer() {
                 </Link>
               </li>
               <li>
+                <Link to="/feedback" className="text-[#6B5B49] dark:text-[#C2B3A0] hover:text-[#C89D5C] dark:hover:text-[#E5C378] transition flex items-center gap-1.5">
+                  <span>Feedback & Suggestions</span>
+                  <span className="px-1.5 py-0.2 rounded text-[9px] font-bold bg-amber-500/20 text-amber-700 dark:text-amber-300">Tell us →</span>
+                </Link>
+              </li>
+              <li>
                 <Link to="/admin" className="text-[#6B5B49] dark:text-[#C2B3A0] hover:text-[#C89D5C] dark:hover:text-[#E5C378] transition">
                   Admin Console
                 </Link>

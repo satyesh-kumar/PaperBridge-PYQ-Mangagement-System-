@@ -14,6 +14,8 @@ import University from "./models/University.js";
 import Course from "./models/Course.js";
 import Semester from "./models/Semester.js";
 import Subject from "./models/Subject.js";
+import Feedback from "./models/Feedback.js";
+import { sendFeedbackNotificationEmail } from "./utils/emailService.js";
 import { seedAcademicData } from "./seedAcademicData.js";
 
 dotenv.config();
@@ -2226,6 +2228,555 @@ app.get("/api/admin/users", requireAdmin, async (req, res) => {
   } catch (err) {
     console.error("Admin users error:", err);
     res.status(500).json({ error: "Failed to load user directory" });
+  }
+});
+
+// ═════════════════════════════════════════════════════════════════════════════
+// 💬 FEEDBACK & SUGGESTIONS SYSTEM ENDPOINTS
+// ═════════════════════════════════════════════════════════════════════════════
+
+const generateFeedbackReferenceId = async () => {
+  for (let i = 0; i < 15; i++) {
+    const randomNum = Math.floor(100000 + Math.random() * 900000);
+    const refId = `PB-FB-${randomNum}`;
+    const exists = await Feedback.findOne({ referenceId: refId });
+    if (!exists) return refId;
+  }
+  return `PB-FB-${Date.now().toString().slice(-6)}`;
+};
+
+const sanitizeInputText = (str) => {
+  if (typeof str !== "string") return "";
+  return str
+    .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, "")
+    .replace(/<[^>]+>/g, "")
+    .trim();
+};
+
+// 1. Submit Feedback (Authenticated User)
+app.post("/api/feedback", requireAuthUser, async (req, res) => {
+  try {
+    const userId = req.auth?.userId || req.headers["x-user-id"] || "";
+    const sessionClaims = req.auth?.sessionClaims || {};
+    const userEmail = (
+      req.headers["x-user-email"] ||
+      sessionClaims.email ||
+      req.body?.userEmail ||
+      ""
+    ).toLowerCase().trim();
+    const userName = req.headers["x-user-name"] || req.body?.userName || "";
+
+    const {
+      feedbackType,
+      relatedTo,
+      studentName,
+      teacherName,
+      courseId,
+      course,
+      department,
+      academicYear,
+      semester,
+      subjectId,
+      subject,
+      paperId,
+      paperTitle,
+      rating,
+      message,
+      followUpRequested,
+      anonymous,
+    } = req.body;
+
+    // Validation: Type & Message
+    if (!feedbackType || !feedbackType.trim()) {
+      return res.status(400).json({ error: "Please select a feedback category/type." });
+    }
+
+    const cleanMessage = sanitizeInputText(message || "");
+    if (!cleanMessage || cleanMessage.length < 10) {
+      return res.status(400).json({ error: "Feedback message must contain at least 10 characters describing your experience." });
+    }
+    if (cleanMessage.length > 3000) {
+      return res.status(400).json({ error: "Feedback message cannot exceed 3000 characters." });
+    }
+
+    // Validation: Rating
+    const numRating = Number(rating);
+    if (isNaN(numRating) || numRating < 1 || numRating > 5) {
+      return res.status(400).json({ error: "Please provide a valid rating between 1 and 5 stars." });
+    }
+
+    // Duplicate submission protection (45s debounce per user)
+    const duplicate = await Feedback.findOne({
+      userId,
+      message: cleanMessage,
+      createdAt: { $gte: new Date(Date.now() - 45000) },
+    });
+    if (duplicate) {
+      return res.status(429).json({
+        error: "Duplicate feedback detected. Please wait a moment before submitting again.",
+        referenceId: duplicate.referenceId,
+      });
+    }
+
+    // Generate unique reference ID (e.g. PB-FB-104281)
+    const referenceId = await generateFeedbackReferenceId();
+
+    // Default priority: High for critical bug/performance issues, otherwise Medium
+    const highPriorityTypes = ["Report a Bug", "Report a Problem", "Performance Issue", "Account/Login Issue"];
+    const initialPriority = highPriorityTypes.includes(feedbackType) ? "High" : "Medium";
+
+    const isAnonymous = Boolean(anonymous);
+
+    const newFeedback = await Feedback.create({
+      referenceId,
+      userId: userId || "anonymous_user",
+      userNameSnapshot: isAnonymous ? "Anonymous Student" : sanitizeInputText(userName || "Student"),
+      userEmailSnapshot: isAnonymous ? "" : userEmail,
+      anonymous: isAnonymous,
+      feedbackType: feedbackType.trim(),
+      relatedTo: relatedTo || "Website",
+      studentName: sanitizeInputText(studentName || ""),
+      teacherName: sanitizeInputText(teacherName || ""),
+      courseId: courseId && mongoose.Types.ObjectId.isValid(courseId) ? courseId : null,
+      course: sanitizeInputText(course || ""),
+      department: sanitizeInputText(department || ""),
+      academicYear: sanitizeInputText(academicYear || ""),
+      semester: sanitizeInputText(String(semester || "")),
+      subjectId: subjectId && mongoose.Types.ObjectId.isValid(subjectId) ? subjectId : null,
+      subject: sanitizeInputText(subject || ""),
+      paperId: paperId && mongoose.Types.ObjectId.isValid(paperId) ? paperId : null,
+      paperTitle: sanitizeInputText(paperTitle || ""),
+      rating: numRating,
+      message: cleanMessage,
+      followUpRequested: Boolean(followUpRequested),
+      status: "New",
+      priority: initialPriority,
+      auditLog: [
+        {
+          action: "Submitted",
+          actor: isAnonymous ? "Anonymous Student" : (userName || userEmail || "Student"),
+          timestamp: new Date(),
+          details: `Feedback created with initial priority ${initialPriority}.`,
+        },
+      ],
+    });
+
+    // Send transactional notification email non-blockingly (resilient error boundary)
+    sendFeedbackNotificationEmail(newFeedback).catch((err) => {
+      console.warn("Background email notification dispatch warning:", err.message);
+    });
+
+    res.status(201).json({
+      success: true,
+      message: "Your feedback has been successfully submitted to the PaperBridge team.",
+      feedback: {
+        _id: newFeedback._id,
+        referenceId: newFeedback.referenceId,
+        feedbackType: newFeedback.feedbackType,
+        rating: newFeedback.rating,
+        status: newFeedback.status,
+        createdAt: newFeedback.createdAt,
+      },
+    });
+  } catch (err) {
+    console.error("Submit feedback error:", err);
+    res.status(500).json({ error: err.message || "Failed to submit feedback" });
+  }
+});
+
+// 2. User's Feedback History
+app.get("/api/feedback/my", requireAuthUser, async (req, res) => {
+  try {
+    const userId = req.auth?.userId;
+    const sessionClaims = req.auth?.sessionClaims || {};
+    const userEmail = (
+      req.headers["x-user-email"] ||
+      sessionClaims.email ||
+      req.query?.email ||
+      ""
+    ).toLowerCase().trim();
+
+    const queryConditions = [];
+    if (userId) queryConditions.push({ userId });
+    if (userEmail) queryConditions.push({ userEmailSnapshot: userEmail });
+
+    if (queryConditions.length === 0) {
+      return res.json([]);
+    }
+
+    const feedbacks = await Feedback.find({ $or: queryConditions })
+      .select("-internalNotes") // never expose internal admin notes to user
+      .sort({ createdAt: -1 });
+
+    res.json(feedbacks);
+  } catch (err) {
+    console.error("Fetch user feedbacks error:", err);
+    res.status(500).json({ error: "Failed to load your feedback history" });
+  }
+});
+
+// 3. User Feedback Detail (Scoped by Ownership)
+app.get("/api/feedback/my/:id", requireAuthUser, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const userId = req.auth?.userId;
+    const userEmail = (req.headers["x-user-email"] || "").toLowerCase().trim();
+
+    const isObjectId = mongoose.Types.ObjectId.isValid(id);
+    const filter = isObjectId ? { _id: id } : { referenceId: id.toUpperCase() };
+
+    const feedback = await Feedback.findOne(filter).select("-internalNotes");
+    if (!feedback) {
+      return res.status(404).json({ error: "Feedback submission not found" });
+    }
+
+    const isAdmin = await isUserAdmin(req);
+    const isOwner = (userId && feedback.userId === userId) || (userEmail && feedback.userEmailSnapshot === userEmail);
+
+    if (!isOwner && !isAdmin) {
+      return res.status(403).json({ error: "Access denied. You do not have permission to view this feedback." });
+    }
+
+    res.json(feedback);
+  } catch (err) {
+    console.error("Fetch feedback detail error:", err);
+    res.status(500).json({ error: "Failed to load feedback details" });
+  }
+});
+
+// 4. Admin Feedback Listing (Paginated, Searchable, Multi-filter, Sorting)
+app.get("/api/admin/feedback", requireAdmin, async (req, res) => {
+  try {
+    const {
+      page = 1,
+      limit = 20,
+      status,
+      priority,
+      feedbackType,
+      course,
+      rating,
+      followUp,
+      search,
+      sortBy = "newest",
+    } = req.query;
+
+    const pageNum = Math.max(1, parseInt(page, 10) || 1);
+    const limitNum = Math.min(100, Math.max(1, parseInt(limit, 10) || 20));
+    const skip = (pageNum - 1) * limitNum;
+
+    const filter = {};
+
+    if (status && status !== "all") filter.status = status;
+    if (priority && priority !== "all") filter.priority = priority;
+    if (feedbackType && feedbackType !== "all") filter.feedbackType = feedbackType;
+    if (course && course !== "all") filter.course = { $regex: course, $options: "i" };
+    if (rating && rating !== "all") filter.rating = Number(rating);
+    if (followUp === "true") filter.followUpRequested = true;
+    if (followUp === "false") filter.followUpRequested = false;
+
+    if (search && search.trim()) {
+      const q = search.trim();
+      filter.$or = [
+        { referenceId: { $regex: q, $options: "i" } },
+        { userNameSnapshot: { $regex: q, $options: "i" } },
+        { userEmailSnapshot: { $regex: q, $options: "i" } },
+        { message: { $regex: q, $options: "i" } },
+        { course: { $regex: q, $options: "i" } },
+        { department: { $regex: q, $options: "i" } },
+        { subject: { $regex: q, $options: "i" } },
+        { teacherName: { $regex: q, $options: "i" } },
+      ];
+    }
+
+    // Sort order
+    let sortObj = { createdAt: -1 };
+    if (sortBy === "oldest") sortObj = { createdAt: 1 };
+    else if (sortBy === "rating_desc") sortObj = { rating: -1, createdAt: -1 };
+    else if (sortBy === "rating_asc") sortObj = { rating: 1, createdAt: -1 };
+    else if (sortBy === "priority_desc") {
+      // Map via sort or secondary sort
+      sortObj = { priority: 1, createdAt: -1 };
+    }
+
+    const [feedbacks, total, countsByStatus, highPriorityCount] = await Promise.all([
+      Feedback.find(filter)
+        .populate("courseId", "name code")
+        .populate("subjectId", "name code")
+        .populate("paperId", "title examType year")
+        .sort(sortObj)
+        .skip(skip)
+        .limit(limitNum),
+      Feedback.countDocuments(filter),
+      Feedback.aggregate([
+        { $group: { _id: "$status", count: { $sum: 1 } } },
+      ]),
+      Feedback.countDocuments({ priority: { $in: ["High", "Critical"] }, status: { $nin: ["Resolved", "Archived"] } }),
+    ]);
+
+    const statusCountsMap = {
+      all: await Feedback.countDocuments(),
+      new: 0,
+      underReview: 0,
+      inProgress: 0,
+      resolved: 0,
+      rejected: 0,
+      archived: 0,
+      highPriority: highPriorityCount,
+    };
+
+    countsByStatus.forEach((item) => {
+      if (item._id === "New") statusCountsMap.new = item.count;
+      else if (item._id === "Under Review") statusCountsMap.underReview = item.count;
+      else if (item._id === "In Progress") statusCountsMap.inProgress = item.count;
+      else if (item._id === "Resolved") statusCountsMap.resolved = item.count;
+      else if (item._id === "Rejected") statusCountsMap.rejected = item.count;
+      else if (item._id === "Archived") statusCountsMap.archived = item.count;
+    });
+
+    res.json({
+      feedbacks,
+      total,
+      page: pageNum,
+      totalPages: Math.ceil(total / limitNum) || 1,
+      counts: statusCountsMap,
+    });
+  } catch (err) {
+    console.error("Admin fetch feedback error:", err);
+    res.status(500).json({ error: "Failed to load feedback records" });
+  }
+});
+
+// 5. Admin Feedback Analytics & Statistics
+app.get("/api/admin/feedback/stats", requireAdmin, async (req, res) => {
+  try {
+    const totalCount = await Feedback.countDocuments();
+    const now = new Date();
+
+    const date7DaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+    const date30DaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+    const date90DaysAgo = new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000);
+
+    const [
+      volume7Days,
+      volume30Days,
+      volume90Days,
+      statusCounts,
+      categoryDistribution,
+      ratingStats,
+      mostRequestedAgg,
+    ] = await Promise.all([
+      Feedback.countDocuments({ createdAt: { $gte: date7DaysAgo } }),
+      Feedback.countDocuments({ createdAt: { $gte: date30DaysAgo } }),
+      Feedback.countDocuments({ createdAt: { $gte: date90DaysAgo } }),
+      Feedback.aggregate([{ $group: { _id: "$status", count: { $sum: 1 } } }]),
+      Feedback.aggregate([
+        { $group: { _id: "$feedbackType", count: { $sum: 1 } } },
+        { $sort: { count: -1 } },
+      ]),
+      Feedback.aggregate([
+        {
+          $group: {
+            _id: null,
+            avgRating: { $avg: "$rating" },
+            star1: { $sum: { $cond: [{ $eq: ["$rating", 1] }, 1, 0] } },
+            star2: { $sum: { $cond: [{ $eq: ["$rating", 2] }, 1, 0] } },
+            star3: { $sum: { $cond: [{ $eq: ["$rating", 3] }, 1, 0] } },
+            star4: { $sum: { $cond: [{ $eq: ["$rating", 4] }, 1, 0] } },
+            star5: { $sum: { $cond: [{ $eq: ["$rating", 5] }, 1, 0] } },
+          },
+        },
+      ]),
+      Feedback.aggregate([
+        {
+          $group: {
+            _id: { $ifNull: ["$course", "$feedbackType"] },
+            type: { $first: "$feedbackType" },
+            count: { $sum: 1 },
+          },
+        },
+        { $sort: { count: -1 } },
+        { $limit: 6 },
+      ]),
+    ]);
+
+    const statusMap = {
+      New: 0,
+      "Under Review": 0,
+      "In Progress": 0,
+      Resolved: 0,
+      Rejected: 0,
+      Archived: 0,
+    };
+    statusCounts.forEach((s) => {
+      if (s._id) statusMap[s._id] = s.count;
+    });
+
+    const ratingData = ratingStats[0] || {
+      avgRating: 0,
+      star1: 0,
+      star2: 0,
+      star3: 0,
+      star4: 0,
+      star5: 0,
+    };
+
+    const resolutionRate = totalCount > 0 ? Math.round((statusMap.Resolved / totalCount) * 100) : 0;
+
+    res.json({
+      totalCount,
+      newCount: statusMap.New,
+      underReviewCount: statusMap["Under Review"],
+      inProgressCount: statusMap["In Progress"],
+      resolvedCount: statusMap.Resolved,
+      rejectedCount: statusMap.Rejected,
+      archivedCount: statusMap.Archived,
+      resolutionRate,
+      averageRating: ratingData.avgRating ? Number(ratingData.avgRating.toFixed(1)) : 5.0,
+      ratingDistribution: {
+        1: ratingData.star1,
+        2: ratingData.star2,
+        3: ratingData.star3,
+        4: ratingData.star4,
+        5: ratingData.star5,
+      },
+      volume: {
+        last7Days: volume7Days,
+        last30Days: volume30Days,
+        last90Days: volume90Days,
+      },
+      categoryDistribution: categoryDistribution.map((c) => ({
+        category: c._id || "Other",
+        count: c.count,
+      })),
+      mostRequestedImprovements: mostRequestedAgg.map((item) => ({
+        label: `${item.type}${item._id && item._id !== item.type ? ` (${item._id})` : ""}`,
+        count: item.count,
+      })),
+    });
+  } catch (err) {
+    console.error("Admin feedback stats error:", err);
+    res.status(500).json({ error: "Failed to generate feedback statistics" });
+  }
+});
+
+// 6. Admin Feedback Single Detail View
+app.get("/api/admin/feedback/:id", requireAdmin, async (req, res) => {
+  try {
+    const feedback = await Feedback.findById(req.params.id)
+      .populate("courseId", "name code degreeType")
+      .populate("subjectId", "name code")
+      .populate("paperId", "title examType academicYear fileUrl");
+
+    if (!feedback) return res.status(404).json({ error: "Feedback record not found" });
+    res.json(feedback);
+  } catch (err) {
+    res.status(500).json({ error: "Failed to load feedback details" });
+  }
+});
+
+// 7. Admin Update Feedback (Status, Priority, Official Response, Internal Notes)
+app.patch("/api/admin/feedback/:id", requireAdmin, async (req, res) => {
+  try {
+    const { status, priority, adminResponse, internalNote } = req.body;
+    const adminEmail = (
+      req.headers["x-user-email"] ||
+      req.headers["x-admin-email"] ||
+      "admin@paperbridge.com"
+    ).toLowerCase().trim();
+
+    const feedback = await Feedback.findById(req.params.id);
+    if (!feedback) return res.status(404).json({ error: "Feedback record not found" });
+
+    const auditEntries = [];
+
+    // Update status
+    if (status && status !== feedback.status) {
+      const oldStatus = feedback.status;
+      feedback.status = status;
+      auditEntries.push({
+        action: "Status Change",
+        actor: adminEmail,
+        timestamp: new Date(),
+        details: `Status changed from '${oldStatus}' to '${status}'.`,
+      });
+
+      if (status === "Resolved" && !feedback.resolvedAt) {
+        feedback.resolvedAt = new Date();
+      }
+    }
+
+    // Update priority
+    if (priority && priority !== feedback.priority) {
+      const oldPriority = feedback.priority;
+      feedback.priority = priority;
+      auditEntries.push({
+        action: "Priority Change",
+        actor: adminEmail,
+        timestamp: new Date(),
+        details: `Priority changed from '${oldPriority}' to '${priority}'.`,
+      });
+    }
+
+    // Update or add admin response
+    if (typeof adminResponse === "string" && adminResponse.trim()) {
+      feedback.adminResponse = {
+        message: sanitizeInputText(adminResponse),
+        respondedBy: adminEmail,
+        respondedAt: new Date(),
+      };
+      auditEntries.push({
+        action: "Response Added",
+        actor: adminEmail,
+        timestamp: new Date(),
+        details: "Official admin response recorded for the user.",
+      });
+    }
+
+    // Add internal admin note if provided
+    if (typeof internalNote === "string" && internalNote.trim()) {
+      feedback.internalNotes.push({
+        note: sanitizeInputText(internalNote),
+        author: adminEmail,
+        createdAt: new Date(),
+      });
+      auditEntries.push({
+        action: "Internal Note Added",
+        actor: adminEmail,
+        timestamp: new Date(),
+        details: "Internal administrator note added.",
+      });
+    }
+
+    if (auditEntries.length > 0) {
+      feedback.auditLog.push(...auditEntries);
+    }
+
+    await feedback.save();
+
+    res.json({
+      success: true,
+      message: "Feedback updated successfully",
+      feedback,
+    });
+  } catch (err) {
+    console.error("Update feedback error:", err);
+    res.status(500).json({ error: "Failed to update feedback" });
+  }
+});
+
+// 8. Admin Delete Feedback
+app.delete("/api/admin/feedback/:id", requireAdmin, async (req, res) => {
+  try {
+    const feedback = await Feedback.findByIdAndDelete(req.params.id);
+    if (!feedback) return res.status(404).json({ error: "Feedback record not found" });
+
+    res.json({
+      success: true,
+      message: `Feedback '${feedback.referenceId}' has been permanently deleted.`,
+    });
+  } catch (err) {
+    console.error("Delete feedback error:", err);
+    res.status(500).json({ error: "Failed to delete feedback" });
   }
 });
 

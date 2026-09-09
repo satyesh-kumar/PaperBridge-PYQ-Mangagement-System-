@@ -16,6 +16,7 @@ import {
     FaTrash,
     FaSyncAlt,
     FaSpinner,
+    FaCommentDots,
 } from "react-icons/fa";
 import Navbar2 from "../components/Navbar2";
 import Footer from "../components/Footer";
@@ -75,6 +76,7 @@ function Dashboard() {
 
     const [myPapers, setMyPapers] = useState([]);
     const [myNotes, setMyNotes] = useState([]);
+    const [myFeedbacks, setMyFeedbacks] = useState([]);
     const [bookmarks, setBookmarks] = useState(getBookmarks());
     const [allPapersCount, setAllPapersCount] = useState(0);
     const [allNotesCount, setAllNotesCount] = useState(0);
@@ -120,15 +122,17 @@ function Dashboard() {
                 ...(token ? { Authorization: `Bearer ${token}` } : {}),
             };
 
-            const [myRes, notesRes, allRes, allNotesRes] = await Promise.all([
+            const [myRes, notesRes, allRes, allNotesRes, feedbackRes] = await Promise.all([
                 axios.get(`${API_URL}/api/my-pyqs?email=${encodeURIComponent(userEmail)}&userId=${encodeURIComponent(userId)}`, { headers: authHeaders, timeout: 20000 }).catch(() => ({ data: [] })),
                 axios.get(`${API_URL}/api/my-notes?email=${encodeURIComponent(userEmail)}&userId=${encodeURIComponent(userId)}`, { headers: authHeaders, timeout: 20000 }).catch(() => ({ data: [] })),
                 axios.get(`${API_URL}/api/pyqs`, { timeout: 20000 }).catch(() => ({ data: [] })),
                 axios.get(`${API_URL}/api/notes`, { timeout: 20000 }).catch(() => ({ data: [] })),
+                axios.get(`${API_URL}/api/feedback/my`, { headers: authHeaders, timeout: 20000 }).catch(() => ({ data: [] })),
             ]);
 
             setMyPapers(Array.isArray(myRes.data) ? myRes.data : []);
             setMyNotes(Array.isArray(notesRes.data) ? notesRes.data : []);
+            setMyFeedbacks(Array.isArray(feedbackRes.data) ? feedbackRes.data : []);
             setAllPapersCount(Array.isArray(allRes.data) ? allRes.data.length : 0);
             setAllNotesCount(Array.isArray(allNotesRes.data) ? allNotesRes.data.length : 0);
         } catch (err) {
@@ -253,12 +257,13 @@ function Dashboard() {
                     />
                 </div>
 
-                {/* Quick Actions — Strictly ONE LINE without wrapping */}
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 sm:gap-3 mb-6 sm:mb-8">
+                {/* Quick Actions — Responsive Grid */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-3 mb-6 sm:mb-8">
                     {[
                         { label: "Browse Question Papers", icon: <FaSearch />, to: "/browse" },
                         { label: "Browse Study Notes", icon: <FaStickyNote />, to: "/notes" },
                         { label: "Upload New Material", icon: <FaUpload />, to: "/upload" },
+                        { label: "Feedback & Suggestions", icon: <FaCommentDots />, to: "/feedback" },
                     ].map((item, i) => (
                         <Link
                             key={i}
@@ -317,6 +322,17 @@ function Dashboard() {
                                 }`}
                             >
                                 <FaBookmark className="text-amber-500 text-xs" /> Saved Bookmarks ({bookmarks.length})
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => setActiveTab("feedback")}
+                                className={`px-3.5 sm:px-4 py-1.5 rounded-full text-xs font-semibold transition flex items-center gap-1.5 shrink-0 cursor-pointer min-h-[34px] ${
+                                    activeTab === "feedback"
+                                        ? "bg-white dark:bg-[#24201C] text-[#4A2E1B] dark:text-[#E5C378] shadow-2xs font-bold"
+                                        : "text-[#8C7862] hover:text-[#2B231B] dark:hover:text-white"
+                                }`}
+                            >
+                                <FaCommentDots className="text-xs" /> My Feedback ({myFeedbacks.length})
                             </button>
                         </div>
                     </div>
@@ -589,6 +605,95 @@ function Dashboard() {
                                                     <FaDownload className="text-xs text-[#8C6239] dark:text-[#E5C378]" /> Download
                                                 </button>
                                             </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+                        </>
+                    )}
+
+                    {/* TAB 4: MY FEEDBACK */}
+                    {!loading && activeTab === "feedback" && (
+                        <>
+                            <div className="flex items-center justify-between mb-4">
+                                <p className="text-xs text-[#8C7862] dark:text-[#A8957E]">
+                                    Showing feedback & suggestions submitted from your account.
+                                </p>
+                                <Link
+                                    to="/feedback"
+                                    className="inline-flex items-center gap-1.5 px-4 py-1.5 rounded-full bg-[#4A2E1B] hover:bg-[#331F12] dark:bg-[#C5A059] dark:hover:bg-[#E5C378] text-white dark:text-[#0F0E0D] text-xs font-bold shadow-xs transition"
+                                >
+                                    + Submit New Feedback
+                                </Link>
+                            </div>
+
+                            {myFeedbacks.length === 0 ? (
+                                <div className="bg-white dark:bg-[#161412] rounded-3xl border border-[#EAE2D8] dark:border-[#2E2822] p-8 sm:p-12 text-center shadow-xs">
+                                    <div className="w-12 h-12 rounded-2xl bg-[#F4EFEA] dark:bg-[#24201C] text-[#8C6239] dark:text-[#E5C378] flex items-center justify-center text-xl mx-auto mb-3">
+                                        <FaCommentDots />
+                                    </div>
+                                    <h3 className="text-base font-serif font-bold text-[#1A1614] dark:text-[#FAF8F5] mb-1">
+                                        No feedback submitted yet
+                                    </h3>
+                                    <p className="text-xs text-[#8C7862] dark:text-[#A8957E] max-w-sm mx-auto mb-5">
+                                        Have a suggestion, bug to report, or ideas to improve PaperBridge? We’d love to hear from you.
+                                    </p>
+                                    <Link
+                                        to="/feedback"
+                                        className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full bg-[#4A2E1B] hover:bg-[#331F12] dark:bg-[#C5A059] dark:hover:bg-[#E5C378] text-white dark:text-[#0F0E0D] text-xs font-bold transition shadow-xs"
+                                    >
+                                        Share Feedback Now →
+                                    </Link>
+                                </div>
+                            ) : (
+                                <div className="space-y-3">
+                                    {myFeedbacks.map((item) => (
+                                        <div
+                                            key={item._id}
+                                            className="bg-white dark:bg-[#161412] border border-[#EAE2D8] dark:border-[#2E2822] rounded-2xl p-4 sm:p-5 shadow-2xs"
+                                        >
+                                            <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
+                                                <div className="flex items-center gap-2">
+                                                    <span className="font-mono text-xs font-bold text-[#4A2E1B] dark:text-[#E5C378]">
+                                                        {item.referenceId}
+                                                    </span>
+                                                    <span className="text-[11px] px-2.5 py-0.5 rounded-full bg-[#F4EFEA] dark:bg-[#24201C] text-[#8C6239] dark:text-[#E5C378] font-semibold">
+                                                        {item.feedbackType}
+                                                    </span>
+                                                    {item.rating && (
+                                                        <span className="text-xs text-amber-500 font-semibold">
+                                                            ★ {item.rating}/5
+                                                        </span>
+                                                    )}
+                                                </div>
+                                                <div className="flex items-center gap-2 text-xs">
+                                                    <span className="px-2.5 py-0.5 rounded-full text-[11px] font-semibold border bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300 border-blue-200 dark:border-blue-800">
+                                                        {item.status}
+                                                    </span>
+                                                    <span className="text-[11px] text-[#8C7862] dark:text-[#A8957E]">
+                                                        {new Date(item.createdAt).toLocaleDateString("en-IN", {
+                                                            day: "numeric",
+                                                            month: "short",
+                                                            year: "numeric",
+                                                        })}
+                                                    </span>
+                                                </div>
+                                            </div>
+
+                                            <p className="text-xs text-[#6B5B49] dark:text-[#C2B3A0] leading-relaxed line-clamp-2">
+                                                {item.message}
+                                            </p>
+
+                                            {item.adminResponse?.message && (
+                                                <div className="mt-3 p-3 rounded-xl bg-[#FAF8F5] dark:bg-[#1C1916] border border-[#EAE2D8] dark:border-[#2E2822] text-xs">
+                                                    <p className="font-bold text-emerald-700 dark:text-emerald-400 mb-0.5 flex items-center gap-1">
+                                                        <FaCheckCircle /> Response from PaperBridge Team:
+                                                    </p>
+                                                    <p className="text-[#1A1614] dark:text-[#FAF8F5]">
+                                                        {item.adminResponse.message}
+                                                    </p>
+                                                </div>
+                                            )}
                                         </div>
                                     ))}
                                 </div>
