@@ -693,11 +693,11 @@ function BrowsePYQ() {
                         </div>
                     </div>
 
-                    {/* Desktop Hierarchical Cascading Filter Row (University → Course → Semester → Subject → Year → Exam Type) */}
-                    <div className="hidden lg:grid grid-cols-6 gap-3 pt-5">
+                    {/* Desktop Hierarchical Cascading Filter Row (University → Course → Semester → Year → Exam Type) */}
+                    <div className="hidden lg:grid grid-cols-5 gap-3 pt-5">
                         {/* 1. University Filter */}
                         <div>
-                            <label className="block text-[10px] font-bold text-[#8C7862] dark:text-[#A8957E] uppercase tracking-wider mb-1">
+                            <label className="block text-[10px] font-bold text-[#8C6239] dark:text-[#A8957E] uppercase tracking-wider mb-1">
                                 1. University
                             </label>
                             <select
@@ -749,31 +749,10 @@ function BrowsePYQ() {
                             </select>
                         </div>
 
-                        {/* 4. Subject Filter */}
+                        {/* 4. Year Filter */}
                         <div>
                             <label className="block text-[10px] font-bold text-[#8C6239] dark:text-[#A8957E] uppercase tracking-wider mb-1">
-                                4. Subject
-                            </label>
-                            <select
-                                value={subjectFilter}
-                                onChange={(e) => {
-                                    setSubjectFilter(e.target.value);
-                                    setCurrentPage(1);
-                                }}
-                                className="w-full px-3 py-2 rounded-xl bg-[#FAF8F5] dark:bg-[#1C1916] border border-[#EAE2D8] dark:border-[#2E2822] text-xs text-[#1A1614] dark:text-[#FAF8F5] font-semibold focus:outline-hidden focus:border-[#8C6239] cursor-pointer min-h-[38px]"
-                            >
-                                {availableSubjects.map((sub) => (
-                                    <option key={sub.value} value={sub.value}>
-                                        {sub.label}
-                                    </option>
-                                ))}
-                            </select>
-                        </div>
-
-                        {/* 5. Year Filter */}
-                        <div>
-                            <label className="block text-[10px] font-bold text-[#8C6239] dark:text-[#A8957E] uppercase tracking-wider mb-1">
-                                5. Academic Year
+                                4. Academic Year
                             </label>
                             <select
                                 value={yearFilter}
@@ -792,10 +771,10 @@ function BrowsePYQ() {
                             </select>
                         </div>
 
-                        {/* 6. Exam Type */}
+                        {/* 5. Exam Type */}
                         <div>
                             <label className="block text-[10px] font-bold text-[#8C6239] dark:text-[#A8957E] uppercase tracking-wider mb-1">
-                                6. Exam Type
+                                5. Exam Type
                             </label>
                             <select
                                 value={examFilter}
@@ -1350,26 +1329,6 @@ function BrowsePYQ() {
                                 </select>
                             </div>
 
-                            {/* Subject */}
-                            <div>
-                                <label className="block text-[11px] font-bold text-[#8C7862] dark:text-[#A8957E] uppercase mb-1.5">
-                                    Subject
-                                </label>
-                                <select
-                                    value={subjectFilter}
-                                    onChange={(e) => {
-                                        setSubjectFilter(e.target.value);
-                                        setCurrentPage(1);
-                                    }}
-                                    className="w-full px-3 py-2.5 rounded-xl bg-[#FAF8F5] dark:bg-[#1C1916] border border-[#EAE2D8] dark:border-[#2E2822] text-xs text-[#1A1614] dark:text-[#FAF8F5] font-semibold"
-                                >
-                                    {availableSubjects.map((sub) => (
-                                        <option key={sub.value} value={sub.value}>
-                                            {sub.label}
-                                        </option>
-                                    ))}
-                                </select>
-                            </div>
 
                             {/* Academic Year */}
                             <div>

@@ -343,10 +343,10 @@ function Home() {
 
             {/* HERO SECTION */}
             <section className="relative overflow-hidden pt-8 pb-16 md:pt-14 md:pb-24 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto w-full">
-                <div className="grid lg:grid-cols-12 gap-12 lg:gap-8 items-center">
+                <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-8 items-center w-full min-w-0">
                     
                     {/* Left Column: Headline, Description & Search */}
-                    <div className="lg:col-span-7 flex flex-col items-start text-left z-10">
+                    <div className="lg:col-span-7 flex flex-col items-start text-left z-10 w-full min-w-0">
                         
                         {/* Live Pill Badge */}
                         <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-[#F4EFEA] dark:bg-[#1C1916] border border-[#DDD2C4] dark:border-[#2E2822] text-[#8C6239] dark:text-[#E5C378] text-xs font-semibold mb-6 shadow-2xs">
@@ -412,7 +412,7 @@ function Home() {
                     </div>
 
                     {/* Right Column: University Library Exam Preparation & Study Visual */}
-                    <div className="lg:col-span-5 flex justify-center lg:justify-end z-10">
+                    <div className="lg:col-span-5 flex justify-center lg:justify-end z-10 w-full min-w-0">
                         <div className="relative w-full max-w-md aspect-[4/3] sm:aspect-[4/3] rounded-3xl overflow-hidden shadow-2xl border-4 border-white/60 dark:border-[#24201C] group">
                             <img
                                 src={resolvedTheme === "dark" ? "/hero_book_arch_dark.jpg" : "/hero_book_arch.jpg"}
@@ -442,8 +442,8 @@ function Home() {
                 </div>
 
                 {/* 4-COLUMN FLOATING HIGHLIGHTS CONTAINER */}
-                <div className="mt-14 sm:mt-16 bg-white dark:bg-[#161412] rounded-3xl border border-[#EAE2D8] dark:border-[#2E2822] shadow-xl p-6 sm:p-8">
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 lg:gap-8 divide-y sm:divide-y-0 sm:divide-x divide-[#EAE2D8] dark:divide-[#2E2822]">
+                <div className="mt-12 sm:mt-16 bg-white dark:bg-[#161412] rounded-3xl border border-[#EAE2D8] dark:border-[#2E2822] shadow-xl p-5 sm:p-8 w-full min-w-0">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 lg:gap-8 divide-y sm:divide-y-0 sm:divide-x divide-[#EAE2D8] dark:divide-[#2E2822] w-full min-w-0">
                         
                         {/* 1. Curated & Verified */}
                         <div className="flex items-start gap-4 pt-4 sm:pt-0 sm:pl-4 first:pl-0 first:pt-0">
@@ -509,8 +509,8 @@ function Home() {
                 </div>
 
                 {/* REAL DATABASE STATS COUNTER BAR */}
-                <div className="mt-6 bg-white dark:bg-[#161412] rounded-3xl border border-[#EAE2D8] dark:border-[#2E2822] shadow-md p-6">
-                    <div className="grid grid-cols-2 lg:grid-cols-4 gap-6 items-center">
+                <div className="mt-6 bg-white dark:bg-[#161412] rounded-3xl border border-[#EAE2D8] dark:border-[#2E2822] shadow-md p-4 sm:p-6 w-full min-w-0">
+                    <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6 items-center w-full min-w-0">
                         <div className="flex items-center gap-3.5">
                             <div className="w-10 h-10 rounded-xl bg-[#F4EFEA] dark:bg-[#24201C] text-[#8C6239] dark:text-[#E5C378] flex items-center justify-center shrink-0">
                                 <HiOutlineBookOpen className="text-xl" />
@@ -562,11 +562,11 @@ function Home() {
                 </div>
 
                 {/* LOWER SECTION: EXPLORE BY CATEGORY & LOVED BY STUDENTS */}
-                <div className="mt-12 grid lg:grid-cols-12 gap-8">
+                <div className="mt-8 sm:mt-12 grid grid-cols-1 lg:grid-cols-12 gap-6 sm:gap-8 w-full min-w-0">
                     
                     {/* Left: Explore by Category */}
-                    <div className="lg:col-span-7 bg-white dark:bg-[#161412] rounded-3xl border border-[#EAE2D8] dark:border-[#2E2822] p-6 sm:p-8 shadow-sm flex flex-col justify-between">
-                        <div>
+                    <div className="lg:col-span-7 bg-white dark:bg-[#161412] rounded-3xl border border-[#EAE2D8] dark:border-[#2E2822] p-5 sm:p-8 shadow-sm flex flex-col justify-between w-full min-w-0 overflow-hidden">
+                        <div className="w-full min-w-0">
                             <div className="flex items-center justify-between gap-4 mb-6">
                                 <div>
                                     <span className="text-[11px] font-bold text-[#8C6239] dark:text-[#E5C378] tracking-[0.2em] uppercase">
@@ -576,7 +576,7 @@ function Home() {
                                         Explore by <span className="italic">Category</span>
                                     </h2>
                                 </div>
-                                <div className="flex items-center gap-2">
+                                <div className="flex items-center gap-2 shrink-0">
                                     <Link
                                         to="/browse"
                                         className="inline-flex items-center gap-1 text-xs font-bold text-[#8C6239] dark:text-[#E5C378] hover:text-[#4A2E1B] dark:hover:text-white transition px-3.5 py-1.5 rounded-full bg-[#F4EFEA] dark:bg-[#24201C] border border-[#EAE2D8] dark:border-[#2E2822]"
@@ -589,7 +589,7 @@ function Home() {
 
                             {/* Category Shelf */}
                             <div
-                                className="flex items-center gap-3.5 overflow-x-auto no-scrollbar scroll-smooth pb-2"
+                                className="flex items-center gap-3.5 overflow-x-auto no-scrollbar scroll-smooth pb-2 w-full min-w-0 max-w-full"
                             >
                                 {dynamicCategories.map((cat) => {
                                     const Icon = cat.icon;
@@ -618,15 +618,15 @@ function Home() {
                     </div>
 
                     {/* Right: Loved by Students Testimonial */}
-                    <div className="lg:col-span-5 bg-white dark:bg-[#161412] rounded-3xl border border-[#EAE2D8] dark:border-[#2E2822] p-6 sm:p-8 shadow-sm flex flex-col justify-between">
-                        <div>
+                    <div className="lg:col-span-5 bg-white dark:bg-[#161412] rounded-3xl border border-[#EAE2D8] dark:border-[#2E2822] p-5 sm:p-8 shadow-sm flex flex-col justify-between w-full min-w-0 overflow-hidden">
+                        <div className="w-full min-w-0">
                             <div className="flex items-center justify-between gap-4 mb-6">
                                 <h3 className="text-xl sm:text-2xl font-serif font-medium text-[#1A1614] dark:text-[#FAF8F5]">
                                     Loved by Students
                                 </h3>
                                 <Link
                                     to="/browse"
-                                    className="text-xs font-bold text-[#8C6239] dark:text-[#E5C378] hover:underline flex items-center gap-1"
+                                    className="text-xs font-bold text-[#8C6239] dark:text-[#E5C378] hover:underline flex items-center gap-1 shrink-0"
                                 >
                                     <span>View all reviews</span>
                                     <span>↗</span>
@@ -634,11 +634,11 @@ function Home() {
                             </div>
 
                             {/* Active Testimonial Card */}
-                            <div className="p-6 rounded-2xl bg-[#FAF8F5] dark:bg-[#1C1916] border border-[#EAE2D8] dark:border-[#2E2822] relative overflow-hidden">
+                            <div className="p-5 sm:p-6 rounded-2xl bg-[#FAF8F5] dark:bg-[#1C1916] border border-[#EAE2D8] dark:border-[#2E2822] relative overflow-hidden w-full min-w-0">
                                 <div className="text-4xl font-serif text-[#C5A059] dark:text-[#E5C378] opacity-80 leading-none mb-3">
                                     “
                                 </div>
-                                <p className="text-sm font-serif italic text-[#2B231B] dark:text-[#F5F2EC] leading-relaxed mb-6">
+                                <p className="text-sm font-serif italic text-[#2B231B] dark:text-[#F5F2EC] leading-relaxed mb-6 break-words">
                                     {TESTIMONIALS[activeTestimonial].quote}
                                 </p>
 
@@ -957,7 +957,7 @@ function Home() {
 
             {/* THREE COLUMN VALUE PROPOSITION */}
             <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-14 border-t border-[#EAE2D8] dark:border-[#2E2822]">
-                <div className="grid md:grid-cols-3 gap-6">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6 w-full min-w-0">
                     <div className="bg-white dark:bg-[#161412] border border-[#EAE2D8] dark:border-[#2E2822] rounded-3xl p-7 shadow-xs">
                         <div className="w-10 h-10 rounded-2xl bg-[#F4EFEA] dark:bg-[#24201C] text-[#8C6239] dark:text-[#E5C378] flex items-center justify-center font-serif font-bold mb-4">
                             01
