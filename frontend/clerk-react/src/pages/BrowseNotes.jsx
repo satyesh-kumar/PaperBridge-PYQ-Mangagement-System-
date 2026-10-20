@@ -259,7 +259,12 @@ function BrowseNotes() {
         let filteredCoursesList = courses;
 
         if (universityFilter !== "All") {
-            const selectedUni = universities.find((u) => u.name === universityFilter);
+            const selectedUni = universities.find(
+                (u) =>
+                    u.name?.toLowerCase() === universityFilter.toLowerCase() ||
+                    u.code?.toLowerCase() === universityFilter.toLowerCase() ||
+                    String(u._id) === String(universityFilter)
+            );
             if (selectedUni) {
                 filteredCoursesList = courses.filter((c) => String(c.universityId?._id || c.universityId) === String(selectedUni._id));
             }
@@ -271,7 +276,17 @@ function BrowseNotes() {
             }
         });
 
+        // Also include courses from notes matching university for backward compatibility
         notes.forEach((n) => {
+            if (universityFilter !== "All") {
+                const nUni = (n.universityId?.name || n.university || "").toLowerCase();
+                const nUniCode = (n.universityId?.code || "").toLowerCase();
+                const nUniId = String(n.universityId?._id || n.universityId || "");
+                const filterLower = universityFilter.toLowerCase();
+                if (!nUni.includes(filterLower) && nUniCode !== filterLower && nUniId !== universityFilter) {
+                    return;
+                }
+            }
             const name = n.courseId?.name || n.course;
             if (name && !list.some((item) => item.value === name)) {
                 list.push({ label: name, value: name, numberOfSemesters: 8 });
@@ -343,7 +358,10 @@ function BrowseNotes() {
         if (universityFilter !== "All") {
             result = result.filter((n) => {
                 const uni = (n.universityId?.name || n.university || "").toLowerCase();
-                return uni.includes(universityFilter.toLowerCase());
+                const uniCode = (n.universityId?.code || "").toLowerCase();
+                const uniId = String(n.universityId?._id || n.universityId || "");
+                const filterLower = universityFilter.toLowerCase();
+                return uni.includes(filterLower) || uniCode === filterLower || uniId === universityFilter;
             });
         }
         if (courseFilter !== "All") {

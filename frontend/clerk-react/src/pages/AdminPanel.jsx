@@ -42,6 +42,11 @@ import {
     FaHourglassHalf,
     FaCalendarAlt,
     FaPaperPlane,
+    FaUniversity,
+    FaBuilding,
+    FaMapMarkerAlt,
+    FaGlobe,
+    FaLayerGroup,
 } from "react-icons/fa";
 import toast from "react-hot-toast";
 import confetti from "canvas-confetti";
@@ -53,13 +58,20 @@ import { downloadPDF } from "../utils/downloadHelper";
 
 const API_URL = import.meta.env.VITE_API_URL || "http://localhost:5000";
 
+const FALLBACK_UNIVERSITIES = [
+    { _id: "uni_uu", name: "United University", code: "UU", location: "Prayagraj", state: "Uttar Pradesh", country: "India", website: "https://uniteduniversity.edu.in", status: "active", coursesCount: 6, papersCount: 0, notesCount: 0 },
+    { _id: "uni_au", name: "University of Allahabad", code: "AU", location: "Prayagraj", state: "Uttar Pradesh", country: "India", status: "active", coursesCount: 0, papersCount: 0, notesCount: 0 },
+    { _id: "uni_aktu", name: "Dr. A.P.J. Abdul Kalam Technical University", code: "AKTU", location: "Lucknow", state: "Uttar Pradesh", country: "India", status: "active", coursesCount: 0, papersCount: 0, notesCount: 0 },
+    { _id: "uni_du", name: "University of Delhi", code: "DU", location: "New Delhi", state: "Delhi", country: "India", status: "active", coursesCount: 0, papersCount: 0, notesCount: 0 },
+];
+
 const FALLBACK_COURSES = [
-    { _id: "course_btech", name: "B.Tech Computer Science and Engineering", code: "BTECH-CSE", numberOfSemesters: 8, degreeType: "Undergraduate", duration: "4 Years", status: "active" },
-    { _id: "course_bca", name: "Bachelor of Computer Applications", code: "BCA", numberOfSemesters: 6, degreeType: "Undergraduate", duration: "3 Years", status: "active" },
-    { _id: "course_mca", name: "Master of Computer Applications", code: "MCA", numberOfSemesters: 4, degreeType: "Postgraduate", duration: "2 Years", status: "active" },
-    { _id: "course_mba", name: "Master of Business Administration", code: "MBA", numberOfSemesters: 4, degreeType: "Postgraduate", duration: "2 Years", status: "active" },
-    { _id: "course_bba", name: "Bachelor of Business Administration", code: "BBA", numberOfSemesters: 6, degreeType: "Undergraduate", duration: "3 Years", status: "active" },
-    { _id: "course_diploma", name: "Diploma in Engineering", code: "DIPLOMA", numberOfSemesters: 6, degreeType: "Diploma", duration: "3 Years", status: "active" },
+    { _id: "course_btech", name: "B.Tech Computer Science and Engineering", code: "BTECH-CSE", numberOfSemesters: 8, degreeType: "Undergraduate", duration: "4 Years", status: "active", universityId: "uni_uu" },
+    { _id: "course_bca", name: "Bachelor of Computer Applications", code: "BCA", numberOfSemesters: 6, degreeType: "Undergraduate", duration: "3 Years", status: "active", universityId: "uni_uu" },
+    { _id: "course_mca", name: "Master of Computer Applications", code: "MCA", numberOfSemesters: 4, degreeType: "Postgraduate", duration: "2 Years", status: "active", universityId: "uni_uu" },
+    { _id: "course_mba", name: "Master of Business Administration", code: "MBA", numberOfSemesters: 4, degreeType: "Postgraduate", duration: "2 Years", status: "active", universityId: "uni_uu" },
+    { _id: "course_bba", name: "Bachelor of Business Administration", code: "BBA", numberOfSemesters: 6, degreeType: "Undergraduate", duration: "3 Years", status: "active", universityId: "uni_uu" },
+    { _id: "course_diploma", name: "Diploma in Engineering", code: "DIPLOMA", numberOfSemesters: 6, degreeType: "Diploma", duration: "3 Years", status: "active", universityId: "uni_uu" },
 ];
 
 const ACADEMIC_YEARS = [
@@ -105,6 +117,7 @@ export default function AdminPanel() {
 
     // ── PRIMARY DATA STATE ──────────────────────────────────────────────────
     const [stats, setStats] = useState(null);
+    const [universities, setUniversities] = useState(FALLBACK_UNIVERSITIES);
     const [courses, setCourses] = useState(FALLBACK_COURSES);
     const [papers, setPapers] = useState([]);
     const [notes, setNotes] = useState([]);
@@ -142,6 +155,13 @@ export default function AdminPanel() {
     const [selectedCourseFilter, setSelectedCourseFilter] = useState("all");
     const [selectedSemFilter, setSelectedSemFilter] = useState("all");
     const [statusFilter, setStatusFilter] = useState("all");
+
+    // University & Outgoing Courses Management State
+    const [selectedUniversityId, setSelectedUniversityId] = useState("all");
+    const [universitySearch, setUniversitySearch] = useState("");
+    const [universityStatusFilter, setUniversityStatusFilter] = useState("all");
+    const [courseDegreeFilter, setCourseDegreeFilter] = useState("all");
+    const [courseSearch, setCourseSearch] = useState("");
 
     // ── FEEDBACK STATE ───────────────────────────────────────────────────────
     const [feedbacks, setFeedbacks] = useState([]);
@@ -204,12 +224,28 @@ export default function AdminPanel() {
     const [previewPdf, setPreviewPdf] = useState(null);
 
     // ── MODAL STATES ────────────────────────────────────────────────────────
+    // University Modal
+    const [universityModalOpen, setUniversityModalOpen] = useState(false);
+    const [editingUniversity, setEditingUniversity] = useState(null);
+    const [universityForm, setUniversityForm] = useState({
+        name: "",
+        code: "",
+        description: "",
+        logo: "",
+        website: "",
+        location: "",
+        state: "",
+        country: "India",
+        status: "active",
+    });
+
     // Course Modal
     const [courseModalOpen, setCourseModalOpen] = useState(false);
     const [editingCourse, setEditingCourse] = useState(null);
     const [courseForm, setCourseForm] = useState({
         name: "",
         code: "",
+        universityId: "",
         degreeType: "Undergraduate",
         duration: "4 Years",
         numberOfSemesters: 8,
@@ -223,6 +259,8 @@ export default function AdminPanel() {
     const [paperEditSemesters, setPaperEditSemesters] = useState([]);
     const [editPaperForm, setEditPaperForm] = useState({
         title: "",
+        universityId: "",
+        university: "",
         courseId: "",
         course: "",
         semester: 1,
@@ -236,6 +274,8 @@ export default function AdminPanel() {
     const [editNoteModalOpen, setEditNoteModalOpen] = useState(false);
     const [editNoteForm, setEditNoteForm] = useState({
         title: "",
+        universityId: "",
+        university: "",
         courseId: "",
         course: "",
         semester: 1,
@@ -280,17 +320,23 @@ export default function AdminPanel() {
 
             const [
                 statsSettled,
+                uniSettled,
                 courseSettled,
                 paperSettled,
                 noteSettled,
                 userSettled,
             ] = await Promise.allSettled([
                 axios.get(`${API_URL}/api/admin/stats`, { headers, timeout: 30000 }),
+                axios.get(`${API_URL}/api/universities?status=all`, { headers, timeout: 30000 }).catch(() => axios.get(`${API_URL}/api/universities`, { timeout: 30000 })),
                 axios.get(`${API_URL}/api/courses?status=all`, { headers, timeout: 30000 }).catch(() => axios.get(`${API_URL}/api/courses`, { timeout: 30000 })),
                 axios.get(`${API_URL}/api/admin/pyqs`, { headers, timeout: 30000 }).catch(() => axios.get(`${API_URL}/api/pyqs`, { timeout: 30000 })),
                 axios.get(`${API_URL}/api/admin/notes`, { headers, timeout: 30000 }).catch(() => axios.get(`${API_URL}/api/notes`, { timeout: 30000 })),
                 axios.get(`${API_URL}/api/admin/users`, { headers, timeout: 30000 }).catch(() => ({ data: [] })),
             ]);
+
+            const loadedUniversities = (uniSettled.status === "fulfilled" && Array.isArray(uniSettled.value?.data) && uniSettled.value.data.length > 0)
+                ? uniSettled.value.data
+                : FALLBACK_UNIVERSITIES;
 
             const loadedCourses = (courseSettled.status === "fulfilled" && Array.isArray(courseSettled.value?.data) && courseSettled.value.data.length > 0)
                 ? courseSettled.value.data
@@ -308,6 +354,7 @@ export default function AdminPanel() {
                 ? userSettled.value.data
                 : [];
 
+            setUniversities(loadedUniversities);
             setCourses(loadedCourses);
             setPapers(loadedPapers);
             setNotes(loadedNotes);
@@ -328,6 +375,8 @@ export default function AdminPanel() {
                 const pendingN = loadedNotes.filter((n) => n.status === "pending").length;
 
                 setStats({
+                    totalUniversities: loadedUniversities.length,
+                    activeUniversities: loadedUniversities.filter((u) => u.status === "active").length,
                     totalCourses: loadedCourses.length,
                     activeCourses: loadedCourses.filter((c) => c.status === "active").length,
                     totalPapers: loadedPapers.length,
@@ -458,12 +507,115 @@ export default function AdminPanel() {
         }
     };
 
+    // ── UNIVERSITY CRUD ───────────────────────────────────────────────────────
+    const handleOpenAddUniversity = () => {
+        setEditingUniversity(null);
+        setUniversityForm({
+            name: "",
+            code: "",
+            description: "",
+            logo: "",
+            website: "",
+            location: "",
+            state: "",
+            country: "India",
+            status: "active",
+        });
+        setUniversityModalOpen(true);
+    };
+
+    const handleOpenEditUniversity = (uni) => {
+        setEditingUniversity(uni);
+        setUniversityForm({
+            name: uni.name || "",
+            code: uni.code || "",
+            description: uni.description || "",
+            logo: uni.logo || "",
+            website: uni.website || "",
+            location: uni.location || "",
+            state: uni.state || "",
+            country: uni.country || "India",
+            status: uni.status || "active",
+        });
+        setUniversityModalOpen(true);
+    };
+
+    const handleSaveUniversity = async (e) => {
+        e.preventDefault();
+        if (!universityForm.name.trim() || !universityForm.code.trim()) {
+            toast.error("University name and code are required.");
+            return;
+        }
+
+        try {
+            setActionLoading(true);
+            const headers = await getAuthHeaders();
+
+            if (editingUniversity) {
+                await axios.put(`${API_URL}/api/universities/${editingUniversity._id}`, universityForm, { headers });
+                toast.success(`University '${universityForm.name}' updated!`);
+            } else {
+                await axios.post(`${API_URL}/api/universities`, universityForm, { headers });
+                toast.success(`University '${universityForm.name}' created!`);
+            }
+            setUniversityModalOpen(false);
+            fetchAllData();
+        } catch (err) {
+            toast.error(err.response?.data?.error || "Failed to save university.");
+        } finally {
+            setActionLoading(false);
+        }
+    };
+
+    const handleDeleteUniversity = async (uni, force = false) => {
+        try {
+            setActionLoading(true);
+            const headers = await getAuthHeaders();
+
+            const url = `${API_URL}/api/universities/${uni._id}${force ? "?force=true" : ""}`;
+            await axios.delete(url, { headers, data: { force } });
+
+            toast.success(`University '${uni.name}' deleted.`);
+            setCascadeWarning(null);
+            if (selectedUniversityId === uni._id) {
+                setSelectedUniversityId("all");
+            }
+            fetchAllData();
+        } catch (err) {
+            if (err.response?.status === 409 && err.response?.data?.error === "CASCADE_WARNING") {
+                setCascadeWarning({
+                    type: "university",
+                    target: uni,
+                    ...err.response.data,
+                });
+            } else {
+                toast.error(err.response?.data?.error || "Failed to delete university");
+            }
+        } finally {
+            setActionLoading(false);
+        }
+    };
+
+    const handleToggleUniversityStatus = async (uni) => {
+        try {
+            const headers = await getAuthHeaders();
+            const newStatus = uni.status === "active" ? "inactive" : "active";
+            await axios.patch(`${API_URL}/api/universities/${uni._id}/status`, { status: newStatus }, { headers });
+            toast.success(`University status set to ${newStatus}`);
+            fetchAllData();
+        } catch {
+            toast.error("Failed to update status");
+        }
+    };
+
     // ── COURSE CRUD ─────────────────────────────────────────────────────────
-    const handleOpenAddCourse = () => {
+    const handleOpenAddCourse = (uniId = "") => {
         setEditingCourse(null);
+        const defaultUni = uniId || (selectedUniversityId !== "all" ? selectedUniversityId : (universities[0]?._id || ""));
         setCourseForm({
             name: "",
             code: "",
+            universityId: defaultUni,
             degreeType: "Undergraduate",
             duration: "4 Years",
             numberOfSemesters: 8,
@@ -478,6 +630,7 @@ export default function AdminPanel() {
         setCourseForm({
             name: c.name || "",
             code: c.code || "",
+            universityId: c.universityId?._id || c.universityId || (universities[0]?._id || ""),
             degreeType: c.degreeType || "Undergraduate",
             duration: c.duration || "4 Years",
             numberOfSemesters: c.numberOfSemesters || 8,
@@ -498,11 +651,16 @@ export default function AdminPanel() {
             setActionLoading(true);
             const headers = await getAuthHeaders();
 
+            const payload = {
+                ...courseForm,
+                universityId: courseForm.universityId || undefined,
+            };
+
             if (editingCourse) {
-                await axios.put(`${API_URL}/api/courses/${editingCourse._id}`, courseForm, { headers });
+                await axios.put(`${API_URL}/api/courses/${editingCourse._id}`, payload, { headers });
                 toast.success(`Course '${courseForm.name}' updated!`);
             } else {
-                await axios.post(`${API_URL}/api/courses`, courseForm, { headers });
+                await axios.post(`${API_URL}/api/courses`, payload, { headers });
                 toast.success(`Course '${courseForm.name}' created with ${courseForm.numberOfSemesters} semesters!`);
             }
             setCourseModalOpen(false);
@@ -557,6 +715,8 @@ export default function AdminPanel() {
         setEditingPaper(paper);
         setEditPaperForm({
             title: paper.title || "",
+            universityId: paper.universityId?._id || paper.universityId || "",
+            university: paper.university || "",
             courseId: paper.courseId?._id || paper.courseId || "",
             course: paper.course || "",
             semester: paper.semester || 1,
@@ -607,6 +767,8 @@ export default function AdminPanel() {
         setEditingNote(note);
         setEditNoteForm({
             title: note.title || "",
+            universityId: note.universityId?._id || note.universityId || "",
+            university: note.university || "",
             courseId: note.courseId?._id || note.courseId || "",
             course: note.course || "",
             semester: note.semester || 1,
@@ -695,17 +857,88 @@ export default function AdminPanel() {
     const pendingNotes = useMemo(() => notes.filter((n) => n.status === "pending"), [notes]);
     const totalPendingCount = pendingPapers.length + pendingNotes.length;
 
-    // Filtered Courses
-    const filteredCourses = useMemo(() => {
-        return courses.filter((c) => {
-            if (statusFilter !== "all" && c.status !== statusFilter) return false;
-            if (search) {
-                const q = search.toLowerCase();
-                return c.name?.toLowerCase().includes(q) || c.code?.toLowerCase().includes(q);
+    // Filtered Universities
+    const filteredUniversities = useMemo(() => {
+        return universities.filter((u) => {
+            if (universityStatusFilter !== "all" && u.status !== universityStatusFilter) return false;
+            if (universitySearch) {
+                const q = universitySearch.toLowerCase();
+                return (
+                    u.name?.toLowerCase().includes(q) ||
+                    u.code?.toLowerCase().includes(q) ||
+                    u.location?.toLowerCase().includes(q) ||
+                    u.state?.toLowerCase().includes(q)
+                );
             }
             return true;
         });
-    }, [courses, statusFilter, search]);
+    }, [universities, universityStatusFilter, universitySearch]);
+
+    // Selected University Object
+    const selectedUniversity = useMemo(() => {
+        if (selectedUniversityId === "all") return null;
+        return universities.find((u) => u._id === selectedUniversityId || u.code === selectedUniversityId);
+    }, [universities, selectedUniversityId]);
+
+    // Outgoing courses count per university
+    const coursesPerUniversity = useMemo(() => {
+        const counts = {};
+        courses.forEach((c) => {
+            const uId = c.universityId?._id || c.universityId;
+            if (uId) {
+                counts[uId] = (counts[uId] || 0) + 1;
+            }
+        });
+        return counts;
+    }, [courses]);
+
+    // Papers count per university
+    const papersPerUniversity = useMemo(() => {
+        const counts = {};
+        papers.forEach((p) => {
+            const uId = p.universityId?._id || p.universityId;
+            if (uId) {
+                counts[uId] = (counts[uId] || 0) + 1;
+            }
+        });
+        return counts;
+    }, [papers]);
+
+    // Notes count per university
+    const notesPerUniversity = useMemo(() => {
+        const counts = {};
+        notes.forEach((n) => {
+            const uId = n.universityId?._id || n.universityId;
+            if (uId) {
+                counts[uId] = (counts[uId] || 0) + 1;
+            }
+        });
+        return counts;
+    }, [notes]);
+
+    // Filtered Courses (under university & search & degree type & status)
+    const filteredCourses = useMemo(() => {
+        return courses.filter((c) => {
+            if (selectedUniversityId !== "all") {
+                const uId = c.universityId?._id || c.universityId;
+                const selectedUni = universities.find((u) => u._id === selectedUniversityId);
+                const matchId = uId === selectedUniversityId;
+                const matchCode = selectedUni && (uId === selectedUni.code || c.university === selectedUni.name);
+                if (!matchId && !matchCode) return false;
+            }
+            if (statusFilter !== "all" && c.status !== statusFilter) return false;
+            if (courseDegreeFilter !== "all" && c.degreeType !== courseDegreeFilter) return false;
+            const term = (courseSearch || search).trim().toLowerCase();
+            if (term) {
+                return (
+                    c.name?.toLowerCase().includes(term) ||
+                    c.code?.toLowerCase().includes(term) ||
+                    c.degreeType?.toLowerCase().includes(term)
+                );
+            }
+            return true;
+        });
+    }, [courses, selectedUniversityId, universities, statusFilter, courseDegreeFilter, courseSearch, search]);
 
     // Filtered Papers
     const filteredPapers = useMemo(() => {
@@ -1158,7 +1391,7 @@ export default function AdminPanel() {
     // Navigation items
     const navTabs = [
         { id: "overview", label: "Overview", icon: <FaShieldAlt /> },
-        { id: "courses", label: "Courses & Programs", icon: <FaGraduationCap />, count: courses.length },
+        { id: "courses", label: "Universities & Courses", icon: <FaUniversity />, count: universities.length },
         { id: "moderation", label: "Moderation Queue", icon: <FaClock />, count: totalPendingCount, alert: totalPendingCount > 0 },
         { id: "papers", label: "Question Papers", icon: <FaFilePdf />, count: papers.length },
         { id: "notes", label: "Study Notes", icon: <FaStickyNote />, count: notes.length },
@@ -1312,15 +1545,15 @@ export default function AdminPanel() {
                                     >
                                         <div className="flex items-center justify-between mb-2">
                                             <span className="text-[10px] font-bold text-[#8C7862] dark:text-[#A8957E] uppercase tracking-wider">
-                                                Courses & Programs
+                                                Universities & Courses
                                             </span>
-                                            <FaGraduationCap className="text-[#C89D5C]" />
+                                            <FaUniversity className="text-[#C89D5C]" />
                                         </div>
                                         <div className="text-3xl font-serif font-bold text-[#0D1B2A] dark:text-[#FAF8F5]">
-                                            {stats?.totalCourses || courses.length}
+                                            {universities.length}
                                         </div>
                                         <p className="text-[11px] text-[#8C7862] dark:text-[#A8957E] mt-0.5">
-                                            {stats?.activeCourses || courses.filter((c) => c.status === "active").length} active degree tracks
+                                            {universities.filter((u) => u.status === "active").length} active • {courses.length} outgoing courses
                                         </p>
                                     </div>
 
@@ -1457,128 +1690,542 @@ export default function AdminPanel() {
                         )}
 
                         {/* ═══════════════════════════════════════════════════════
-                            2. COURSES TAB
+                            2. UNIVERSITIES & OUTGOING COURSES TAB
                         ═══════════════════════════════════════════════════════ */}
                         {activeTab === "courses" && (
                             <div className="space-y-6">
+                                {/* Header Section */}
                                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                                     <div>
-                                        <h2 className="text-xl font-serif font-bold text-[#0D1B2A] dark:text-[#FAF8F5]">
-                                            Courses & Degree Programs
-                                        </h2>
-                                        <p className="text-xs text-[#8C7862] dark:text-[#A8957E]">
-                                            Manage academic curricula, degrees, and auto-generated semester structures.
+                                        <div className="flex items-center gap-2">
+                                            <div className="w-8 h-8 rounded-xl bg-[#0D1B2A] dark:bg-[#C89D5C] text-[#FAF8F5] dark:text-[#0D1B2A] flex items-center justify-center text-sm shadow-xs">
+                                                <FaUniversity />
+                                            </div>
+                                            <h2 className="text-xl font-serif font-bold text-[#0D1B2A] dark:text-[#FAF8F5]">
+                                                Universities & Outgoing Academic Courses
+                                            </h2>
+                                        </div>
+                                        <p className="text-xs text-[#8C7862] dark:text-[#A8957E] mt-1">
+                                            Manage institutions and their outgoing course offerings. Adding courses here dynamically reflects in student upload menus and cascading browse filters.
                                         </p>
                                     </div>
-                                    <button
-                                        onClick={handleOpenAddCourse}
-                                        className="inline-flex items-center gap-2 px-4 py-2 bg-[#0D1B2A] hover:bg-[#1E293B] dark:bg-[#C89D5C] dark:hover:bg-[#E5C378] text-[#FAF8F5] dark:text-[#0D1B2A] text-xs font-bold rounded-full shadow-xs transition cursor-pointer"
-                                    >
-                                        <FaPlus className="text-xs" /> Add New Course
-                                    </button>
-                                </div>
 
-                                {/* Filters */}
-                                <div className="flex items-center gap-3 flex-wrap">
-                                    <div className="relative flex-1 min-w-[200px]">
-                                        <FaSearch className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[#8C7862] text-xs" />
-                                        <input
-                                            type="text"
-                                            value={search}
-                                            onChange={(e) => setSearch(e.target.value)}
-                                            placeholder="Search courses by name or code..."
-                                            className="w-full pl-9 pr-4 py-2 bg-white dark:bg-[#161412] border border-[#EAE2D8] dark:border-[#2E2822] rounded-full text-xs text-[#0D1B2A] dark:text-[#FAF8F5] focus:outline-hidden focus:border-[#C89D5C]"
-                                        />
+                                    <div className="flex items-center gap-2.5 flex-wrap">
+                                        <button
+                                            onClick={handleOpenAddUniversity}
+                                            className="inline-flex items-center gap-2 px-4 py-2 bg-[#0D1B2A] hover:bg-[#1E293B] dark:bg-[#C89D5C] dark:hover:bg-[#E5C378] text-[#FAF8F5] dark:text-[#0D1B2A] text-xs font-bold rounded-full shadow-xs transition cursor-pointer"
+                                        >
+                                            <FaUniversity className="text-xs" /> + Add University
+                                        </button>
+                                        <button
+                                            onClick={() => handleOpenAddCourse(selectedUniversityId !== "all" ? selectedUniversityId : "")}
+                                            className="inline-flex items-center gap-2 px-4 py-2 bg-white dark:bg-[#1E1B18] border border-[#DDD2C4] dark:border-[#2E2822] hover:border-[#C89D5C] text-[#0D1B2A] dark:text-[#FAF8F5] text-xs font-bold rounded-full shadow-2xs transition cursor-pointer"
+                                        >
+                                            <FaPlus className="text-xs text-[#C89D5C]" /> + Add Outgoing Course
+                                        </button>
                                     </div>
-                                    <select
-                                        value={statusFilter}
-                                        onChange={(e) => setStatusFilter(e.target.value)}
-                                        className="px-3.5 py-2 bg-white dark:bg-[#161412] border border-[#EAE2D8] dark:border-[#2E2822] rounded-full text-xs text-[#0D1B2A] dark:text-[#FAF8F5] focus:outline-hidden"
-                                    >
-                                        <option value="all">All Statuses</option>
-                                        <option value="active">Active</option>
-                                        <option value="inactive">Inactive</option>
-                                    </select>
                                 </div>
 
-                                {/* Courses Table */}
-                                <div className="bg-white dark:bg-[#161412] border border-[#EAE2D8] dark:border-[#2E2822] rounded-3xl overflow-hidden shadow-xs">
-                                    <div className="overflow-x-auto">
-                                        <table className="w-full text-left text-xs">
-                                            <thead>
-                                                <tr className="bg-[#FAF8F5] dark:bg-[#1C1916] border-b border-[#EAE2D8] dark:border-[#2E2822] text-[#8C7862]">
-                                                    <th className="p-4 font-semibold">Course Code</th>
-                                                    <th className="p-4 font-semibold">Program Name</th>
-                                                    <th className="p-4 font-semibold">Degree Type</th>
-                                                    <th className="p-4 font-semibold">Semesters</th>
-                                                    <th className="p-4 font-semibold">Duration</th>
-                                                    <th className="p-4 font-semibold">Status</th>
-                                                    <th className="p-4 font-semibold text-right">Actions</th>
-                                                </tr>
-                                            </thead>
-                                            <tbody className="divide-y divide-[#EAE2D8] dark:divide-[#2E2822]">
-                                                {filteredCourses.length === 0 ? (
-                                                    <tr>
-                                                        <td colSpan={7} className="p-8 text-center text-[#8C7862]">
-                                                            No courses found matching your criteria.
-                                                        </td>
-                                                    </tr>
+                                {/* Top Metric Chips */}
+                                <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                                    <div className="bg-white dark:bg-[#161412] border border-[#EAE2D8] dark:border-[#2E2822] rounded-3xl p-4 shadow-xs">
+                                        <div className="flex items-center justify-between mb-1.5">
+                                            <span className="text-[10px] font-bold text-[#8C7862] dark:text-[#A8957E] uppercase tracking-wider">
+                                                Institutions
+                                            </span>
+                                            <FaUniversity className="text-[#C89D5C] text-sm" />
+                                        </div>
+                                        <div className="text-2xl font-serif font-bold text-[#0D1B2A] dark:text-[#FAF8F5]">
+                                            {universities.length}
+                                        </div>
+                                        <p className="text-[11px] text-[#8C7862] dark:text-[#A8957E] mt-0.5">
+                                            {universities.filter((u) => u.status === "active").length} active universities
+                                        </p>
+                                    </div>
+
+                                    <div className="bg-white dark:bg-[#161412] border border-[#EAE2D8] dark:border-[#2E2822] rounded-3xl p-4 shadow-xs">
+                                        <div className="flex items-center justify-between mb-1.5">
+                                            <span className="text-[10px] font-bold text-[#8C7862] dark:text-[#A8957E] uppercase tracking-wider">
+                                                Outgoing Programs
+                                            </span>
+                                            <FaGraduationCap className="text-[#C89D5C] text-sm" />
+                                        </div>
+                                        <div className="text-2xl font-serif font-bold text-[#0D1B2A] dark:text-[#FAF8F5]">
+                                            {courses.length}
+                                        </div>
+                                        <p className="text-[11px] text-[#8C7862] dark:text-[#A8957E] mt-0.5">
+                                            {courses.filter((c) => c.status === "active").length} active degree tracks
+                                        </p>
+                                    </div>
+
+                                    <div className="bg-white dark:bg-[#161412] border border-[#EAE2D8] dark:border-[#2E2822] rounded-3xl p-4 shadow-xs">
+                                        <div className="flex items-center justify-between mb-1.5">
+                                            <span className="text-[10px] font-bold text-[#8C7862] dark:text-[#A8957E] uppercase tracking-wider">
+                                                Linked PYQs
+                                            </span>
+                                            <FaFilePdf className="text-[#C89D5C] text-sm" />
+                                        </div>
+                                        <div className="text-2xl font-serif font-bold text-[#0D1B2A] dark:text-[#FAF8F5]">
+                                            {papers.length}
+                                        </div>
+                                        <p className="text-[11px] text-[#8C7862] dark:text-[#A8957E] mt-0.5">
+                                            Across all courses & sems
+                                        </p>
+                                    </div>
+
+                                    <div className="bg-white dark:bg-[#161412] border border-[#EAE2D8] dark:border-[#2E2822] rounded-3xl p-4 shadow-xs">
+                                        <div className="flex items-center justify-between mb-1.5">
+                                            <span className="text-[10px] font-bold text-[#8C7862] dark:text-[#A8957E] uppercase tracking-wider">
+                                                Linked Notes
+                                            </span>
+                                            <FaStickyNote className="text-[#C89D5C] text-sm" />
+                                        </div>
+                                        <div className="text-2xl font-serif font-bold text-[#0D1B2A] dark:text-[#FAF8F5]">
+                                            {notes.length}
+                                        </div>
+                                        <p className="text-[11px] text-[#8C7862] dark:text-[#A8957E] mt-0.5">
+                                            Semester modules registered
+                                        </p>
+                                    </div>
+                                </div>
+
+                                {/* Master-Detail Grid */}
+                                <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+                                    {/* ── LEFT: Universities Directory ───────────────────────── */}
+                                    <div className="lg:col-span-5 space-y-4">
+                                        <div className="bg-white dark:bg-[#161412] border border-[#EAE2D8] dark:border-[#2E2822] rounded-3xl p-5 shadow-xs space-y-4">
+                                            <div className="flex items-center justify-between">
+                                                <div className="flex items-center gap-2">
+                                                    <h3 className="font-serif font-bold text-base text-[#0D1B2A] dark:text-[#FAF8F5]">
+                                                        Universities Directory
+                                                    </h3>
+                                                    <span className="px-2 py-0.5 rounded-full bg-[#F4EFEA] dark:bg-[#24201C] text-[#8C6239] dark:text-[#E5C378] text-[10px] font-bold">
+                                                        {filteredUniversities.length}
+                                                    </span>
+                                                </div>
+                                                <button
+                                                    onClick={handleOpenAddUniversity}
+                                                    className="text-xs text-[#C89D5C] hover:underline font-bold inline-flex items-center gap-1 cursor-pointer"
+                                                >
+                                                    <FaPlus className="text-[10px]" /> Add New
+                                                </button>
+                                            </div>
+
+                                            {/* Search & Filter */}
+                                            <div className="space-y-2.5">
+                                                <div className="relative">
+                                                    <FaSearch className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[#8C7862] text-xs" />
+                                                    <input
+                                                        type="text"
+                                                        value={universitySearch}
+                                                        onChange={(e) => setUniversitySearch(e.target.value)}
+                                                        placeholder="Search by name, code, or city..."
+                                                        className="w-full pl-9 pr-8 py-2 bg-[#FAF8F5] dark:bg-[#1C1916] border border-[#DDD2C4] dark:border-[#2E2822] rounded-full text-xs text-[#0D1B2A] dark:text-[#FAF8F5] focus:outline-hidden focus:border-[#C89D5C]"
+                                                    />
+                                                    {universitySearch && (
+                                                        <button
+                                                            onClick={() => setUniversitySearch("")}
+                                                            className="absolute right-3 top-1/2 -translate-y-1/2 text-[#8C7862] hover:text-[#0D1B2A] dark:hover:text-[#FAF8F5] text-xs cursor-pointer"
+                                                        >
+                                                            <FaTimes />
+                                                        </button>
+                                                    )}
+                                                </div>
+
+                                                <div className="flex items-center gap-1.5 flex-wrap">
+                                                    {[
+                                                        { id: "all", label: "All Statuses" },
+                                                        { id: "active", label: "Active" },
+                                                        { id: "inactive", label: "Inactive" },
+                                                    ].map((filter) => (
+                                                        <button
+                                                            key={filter.id}
+                                                            onClick={() => setUniversityStatusFilter(filter.id)}
+                                                            className={`px-3 py-1 rounded-full text-[11px] font-bold transition cursor-pointer ${
+                                                                universityStatusFilter === filter.id
+                                                                    ? "bg-[#0D1B2A] dark:bg-[#C89D5C] text-[#FAF8F5] dark:text-[#0D1B2A]"
+                                                                    : "bg-[#FAF8F5] dark:bg-[#1C1916] text-[#8C7862] hover:text-[#0D1B2A] dark:hover:text-[#FAF8F5] border border-[#EAE2D8] dark:border-[#2E2822]"
+                                                            }`}
+                                                        >
+                                                            {filter.label}
+                                                        </button>
+                                                    ))}
+                                                </div>
+                                            </div>
+
+                                            {/* University Items List */}
+                                            <div className="space-y-2.5 max-h-[640px] overflow-y-auto pr-1">
+                                                {/* All Universities Option */}
+                                                <div
+                                                    onClick={() => setSelectedUniversityId("all")}
+                                                    className={`p-3.5 rounded-2xl border transition cursor-pointer flex items-center justify-between ${
+                                                        selectedUniversityId === "all"
+                                                            ? "border-2 border-[#C89D5C] bg-[#FAF8F5] dark:bg-[#201D19] shadow-xs"
+                                                            : "border-[#EAE2D8] dark:border-[#2E2822] hover:border-[#C89D5C]/60 bg-white dark:bg-[#161412]"
+                                                    }`}
+                                                >
+                                                    <div className="flex items-center gap-3">
+                                                        <div className="w-9 h-9 rounded-xl bg-[#0D1B2A]/5 dark:bg-[#C89D5C]/10 text-[#0D1B2A] dark:text-[#C89D5C] flex items-center justify-center text-sm font-bold">
+                                                            <FaBuilding />
+                                                        </div>
+                                                        <div>
+                                                            <h4 className="font-bold text-xs text-[#0D1B2A] dark:text-[#FAF8F5]">
+                                                                All Registered Universities
+                                                            </h4>
+                                                            <p className="text-[10px] text-[#8C7862] dark:text-[#A8957E]">
+                                                                View all {courses.length} outgoing courses
+                                                            </p>
+                                                        </div>
+                                                    </div>
+                                                    <span className="px-2 py-0.5 rounded-md bg-[#0D1B2A]/5 dark:bg-[#C89D5C]/10 text-[#0D1B2A] dark:text-[#C89D5C] font-mono text-[10px] font-bold">
+                                                        ALL
+                                                    </span>
+                                                </div>
+
+                                                {filteredUniversities.length === 0 ? (
+                                                    <div className="p-6 text-center text-xs text-[#8C7862] dark:text-[#A8957E]">
+                                                        No universities match your filter.
+                                                    </div>
                                                 ) : (
-                                                    filteredCourses.map((c) => (
-                                                        <tr key={c._id} className="hover:bg-[#FAF8F5] dark:hover:bg-[#1C1916] transition">
-                                                            <td className="p-4 font-mono font-bold text-[#0D1B2A] dark:text-[#FAF8F5]">
-                                                                <span className="px-2 py-0.5 rounded-md bg-[#0D1B2A]/5 dark:bg-[#C89D5C]/10 border border-[#EAE2D8] dark:border-[#2E2822]">
-                                                                    {c.code}
-                                                                </span>
-                                                            </td>
-                                                            <td className="p-4 font-bold text-[#0D1B2A] dark:text-[#FAF8F5]">
-                                                                {c.name}
-                                                            </td>
-                                                            <td className="p-4 text-[#6B5B49] dark:text-[#C2B3A0]">
-                                                                {c.degreeType || "Undergraduate"}
-                                                            </td>
-                                                            <td className="p-4 font-semibold text-[#0D1B2A] dark:text-[#FAF8F5]">
-                                                                {c.numberOfSemesters || 8} Sems
-                                                            </td>
-                                                            <td className="p-4 text-[#8C7862]">
-                                                                {c.duration || "4 Years"}
-                                                            </td>
-                                                            <td className="p-4">
-                                                                <button
-                                                                    onClick={() => handleToggleCourseStatus(c)}
-                                                                    className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold cursor-pointer transition ${
-                                                                        c.status === "active"
-                                                                            ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30"
-                                                                            : "bg-stone-500/10 text-stone-500 border border-stone-500/30"
-                                                                    }`}
-                                                                >
-                                                                    {c.status === "active" ? <FaToggleOn /> : <FaToggleOff />}
-                                                                    <span>{c.status === "active" ? "Active" : "Inactive"}</span>
-                                                                </button>
-                                                            </td>
-                                                            <td className="p-4 text-right">
-                                                                <div className="flex items-center justify-end gap-2">
+                                                    filteredUniversities.map((u) => {
+                                                        const isSelected = selectedUniversityId === u._id;
+                                                        const uniCourses = coursesPerUniversity[u._id] || 0;
+                                                        const uniPapers = papersPerUniversity[u._id] || 0;
+
+                                                        return (
+                                                            <div
+                                                                key={u._id}
+                                                                onClick={() => setSelectedUniversityId(u._id)}
+                                                                className={`p-4 rounded-2xl border transition cursor-pointer space-y-3 ${
+                                                                    isSelected
+                                                                        ? "border-2 border-[#C89D5C] bg-[#FAF8F5] dark:bg-[#201D19] shadow-xs"
+                                                                        : "border-[#EAE2D8] dark:border-[#2E2822] hover:border-[#C89D5C]/60 bg-white dark:bg-[#161412]"
+                                                                }`}
+                                                            >
+                                                                {/* Header with name, code, status */}
+                                                                <div className="flex items-start justify-between gap-2">
+                                                                    <div>
+                                                                        <div className="flex items-center gap-2">
+                                                                            <h4 className="font-serif font-bold text-xs sm:text-sm text-[#0D1B2A] dark:text-[#FAF8F5]">
+                                                                                {u.name}
+                                                                            </h4>
+                                                                            <span className="px-2 py-0.5 rounded-md bg-[#C89D5C]/15 text-[#8C6239] dark:text-[#E5C378] font-mono text-[10px] font-bold border border-[#C89D5C]/30">
+                                                                                {u.code}
+                                                                            </span>
+                                                                        </div>
+                                                                        {(u.location || u.state) && (
+                                                                            <div className="flex items-center gap-1.5 text-[11px] text-[#8C7862] dark:text-[#A8957E] mt-1">
+                                                                                <FaMapMarkerAlt className="text-[10px] text-[#C89D5C]" />
+                                                                                <span>
+                                                                                    {u.location ? `${u.location}, ` : ""}
+                                                                                    {u.state || ""}
+                                                                                </span>
+                                                                            </div>
+                                                                        )}
+                                                                    </div>
+
                                                                     <button
-                                                                        onClick={() => handleOpenEditCourse(c)}
-                                                                        className="p-2 text-[#8C7862] hover:text-[#0D1B2A] dark:hover:text-[#FAF8F5] rounded-lg hover:bg-white dark:hover:bg-[#24201C] transition cursor-pointer"
-                                                                        title="Edit Course"
+                                                                        type="button"
+                                                                        onClick={(e) => {
+                                                                            e.stopPropagation();
+                                                                            handleToggleUniversityStatus(u);
+                                                                        }}
+                                                                        className={`shrink-0 inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold transition cursor-pointer ${
+                                                                            u.status === "active"
+                                                                                ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30"
+                                                                                : "bg-stone-500/10 text-stone-500 border border-stone-500/30"
+                                                                        }`}
+                                                                        title="Toggle Active Status"
                                                                     >
-                                                                        <FaEdit />
-                                                                    </button>
-                                                                    <button
-                                                                        onClick={() => handleDeleteCourse(c)}
-                                                                        className="p-2 text-rose-500 hover:text-rose-700 hover:bg-rose-50 dark:hover:bg-rose-950/30 rounded-lg transition cursor-pointer"
-                                                                        title="Delete Course"
-                                                                    >
-                                                                        <FaTrash />
+                                                                        {u.status === "active" ? <FaToggleOn /> : <FaToggleOff />}
+                                                                        <span>{u.status === "active" ? "Active" : "Inactive"}</span>
                                                                     </button>
                                                                 </div>
-                                                            </td>
-                                                        </tr>
-                                                    ))
+
+                                                                {/* Counts and Website */}
+                                                                <div className="flex items-center justify-between text-[11px] pt-1 border-t border-[#EAE2D8]/60 dark:border-[#2E2822]/60">
+                                                                    <div className="flex items-center gap-2 flex-wrap">
+                                                                        <span className="px-2 py-0.5 rounded-md bg-[#0D1B2A]/5 dark:bg-[#FAF8F5]/5 text-[#0D1B2A] dark:text-[#FAF8F5] font-semibold text-[10px]">
+                                                                            {uniCourses} Outgoing Courses
+                                                                        </span>
+                                                                        <span className="text-[10px] text-[#8C7862]">
+                                                                            {uniPapers} PYQs
+                                                                        </span>
+                                                                    </div>
+
+                                                                    {u.website && (
+                                                                        <a
+                                                                            href={u.website}
+                                                                            target="_blank"
+                                                                            rel="noopener noreferrer"
+                                                                            onClick={(e) => e.stopPropagation()}
+                                                                            className="text-[#8C7862] hover:text-[#C89D5C] flex items-center gap-1 text-[10px]"
+                                                                            title="Visit official portal"
+                                                                        >
+                                                                            <FaGlobe className="text-[10px]" />
+                                                                            <span>Portal</span>
+                                                                            <FaExternalLinkAlt className="text-[8px]" />
+                                                                        </a>
+                                                                    )}
+                                                                </div>
+
+                                                                {/* Quick Actions Row */}
+                                                                <div className="flex items-center justify-between pt-1">
+                                                                    <button
+                                                                        type="button"
+                                                                        onClick={(e) => {
+                                                                            e.stopPropagation();
+                                                                            handleOpenAddCourse(u._id);
+                                                                        }}
+                                                                        className="text-[11px] font-bold text-[#8C6239] dark:text-[#E5C378] hover:underline inline-flex items-center gap-1 cursor-pointer"
+                                                                    >
+                                                                        <FaPlus className="text-[9px]" /> Add Outgoing Course
+                                                                    </button>
+
+                                                                    <div className="flex items-center gap-1">
+                                                                        <button
+                                                                            type="button"
+                                                                            onClick={(e) => {
+                                                                            e.stopPropagation();
+                                                                                handleOpenEditUniversity(u);
+                                                                            }}
+                                                                            className="p-1.5 text-[#8C7862] hover:text-[#0D1B2A] dark:hover:text-[#FAF8F5] rounded-lg hover:bg-white dark:hover:bg-[#24201C] transition cursor-pointer"
+                                                                            title="Edit University"
+                                                                        >
+                                                                            <FaEdit className="text-xs" />
+                                                                        </button>
+                                                                        <button
+                                                                            type="button"
+                                                                            onClick={(e) => {
+                                                                                e.stopPropagation();
+                                                                                handleDeleteUniversity(u);
+                                                                            }}
+                                                                            className="p-1.5 text-rose-500 hover:text-rose-700 hover:bg-rose-50 dark:hover:bg-rose-950/30 rounded-lg transition cursor-pointer"
+                                                                            title="Delete University"
+                                                                        >
+                                                                            <FaTrash className="text-xs" />
+                                                                        </button>
+                                                                    </div>
+                                                                </div>
+                                                            </div>
+                                                        );
+                                                    })
                                                 )}
-                                            </tbody>
-                                        </table>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    {/* ── RIGHT: Outgoing Courses for Selected University ───── */}
+                                    <div className="lg:col-span-7 space-y-4">
+                                        {/* Context Banner */}
+                                        <div className="bg-white dark:bg-[#161412] border border-[#EAE2D8] dark:border-[#2E2822] rounded-3xl p-5 shadow-xs">
+                                            {selectedUniversity ? (
+                                                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                                                    <div className="space-y-1">
+                                                        <div className="flex items-center gap-2">
+                                                            <span className="px-2 py-0.5 rounded-md bg-[#C89D5C] text-[#0D1B2A] font-mono text-[10px] font-bold">
+                                                                {selectedUniversity.code}
+                                                            </span>
+                                                            <h3 className="font-serif font-bold text-base text-[#0D1B2A] dark:text-[#FAF8F5]">
+                                                                {selectedUniversity.name}
+                                                            </h3>
+                                                        </div>
+                                                        <p className="text-xs text-[#8C7862] dark:text-[#A8957E]">
+                                                            Showing outgoing curriculum & programs under {selectedUniversity.name}.
+                                                            {selectedUniversity.location && ` Located in ${selectedUniversity.location}, ${selectedUniversity.state || ""}.`}
+                                                        </p>
+                                                    </div>
+
+                                                    <button
+                                                        onClick={() => handleOpenAddCourse(selectedUniversity._id)}
+                                                        className="inline-flex items-center gap-2 px-4 py-2 bg-[#0D1B2A] hover:bg-[#1E293B] dark:bg-[#C89D5C] dark:hover:bg-[#E5C378] text-[#FAF8F5] dark:text-[#0D1B2A] text-xs font-bold rounded-full shadow-xs transition cursor-pointer shrink-0"
+                                                    >
+                                                        <FaPlus className="text-xs" /> Add Course to {selectedUniversity.code}
+                                                    </button>
+                                                </div>
+                                            ) : (
+                                                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                                                    <div>
+                                                        <h3 className="font-serif font-bold text-base text-[#0D1B2A] dark:text-[#FAF8F5]">
+                                                            All Outgoing Courses Across Institutions
+                                                        </h3>
+                                                        <p className="text-xs text-[#8C7862] dark:text-[#A8957E]">
+                                                            Showing curriculum across all universities. Select an institution on the left to focus on its offered degrees.
+                                                        </p>
+                                                    </div>
+
+                                                    <button
+                                                        onClick={() => handleOpenAddCourse("")}
+                                                        className="inline-flex items-center gap-2 px-4 py-2 bg-[#0D1B2A] hover:bg-[#1E293B] dark:bg-[#C89D5C] dark:hover:bg-[#E5C378] text-[#FAF8F5] dark:text-[#0D1B2A] text-xs font-bold rounded-full shadow-xs transition cursor-pointer shrink-0"
+                                                    >
+                                                        <FaPlus className="text-xs" /> Add Course
+                                                    </button>
+                                                </div>
+                                            )}
+                                        </div>
+
+                                        {/* Filters Toolbar */}
+                                        <div className="flex items-center gap-3 flex-wrap">
+                                            <div className="relative flex-1 min-w-[180px]">
+                                                <FaSearch className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[#8C7862] text-xs" />
+                                                <input
+                                                    type="text"
+                                                    value={courseSearch}
+                                                    onChange={(e) => setCourseSearch(e.target.value)}
+                                                    placeholder="Search courses by name or code..."
+                                                    className="w-full pl-9 pr-8 py-2 bg-white dark:bg-[#161412] border border-[#EAE2D8] dark:border-[#2E2822] rounded-full text-xs text-[#0D1B2A] dark:text-[#FAF8F5] focus:outline-hidden focus:border-[#C89D5C]"
+                                                />
+                                                {courseSearch && (
+                                                    <button
+                                                        onClick={() => setCourseSearch("")}
+                                                        className="absolute right-3 top-1/2 -translate-y-1/2 text-[#8C7862] hover:text-[#0D1B2A] dark:hover:text-[#FAF8F5] text-xs cursor-pointer"
+                                                    >
+                                                        <FaTimes />
+                                                    </button>
+                                                )}
+                                            </div>
+
+                                            <select
+                                                value={courseDegreeFilter}
+                                                onChange={(e) => setCourseDegreeFilter(e.target.value)}
+                                                className="px-3.5 py-2 bg-white dark:bg-[#161412] border border-[#EAE2D8] dark:border-[#2E2822] rounded-full text-xs text-[#0D1B2A] dark:text-[#FAF8F5] focus:outline-hidden"
+                                            >
+                                                <option value="all">All Degrees</option>
+                                                {DEGREE_TYPES.map((dt) => (
+                                                    <option key={dt} value={dt}>
+                                                        {dt}
+                                                    </option>
+                                                ))}
+                                            </select>
+
+                                            <select
+                                                value={statusFilter}
+                                                onChange={(e) => setStatusFilter(e.target.value)}
+                                                className="px-3.5 py-2 bg-white dark:bg-[#161412] border border-[#EAE2D8] dark:border-[#2E2822] rounded-full text-xs text-[#0D1B2A] dark:text-[#FAF8F5] focus:outline-hidden"
+                                            >
+                                                <option value="all">All Statuses</option>
+                                                <option value="active">Active</option>
+                                                <option value="inactive">Inactive</option>
+                                            </select>
+                                        </div>
+
+                                        {/* Courses Table */}
+                                        <div className="bg-white dark:bg-[#161412] border border-[#EAE2D8] dark:border-[#2E2822] rounded-3xl overflow-hidden shadow-xs">
+                                            <div className="overflow-x-auto">
+                                                <table className="w-full text-left text-xs">
+                                                    <thead>
+                                                        <tr className="bg-[#FAF8F5] dark:bg-[#1C1916] border-b border-[#EAE2D8] dark:border-[#2E2822] text-[#8C7862]">
+                                                            <th className="p-4 font-semibold">Course Code</th>
+                                                            <th className="p-4 font-semibold">Program Name</th>
+                                                            <th className="p-4 font-semibold">University</th>
+                                                            <th className="p-4 font-semibold">Degree</th>
+                                                            <th className="p-4 font-semibold">Semesters</th>
+                                                            <th className="p-4 font-semibold">Duration</th>
+                                                            <th className="p-4 font-semibold">Status</th>
+                                                            <th className="p-4 font-semibold text-right">Actions</th>
+                                                        </tr>
+                                                    </thead>
+                                                    <tbody className="divide-y divide-[#EAE2D8] dark:divide-[#2E2822]">
+                                                        {filteredCourses.length === 0 ? (
+                                                            <tr>
+                                                                <td colSpan={8} className="p-12 text-center text-[#8C7862]">
+                                                                    <div className="max-w-xs mx-auto space-y-3">
+                                                                        <div className="w-12 h-12 mx-auto rounded-2xl bg-[#FAF8F5] dark:bg-[#1E1B18] text-[#C89D5C] flex items-center justify-center text-xl">
+                                                                            <FaGraduationCap />
+                                                                        </div>
+                                                                        <p className="font-bold text-xs text-[#0D1B2A] dark:text-[#FAF8F5]">
+                                                                            No outgoing courses found
+                                                                        </p>
+                                                                        <p className="text-[11px] text-[#8C7862] dark:text-[#A8957E]">
+                                                                            {selectedUniversity
+                                                                                ? `No courses have been added under ${selectedUniversity.name} yet.`
+                                                                                : "Try clearing your search or status filters."}
+                                                                        </p>
+                                                                        <button
+                                                                            onClick={() => handleOpenAddCourse(selectedUniversityId !== "all" ? selectedUniversityId : "")}
+                                                                            className="inline-flex items-center gap-1.5 px-4 py-2 bg-[#0D1B2A] dark:bg-[#C89D5C] text-[#FAF8F5] dark:text-[#0D1B2A] text-xs font-bold rounded-full shadow-xs cursor-pointer"
+                                                                        >
+                                                                            <FaPlus className="text-xs" /> Add Outgoing Course
+                                                                        </button>
+                                                                    </div>
+                                                                </td>
+                                                            </tr>
+                                                        ) : (
+                                                            filteredCourses.map((c) => {
+                                                                const courseUni = universities.find((u) => u._id === (c.universityId?._id || c.universityId) || u.code === (c.universityId?._id || c.universityId) || u.name === c.university);
+
+                                                                return (
+                                                                    <tr key={c._id} className="hover:bg-[#FAF8F5] dark:hover:bg-[#1C1916] transition">
+                                                                        <td className="p-4 font-mono font-bold text-[#0D1B2A] dark:text-[#FAF8F5]">
+                                                                            <span className="px-2 py-0.5 rounded-md bg-[#0D1B2A]/5 dark:bg-[#C89D5C]/10 border border-[#EAE2D8] dark:border-[#2E2822]">
+                                                                                {c.code}
+                                                                            </span>
+                                                                        </td>
+                                                                        <td className="p-4 font-bold text-[#0D1B2A] dark:text-[#FAF8F5]">
+                                                                            {c.name}
+                                                                        </td>
+                                                                        <td className="p-4">
+                                                                            {courseUni ? (
+                                                                                <span
+                                                                                    onClick={() => setSelectedUniversityId(courseUni._id)}
+                                                                                    className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-[#FAF8F5] dark:bg-[#24201C] text-[#8C6239] dark:text-[#E5C378] text-[10px] font-bold border border-[#DDD2C4] dark:border-[#2E2822] cursor-pointer hover:border-[#C89D5C]"
+                                                                                    title={`Filter by ${courseUni.name}`}
+                                                                                >
+                                                                                    <FaUniversity className="text-[9px]" />
+                                                                                    <span>{courseUni.code}</span>
+                                                                                </span>
+                                                                            ) : (
+                                                                                <span className="text-[10px] text-[#8C7862]">Universal</span>
+                                                                            )}
+                                                                        </td>
+                                                                        <td className="p-4 text-[#6B5B49] dark:text-[#C2B3A0]">
+                                                                            {c.degreeType || "Undergraduate"}
+                                                                        </td>
+                                                                        <td className="p-4 font-semibold text-[#0D1B2A] dark:text-[#FAF8F5]">
+                                                                            {c.numberOfSemesters || 8} Sems
+                                                                        </td>
+                                                                        <td className="p-4 text-[#8C7862]">
+                                                                            {c.duration || "4 Years"}
+                                                                        </td>
+                                                                        <td className="p-4">
+                                                                            <button
+                                                                                onClick={() => handleToggleCourseStatus(c)}
+                                                                                className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold cursor-pointer transition ${
+                                                                                    c.status === "active"
+                                                                                        ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30"
+                                                                                        : "bg-stone-500/10 text-stone-500 border border-stone-500/30"
+                                                                                }`}
+                                                                            >
+                                                                                {c.status === "active" ? <FaToggleOn /> : <FaToggleOff />}
+                                                                                <span>{c.status === "active" ? "Active" : "Inactive"}</span>
+                                                                            </button>
+                                                                        </td>
+                                                                        <td className="p-4 text-right">
+                                                                            <div className="flex items-center justify-end gap-2">
+                                                                                <button
+                                                                                    onClick={() => handleOpenEditCourse(c)}
+                                                                                    className="p-2 text-[#8C7862] hover:text-[#0D1B2A] dark:hover:text-[#FAF8F5] rounded-lg hover:bg-white dark:hover:bg-[#24201C] transition cursor-pointer"
+                                                                                    title="Edit Course"
+                                                                                >
+                                                                                    <FaEdit />
+                                                                                </button>
+                                                                                <button
+                                                                                    onClick={() => handleDeleteCourse(c)}
+                                                                                    className="p-2 text-rose-500 hover:text-rose-700 hover:bg-rose-50 dark:hover:bg-rose-950/30 rounded-lg transition cursor-pointer"
+                                                                                    title="Delete Course"
+                                                                                >
+                                                                                    <FaTrash />
+                                                                                </button>
+                                                                            </div>
+                                                                        </td>
+                                                                    </tr>
+                                                                );
+                                                            })
+                                                        )}
+                                                    </tbody>
+                                                </table>
+                                            </div>
+                                        </div>
                                     </div>
                                 </div>
                             </div>
@@ -3233,6 +3880,159 @@ export default function AdminPanel() {
                 MODALS
             ═══════════════════════════════════════════════════════════════ */}
 
+            {/* UNIVERSITY ADD / EDIT MODAL */}
+            {universityModalOpen && (
+                <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
+                    <div className="bg-white dark:bg-[#161412] border border-[#EAE2D8] dark:border-[#2E2822] rounded-3xl shadow-2xl w-full max-w-lg p-6 sm:p-8 animate-in fade-in zoom-in-95 duration-200 max-h-[92vh] overflow-y-auto">
+                        <div className="flex items-center justify-between pb-4 mb-5 border-b border-[#EAE2D8] dark:border-[#2E2822]">
+                            <div className="flex items-center gap-2">
+                                <div className="w-8 h-8 rounded-xl bg-[#0D1B2A]/5 dark:bg-[#C89D5C]/10 text-[#0D1B2A] dark:text-[#C89D5C] flex items-center justify-center text-sm">
+                                    <FaUniversity />
+                                </div>
+                                <h3 className="font-serif font-bold text-lg text-[#0D1B2A] dark:text-[#FAF8F5]">
+                                    {editingUniversity ? "Edit University" : "Add New University / Institution"}
+                                </h3>
+                            </div>
+                            <button
+                                onClick={() => setUniversityModalOpen(false)}
+                                className="text-[#8C7862] hover:text-[#0D1B2A] dark:hover:text-white cursor-pointer"
+                            >
+                                <FaTimes />
+                            </button>
+                        </div>
+
+                        <form onSubmit={handleSaveUniversity} className="space-y-4">
+                            <div>
+                                <label className="block text-xs font-bold text-[#4A3E31] dark:text-[#C2B3A0] mb-1">
+                                    University Full Name *
+                                </label>
+                                <input
+                                    type="text"
+                                    required
+                                    value={universityForm.name}
+                                    onChange={(e) => setUniversityForm({ ...universityForm, name: e.target.value })}
+                                    placeholder="e.g. United University, Allahabad"
+                                    className="w-full px-4 py-2 bg-[#FAF8F5] dark:bg-[#1C1916] border border-[#DDD2C4] dark:border-[#2E2822] rounded-full text-xs text-[#0D1B2A] dark:text-[#FAF8F5] focus:outline-hidden focus:border-[#C89D5C]"
+                                />
+                            </div>
+
+                            <div className="grid grid-cols-2 gap-3">
+                                <div>
+                                    <label className="block text-xs font-bold text-[#4A3E31] dark:text-[#C2B3A0] mb-1">
+                                        Short Code *
+                                    </label>
+                                    <input
+                                        type="text"
+                                        required
+                                        value={universityForm.code}
+                                        onChange={(e) => setUniversityForm({ ...universityForm, code: e.target.value.toUpperCase() })}
+                                        placeholder="e.g. UU"
+                                        className="w-full px-4 py-2 bg-[#FAF8F5] dark:bg-[#1C1916] border border-[#DDD2C4] dark:border-[#2E2822] rounded-full text-xs font-mono font-bold text-[#0D1B2A] dark:text-[#FAF8F5] focus:outline-hidden focus:border-[#C89D5C]"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-xs font-bold text-[#4A3E31] dark:text-[#C2B3A0] mb-1">
+                                        Status
+                                    </label>
+                                    <select
+                                        value={universityForm.status}
+                                        onChange={(e) => setUniversityForm({ ...universityForm, status: e.target.value })}
+                                        className="w-full px-4 py-2 bg-[#FAF8F5] dark:bg-[#1C1916] border border-[#DDD2C4] dark:border-[#2E2822] rounded-full text-xs text-[#0D1B2A] dark:text-[#FAF8F5] focus:outline-hidden"
+                                    >
+                                        <option value="active">Active</option>
+                                        <option value="inactive">Inactive</option>
+                                    </select>
+                                </div>
+                            </div>
+
+                            <div className="grid grid-cols-2 gap-3">
+                                <div>
+                                    <label className="block text-xs font-bold text-[#4A3E31] dark:text-[#C2B3A0] mb-1">
+                                        City / Campus Location
+                                    </label>
+                                    <input
+                                        type="text"
+                                        value={universityForm.location}
+                                        onChange={(e) => setUniversityForm({ ...universityForm, location: e.target.value })}
+                                        placeholder="e.g. Prayagraj"
+                                        className="w-full px-4 py-2 bg-[#FAF8F5] dark:bg-[#1C1916] border border-[#DDD2C4] dark:border-[#2E2822] rounded-full text-xs text-[#0D1B2A] dark:text-[#FAF8F5] focus:outline-hidden focus:border-[#C89D5C]"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-xs font-bold text-[#4A3E31] dark:text-[#C2B3A0] mb-1">
+                                        State
+                                    </label>
+                                    <input
+                                        type="text"
+                                        value={universityForm.state}
+                                        onChange={(e) => setUniversityForm({ ...universityForm, state: e.target.value })}
+                                        placeholder="e.g. Uttar Pradesh"
+                                        className="w-full px-4 py-2 bg-[#FAF8F5] dark:bg-[#1C1916] border border-[#DDD2C4] dark:border-[#2E2822] rounded-full text-xs text-[#0D1B2A] dark:text-[#FAF8F5] focus:outline-hidden focus:border-[#C89D5C]"
+                                    />
+                                </div>
+                            </div>
+
+                            <div className="grid grid-cols-2 gap-3">
+                                <div>
+                                    <label className="block text-xs font-bold text-[#4A3E31] dark:text-[#C2B3A0] mb-1">
+                                        Country
+                                    </label>
+                                    <input
+                                        type="text"
+                                        value={universityForm.country}
+                                        onChange={(e) => setUniversityForm({ ...universityForm, country: e.target.value })}
+                                        placeholder="e.g. India"
+                                        className="w-full px-4 py-2 bg-[#FAF8F5] dark:bg-[#1C1916] border border-[#DDD2C4] dark:border-[#2E2822] rounded-full text-xs text-[#0D1B2A] dark:text-[#FAF8F5] focus:outline-hidden focus:border-[#C89D5C]"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-xs font-bold text-[#4A3E31] dark:text-[#C2B3A0] mb-1">
+                                        Official Website URL
+                                    </label>
+                                    <input
+                                        type="url"
+                                        value={universityForm.website}
+                                        onChange={(e) => setUniversityForm({ ...universityForm, website: e.target.value })}
+                                        placeholder="https://uniteduniversity.edu.in"
+                                        className="w-full px-4 py-2 bg-[#FAF8F5] dark:bg-[#1C1916] border border-[#DDD2C4] dark:border-[#2E2822] rounded-full text-xs text-[#0D1B2A] dark:text-[#FAF8F5] focus:outline-hidden focus:border-[#C89D5C]"
+                                    />
+                                </div>
+                            </div>
+
+                            <div>
+                                <label className="block text-xs font-bold text-[#4A3E31] dark:text-[#C2B3A0] mb-1">
+                                    Description / Details (Optional)
+                                </label>
+                                <textarea
+                                    rows={2}
+                                    value={universityForm.description}
+                                    onChange={(e) => setUniversityForm({ ...universityForm, description: e.target.value })}
+                                    placeholder="Brief background about this university..."
+                                    className="w-full px-4 py-2 bg-[#FAF8F5] dark:bg-[#1C1916] border border-[#DDD2C4] dark:border-[#2E2822] rounded-2xl text-xs text-[#0D1B2A] dark:text-[#FAF8F5] focus:outline-hidden focus:border-[#C89D5C]"
+                                />
+                            </div>
+
+                            <div className="flex items-center justify-end gap-2 pt-3 border-t border-[#EAE2D8] dark:border-[#2E2822]">
+                                <button
+                                    type="button"
+                                    onClick={() => setUniversityModalOpen(false)}
+                                    className="px-5 py-2 rounded-full border border-[#DDD2C4] dark:border-[#2E2822] text-xs font-semibold text-[#4A3E31] dark:text-[#C2B3A0] cursor-pointer"
+                                >
+                                    Cancel
+                                </button>
+                                <button
+                                    type="submit"
+                                    disabled={actionLoading}
+                                    className="px-6 py-2 rounded-full bg-[#0D1B2A] hover:bg-[#1E293B] dark:bg-[#C89D5C] dark:hover:bg-[#E5C378] text-[#FAF8F5] dark:text-[#0D1B2A] text-xs font-bold shadow-sm transition disabled:opacity-60 cursor-pointer"
+                                >
+                                    {actionLoading ? "Saving..." : (editingUniversity ? "Update University" : "Create University")}
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            )}
+
             {/* COURSE ADD / EDIT MODAL */}
             {courseModalOpen && (
                 <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
@@ -3250,6 +4050,25 @@ export default function AdminPanel() {
                         </div>
 
                         <form onSubmit={handleSaveCourse} className="space-y-4">
+                            <div>
+                                <label className="block text-xs font-bold text-[#4A3E31] dark:text-[#C2B3A0] mb-1">
+                                    University / Institution *
+                                </label>
+                                <select
+                                    required
+                                    value={courseForm.universityId}
+                                    onChange={(e) => setCourseForm({ ...courseForm, universityId: e.target.value })}
+                                    className="w-full px-4 py-2 bg-[#FAF8F5] dark:bg-[#1C1916] border border-[#DDD2C4] dark:border-[#2E2822] rounded-full text-xs text-[#0D1B2A] dark:text-[#FAF8F5] focus:outline-hidden"
+                                >
+                                    <option value="">Select University</option>
+                                    {universities.map((u) => (
+                                        <option key={u._id} value={u._id}>
+                                            {u.name} ({u.code})
+                                        </option>
+                                    ))}
+                                </select>
+                            </div>
+
                             <div>
                                 <label className="block text-xs font-bold text-[#4A3E31] dark:text-[#C2B3A0] mb-1">
                                     Course Full Name *
@@ -3391,6 +4210,32 @@ export default function AdminPanel() {
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                                 <div>
                                     <label className="block text-xs font-bold text-[#4A3E31] dark:text-[#C2B3A0] mb-1">
+                                        University / Institution
+                                    </label>
+                                    <select
+                                        value={editPaperForm.universityId}
+                                        onChange={(e) => {
+                                            const uId = e.target.value;
+                                            const u = universities.find((x) => x._id === uId);
+                                            setEditPaperForm({
+                                                ...editPaperForm,
+                                                universityId: uId,
+                                                university: u ? u.name : "",
+                                            });
+                                        }}
+                                        className="w-full px-4 py-2 bg-[#FAF8F5] dark:bg-[#1C1916] border border-[#DDD2C4] dark:border-[#2E2822] rounded-full text-xs text-[#0D1B2A] dark:text-[#FAF8F5] focus:outline-hidden"
+                                    >
+                                        <option value="">Select University</option>
+                                        {universities.map((u) => (
+                                            <option key={u._id} value={u._id}>
+                                                {u.name} ({u.code})
+                                            </option>
+                                        ))}
+                                    </select>
+                                </div>
+
+                                <div>
+                                    <label className="block text-xs font-bold text-[#4A3E31] dark:text-[#C2B3A0] mb-1">
                                         Course / Program
                                     </label>
                                     <select
@@ -3407,33 +4252,39 @@ export default function AdminPanel() {
                                         className="w-full px-4 py-2 bg-[#FAF8F5] dark:bg-[#1C1916] border border-[#DDD2C4] dark:border-[#2E2822] rounded-full text-xs text-[#0D1B2A] dark:text-[#FAF8F5] focus:outline-hidden"
                                     >
                                         <option value="">Select Course</option>
-                                        {courses.map((c) => (
-                                            <option key={c._id} value={c._id}>
-                                                {c.name} ({c.code})
-                                            </option>
-                                        ))}
+                                        {courses
+                                            .filter((c) => {
+                                                if (!editPaperForm.universityId) return true;
+                                                const uId = c.universityId?._id || c.universityId;
+                                                return uId === editPaperForm.universityId;
+                                            })
+                                            .map((c) => (
+                                                <option key={c._id} value={c._id}>
+                                                    {c.name} ({c.code})
+                                                </option>
+                                            ))}
                                     </select>
                                 </div>
+                            </div>
 
+                            <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
                                 <div>
                                     <label className="block text-xs font-bold text-[#4A3E31] dark:text-[#C2B3A0] mb-1">
-                                        Semester Number
+                                        Semester
                                     </label>
                                     <select
                                         value={editPaperForm.semester}
                                         onChange={(e) => setEditPaperForm({ ...editPaperForm, semester: Number(e.target.value) })}
                                         className="w-full px-4 py-2 bg-[#FAF8F5] dark:bg-[#1C1916] border border-[#DDD2C4] dark:border-[#2E2822] rounded-full text-xs text-[#0D1B2A] dark:text-[#FAF8F5] focus:outline-hidden"
                                     >
-                                        {[1, 2, 3, 4, 5, 6, 7, 8].map((s) => (
+                                        {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12].map((s) => (
                                             <option key={s} value={s}>
                                                 Semester {s}
                                             </option>
                                         ))}
                                     </select>
                                 </div>
-                            </div>
 
-                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                                 <div>
                                     <label className="block text-xs font-bold text-[#4A3E31] dark:text-[#C2B3A0] mb-1">
                                         Exam Type
@@ -3542,7 +4393,33 @@ export default function AdminPanel() {
                                 />
                             </div>
 
-                            <div className="grid grid-cols-2 gap-3">
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                <div>
+                                    <label className="block text-xs font-bold text-[#4A3E31] dark:text-[#C2B3A0] mb-1">
+                                        University / Institution
+                                    </label>
+                                    <select
+                                        value={editNoteForm.universityId}
+                                        onChange={(e) => {
+                                            const uId = e.target.value;
+                                            const u = universities.find((x) => x._id === uId);
+                                            setEditNoteForm({
+                                                ...editNoteForm,
+                                                universityId: uId,
+                                                university: u ? u.name : "",
+                                            });
+                                        }}
+                                        className="w-full px-4 py-2 bg-[#FAF8F5] dark:bg-[#1C1916] border border-[#DDD2C4] dark:border-[#2E2822] rounded-full text-xs text-[#0D1B2A] dark:text-[#FAF8F5] focus:outline-hidden"
+                                    >
+                                        <option value="">Select University</option>
+                                        {universities.map((u) => (
+                                            <option key={u._id} value={u._id}>
+                                                {u.name} ({u.code})
+                                            </option>
+                                        ))}
+                                    </select>
+                                </div>
+
                                 <div>
                                     <label className="block text-xs font-bold text-[#4A3E31] dark:text-[#C2B3A0] mb-1">
                                         Course
@@ -3561,13 +4438,22 @@ export default function AdminPanel() {
                                         className="w-full px-4 py-2 bg-[#FAF8F5] dark:bg-[#1C1916] border border-[#DDD2C4] dark:border-[#2E2822] rounded-full text-xs text-[#0D1B2A] dark:text-[#FAF8F5] focus:outline-hidden"
                                     >
                                         <option value="">Select Course</option>
-                                        {courses.map((c) => (
-                                            <option key={c._id} value={c._id}>
-                                                {c.name} ({c.code})
-                                            </option>
-                                        ))}
+                                        {courses
+                                            .filter((c) => {
+                                                if (!editNoteForm.universityId) return true;
+                                                const uId = c.universityId?._id || c.universityId;
+                                                return uId === editNoteForm.universityId;
+                                            })
+                                            .map((c) => (
+                                                <option key={c._id} value={c._id}>
+                                                    {c.name} ({c.code})
+                                                </option>
+                                            ))}
                                     </select>
                                 </div>
+                            </div>
+
+                            <div className="grid grid-cols-3 gap-3">
                                 <div>
                                     <label className="block text-xs font-bold text-[#4A3E31] dark:text-[#C2B3A0] mb-1">
                                         Semester
@@ -3577,16 +4463,13 @@ export default function AdminPanel() {
                                         onChange={(e) => setEditNoteForm({ ...editNoteForm, semester: Number(e.target.value) })}
                                         className="w-full px-4 py-2 bg-[#FAF8F5] dark:bg-[#1C1916] border border-[#DDD2C4] dark:border-[#2E2822] rounded-full text-xs text-[#0D1B2A] dark:text-[#FAF8F5] focus:outline-hidden"
                                     >
-                                        {[1, 2, 3, 4, 5, 6, 7, 8].map((s) => (
+                                        {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12].map((s) => (
                                             <option key={s} value={s}>
                                                 Semester {s}
                                             </option>
                                         ))}
                                     </select>
                                 </div>
-                            </div>
-
-                            <div className="grid grid-cols-2 gap-3">
                                 <div>
                                     <label className="block text-xs font-bold text-[#4A3E31] dark:text-[#C2B3A0] mb-1">
                                         Unit / Module
@@ -3607,7 +4490,7 @@ export default function AdminPanel() {
                                         type="text"
                                         value={editNoteForm.author}
                                         onChange={(e) => setEditNoteForm({ ...editNoteForm, author: e.target.value })}
-                                        placeholder="e.g. Faculty / Student Name"
+                                        placeholder="Faculty / Student"
                                         className="w-full px-4 py-2 bg-[#FAF8F5] dark:bg-[#1C1916] border border-[#DDD2C4] dark:border-[#2E2822] rounded-full text-xs text-[#0D1B2A] dark:text-[#FAF8F5] focus:outline-hidden focus:border-[#C89D5C]"
                                     />
                                 </div>
@@ -3680,10 +4563,10 @@ export default function AdminPanel() {
                             <FaExclamationTriangle />
                         </div>
                         <h3 className="font-serif font-bold text-base text-[#0D1B2A] dark:text-[#FAF8F5] mb-2">
-                            Caution: Linked Materials Detected
+                            Caution: Linked {cascadeWarning.type === "university" ? "Curriculum & Records" : "Materials"} Detected
                         </h3>
                         <p className="text-xs text-[#6B5B49] dark:text-[#C2B3A0] mb-4 leading-relaxed">
-                            {cascadeWarning.message} Deleting this course will also delete all associated semesters and materials.
+                            {cascadeWarning.message} Deleting this {cascadeWarning.type === "university" ? "university will cascade and delete all associated courses, question papers, and study notes." : "course will also delete all associated semesters and materials."}
                         </p>
                         <div className="flex items-center justify-end gap-2">
                             <button
@@ -3693,7 +4576,13 @@ export default function AdminPanel() {
                                 Cancel
                             </button>
                             <button
-                                onClick={() => handleDeleteCourse(cascadeWarning.target, true)}
+                                onClick={() => {
+                                    if (cascadeWarning.type === "university") {
+                                        handleDeleteUniversity(cascadeWarning.target, true);
+                                    } else {
+                                        handleDeleteCourse(cascadeWarning.target, true);
+                                    }
+                                }}
                                 className="px-5 py-2 rounded-full bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold shadow-sm transition cursor-pointer"
                             >
                                 Force Delete Everything

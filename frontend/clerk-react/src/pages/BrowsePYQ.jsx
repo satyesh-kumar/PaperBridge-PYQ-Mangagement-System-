@@ -349,7 +349,10 @@ function BrowsePYQ() {
 
         if (universityFilter !== "All") {
             const selectedUni = universities.find(
-                (u) => u.name?.toLowerCase() === universityFilter.toLowerCase() || u.code?.toLowerCase() === universityFilter.toLowerCase()
+                (u) =>
+                    u.name?.toLowerCase() === universityFilter.toLowerCase() ||
+                    u.code?.toLowerCase() === universityFilter.toLowerCase() ||
+                    String(u._id) === String(universityFilter)
             );
             if (selectedUni) {
                 filteredCoursesList = courses.filter(
@@ -364,8 +367,17 @@ function BrowsePYQ() {
             }
         });
 
-        // Also include courses from papers for backward compatibility
+        // Also include courses from papers for backward compatibility (matching selected university)
         papers.forEach((p) => {
+            if (universityFilter !== "All") {
+                const pUniName = (p.universityId?.name || p.university || "").toLowerCase();
+                const pUniCode = (p.universityId?.code || "").toLowerCase();
+                const pUniId = String(p.universityId?._id || p.universityId || "");
+                const filterLower = universityFilter.toLowerCase();
+                if (!pUniName.includes(filterLower) && pUniCode !== filterLower && pUniId !== universityFilter) {
+                    return;
+                }
+            }
             const name = p.courseId?.name || p.course;
             if (name && !list.some((item) => item.value === name)) {
                 list.push({ label: name, value: name, numberOfSemesters: 8 });
@@ -487,7 +499,9 @@ function BrowsePYQ() {
             result = result.filter((p) => {
                 const uName = (p.universityId?.name || p.university || "").toLowerCase();
                 const uCode = (p.universityId?.code || "").toLowerCase();
-                return uName.includes(universityFilter.toLowerCase()) || uCode === universityFilter.toLowerCase();
+                const uId = String(p.universityId?._id || p.universityId || "");
+                const filterLower = universityFilter.toLowerCase();
+                return uName.includes(filterLower) || uCode === filterLower || uId === universityFilter;
             });
         }
 

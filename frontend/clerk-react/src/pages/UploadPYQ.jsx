@@ -15,6 +15,7 @@ import {
     FaSpinner,
     FaLayerGroup,
     FaSyncAlt,
+    FaUniversity,
 } from "react-icons/fa";
 import { MdDriveFolderUpload } from "react-icons/md";
 import { useDropzone } from "react-dropzone";
@@ -24,6 +25,13 @@ import confetti from "canvas-confetti";
 import axios from "axios";
 
 const API_URL = import.meta.env.VITE_API_URL || "http://localhost:5000";
+
+const FALLBACK_UNIVERSITIES = [
+    { _id: "uni_uu", name: "United University", code: "UU", location: "Prayagraj, UP" },
+    { _id: "uni_au", name: "University of Allahabad", code: "AU", location: "Prayagraj, UP" },
+    { _id: "uni_aktu", name: "Dr. A.P.J. Abdul Kalam Technical University", code: "AKTU", location: "Lucknow, UP" },
+    { _id: "uni_du", name: "University of Delhi", code: "DU", location: "New Delhi" },
+];
 
 const FALLBACK_COURSES = [
     { _id: "course_btech", name: "B.Tech Computer Science and Engineering", code: "BTECH-CSE", numberOfSemesters: 8, status: "active" },
@@ -83,13 +91,16 @@ export default function UploadPYQ() {
     // Mode: 'pyq' | 'note'
     const [uploadType, setUploadType] = useState("pyq");
 
-    // Dynamic Admin Courses & Loading
+    // Dynamic Admin Universities & Courses
+    const [universities, setUniversities] = useState(FALLBACK_UNIVERSITIES);
     const [courses, setCourses] = useState(FALLBACK_COURSES);
-    const [loadingCourses, setLoadingCourses] = useState(true);
+    const [loadingAcademic, setLoadingAcademic] = useState(true);
 
     // PYQ Form State
     const [pyqForm, setPyqForm] = useState({
         title: "",
+        universityId: "",
+        university: "",
         courseId: "",
         course: "",
         semester: "1",
@@ -101,6 +112,8 @@ export default function UploadPYQ() {
     // Notes Form State
     const [noteForm, setNoteForm] = useState({
         title: "",
+        universityId: "",
+        university: "",
         courseId: "",
         course: "",
         semester: "1",
@@ -115,60 +128,78 @@ export default function UploadPYQ() {
     const [uploadedItem, setUploadedItem] = useState(null);
     const [uploadProgress, setUploadProgress] = useState(0);
 
-    // ── FETCH COURSES CREATED IN ADMIN PORTAL ────────────────────────────────
-    const fetchAdminCourses = useCallback(async () => {
+    // ── FETCH UNIVERSITIES & COURSES CREATED IN ADMIN PORTAL ────────────────
+    const fetchAcademicData = useCallback(async () => {
         try {
-            setLoadingCourses(true);
-            const res = await axios.get(`${API_URL}/api/courses?status=active`, { timeout: 45000 });
-            if (Array.isArray(res.data) && res.data.length > 0) {
-                setCourses(res.data);
+            setLoadingAcademic(true);
+            const [uniRes, courseRes] = await Promise.allSettled([
+                axios.get(`${API_URL}/api/universities?status=active`, { timeout: 45000 }),
+                axios.get(`${API_URL}/api/courses?status=active`, { timeout: 45000 }),
+            ]);
 
-                // Set initial default course if not yet selected
-                const defaultCourse = res.data[0];
-                setPyqForm((prev) => ({
-                    ...prev,
-                    courseId: prev.courseId || defaultCourse._id,
-                    course: prev.course || defaultCourse.name,
-                }));
-                setNoteForm((prev) => ({
-                    ...prev,
-                    courseId: prev.courseId || defaultCourse._id,
-                    course: prev.course || defaultCourse.name,
-                }));
-            } else {
-                setCourses(FALLBACK_COURSES);
-                setPyqForm((prev) => ({
-                    ...prev,
-                    courseId: prev.courseId || FALLBACK_COURSES[0]._id,
-                    course: prev.course || FALLBACK_COURSES[0].name,
-                }));
-                setNoteForm((prev) => ({
-                    ...prev,
-                    courseId: prev.courseId || FALLBACK_COURSES[0]._id,
-                    course: prev.course || FALLBACK_COURSES[0].name,
-                }));
+            let loadedUnis = FALLBACK_UNIVERSITIES;
+            if (uniRes.status === "fulfilled" && Array.isArray(uniRes.value.data) && uniRes.value.data.length > 0) {
+                loadedUnis = uniRes.value.data;
+                setUniversities(loadedUnis);
             }
-        } catch (err) {
-            console.warn("Could not fetch dynamic admin courses, using fallback:", err.message);
-            setCourses(FALLBACK_COURSES);
+
+            let loadedCourses = FALLBACK_COURSES;
+            if (courseRes.status === "fulfilled" && Array.isArray(courseRes.value.data) && courseRes.value.data.length > 0) {
+                loadedCourses = courseRes.value.data;
+                setCourses(loadedCourses);
+            }
+
+            // Set initial defaults
+            const defaultUni = loadedUnis[0];
+            const defaultUniCourses = loadedCourses.filter(
+                (c) => String(c.universityId?._id || c.universityId) === String(defaultUni?._id)
+            );
+            const initialCourse = defaultUniCourses.length > 0 ? defaultUniCourses[0] : loadedCourses[0];
+
             setPyqForm((prev) => ({
                 ...prev,
-                courseId: prev.courseId || FALLBACK_COURSES[0]._id,
-                course: prev.course || FALLBACK_COURSES[0].name,
+                universityId: prev.universityId || defaultUni?._id || "",
+                university: prev.university || defaultUni?.name || "",
+                courseId: prev.courseId || initialCourse?._id || "",
+                course: prev.course || initialCourse?.name || "",
             }));
+
             setNoteForm((prev) => ({
                 ...prev,
-                courseId: prev.courseId || FALLBACK_COURSES[0]._id,
-                course: prev.course || FALLBACK_COURSES[0].name,
+                universityId: prev.universityId || defaultUni?._id || "",
+                university: prev.university || defaultUni?.name || "",
+                courseId: prev.courseId || initialCourse?._id || "",
+                course: prev.course || initialCourse?.name || "",
             }));
+        } catch (err) {
+            console.warn("Could not fetch dynamic academic entities, using fallback:", err.message);
         } finally {
-            setLoadingCourses(false);
+            setLoadingAcademic(false);
         }
     }, []);
 
     useEffect(() => {
-        fetchAdminCourses();
-    }, [fetchAdminCourses]);
+        fetchAcademicData();
+    }, [fetchAcademicData]);
+
+    // Available Courses dynamically filtered by selected University
+    const pyqAvailableCourses = useMemo(() => {
+        if (!pyqForm.universityId) return courses;
+        const matching = courses.filter((c) => {
+            const uId = c.universityId?._id || c.universityId;
+            return String(uId) === String(pyqForm.universityId);
+        });
+        return matching.length > 0 ? matching : courses;
+    }, [courses, pyqForm.universityId]);
+
+    const noteAvailableCourses = useMemo(() => {
+        if (!noteForm.universityId) return courses;
+        const matching = courses.filter((c) => {
+            const uId = c.universityId?._id || c.universityId;
+            return String(uId) === String(noteForm.universityId);
+        });
+        return matching.length > 0 ? matching : courses;
+    }, [courses, noteForm.universityId]);
 
     // ── DYNAMIC SEMESTERS CALCULATOR ─────────────────────────────────────────
     const getAvailableSemesters = (courseIdOrName) => {
@@ -188,6 +219,23 @@ export default function UploadPYQ() {
         return getAvailableSemesters(noteForm.courseId || noteForm.course);
     }, [courses, noteForm.courseId, noteForm.course]);
 
+    // Handle university change for PYQ
+    const handlePyqUniversityChange = (selectedUniId) => {
+        const uni = universities.find((u) => u._id === selectedUniId);
+        const uniCourses = courses.filter(
+            (c) => String(c.universityId?._id || c.universityId) === String(selectedUniId)
+        );
+        const nextCourse = uniCourses.length > 0 ? uniCourses[0] : courses[0];
+        setPyqForm((prev) => ({
+            ...prev,
+            universityId: selectedUniId,
+            university: uni ? uni.name : prev.university,
+            courseId: nextCourse?._id || "",
+            course: nextCourse?.name || "",
+            semester: "1",
+        }));
+    };
+
     // Handle course selection for PYQ
     const handlePyqCourseChange = (selectedCourseId) => {
         const selected = courses.find((c) => c._id === selectedCourseId);
@@ -200,6 +248,23 @@ export default function UploadPYQ() {
             course: selected ? selected.name : pyqForm.course,
             semester: currentSem > maxSems ? "1" : String(currentSem),
         });
+    };
+
+    // Handle university change for Notes
+    const handleNoteUniversityChange = (selectedUniId) => {
+        const uni = universities.find((u) => u._id === selectedUniId);
+        const uniCourses = courses.filter(
+            (c) => String(c.universityId?._id || c.universityId) === String(selectedUniId)
+        );
+        const nextCourse = uniCourses.length > 0 ? uniCourses[0] : courses[0];
+        setNoteForm((prev) => ({
+            ...prev,
+            universityId: selectedUniId,
+            university: uni ? uni.name : prev.university,
+            courseId: nextCourse?._id || "",
+            course: nextCourse?.name || "",
+            semester: "1",
+        }));
     };
 
     // Handle course selection for Notes
@@ -287,7 +352,6 @@ export default function UploadPYQ() {
             const data = new FormData();
 
             data.append("file", file);
-            data.append("university", "United University");
             if (user?.id) {
                 data.append("userId", user.id);
             }
@@ -305,7 +369,13 @@ export default function UploadPYQ() {
             const isMongoId = (id) => typeof id === "string" && /^[0-9a-fA-F]{24}$/.test(id);
 
             if (isPyq) {
-                const chosenCourse = courses.find((c) => c._id === pyqForm.courseId) || courses[0];
+                const chosenUni = universities.find((u) => u._id === pyqForm.universityId) || universities[0];
+                if (chosenUni?._id && isMongoId(chosenUni._id)) {
+                    data.append("universityId", chosenUni._id);
+                }
+                data.append("university", chosenUni ? chosenUni.name : (pyqForm.university || "United University"));
+
+                const chosenCourse = pyqAvailableCourses.find((c) => c._id === pyqForm.courseId) || pyqAvailableCourses[0] || courses[0];
                 if (chosenCourse?._id && isMongoId(chosenCourse._id)) {
                     data.append("courseId", chosenCourse._id);
                 }
@@ -341,7 +411,13 @@ export default function UploadPYQ() {
                     toast.success("Submitted for admin verification!");
                 }
             } else {
-                const chosenCourse = courses.find((c) => c._id === noteForm.courseId) || courses[0];
+                const chosenUni = universities.find((u) => u._id === noteForm.universityId) || universities[0];
+                if (chosenUni?._id && isMongoId(chosenUni._id)) {
+                    data.append("universityId", chosenUni._id);
+                }
+                data.append("university", chosenUni ? chosenUni.name : (noteForm.university || "United University"));
+
+                const chosenCourse = noteAvailableCourses.find((c) => c._id === noteForm.courseId) || noteAvailableCourses[0] || courses[0];
                 if (chosenCourse?._id && isMongoId(chosenCourse._id)) {
                     data.append("courseId", chosenCourse._id);
                 }
@@ -457,6 +533,30 @@ export default function UploadPYQ() {
                                     />
                                 </div>
 
+                                {/* University / Academic Institution */}
+                                <div>
+                                    <div className="flex items-center justify-between mb-1.5">
+                                        <label className="text-xs font-bold text-[#4A3E31] dark:text-[#C2B3A0] flex items-center gap-1.5">
+                                            <FaUniversity className="text-[#C89D5C]" />
+                                            <span>University / Academic Institution *</span>
+                                        </label>
+                                        {loadingAcademic && (
+                                            <FaSpinner className="text-[10px] text-[#C89D5C] animate-spin" />
+                                        )}
+                                    </div>
+                                    <select
+                                        value={pyqForm.universityId}
+                                        onChange={(e) => handlePyqUniversityChange(e.target.value)}
+                                        className="w-full px-4 py-2.5 bg-white dark:bg-[#1C1916] border border-[#EAE2D8] dark:border-[#2E2822] rounded-xl text-xs text-[#0D1B2A] dark:text-[#FAF8F5] font-medium focus:outline-hidden focus:border-[#8C6239] transition"
+                                    >
+                                        {universities.map((u) => (
+                                            <option key={u._id} value={u._id} className="dark:bg-[#161412]">
+                                                {u.name} ({u.code}) {u.location ? `— ${u.location}` : ""}
+                                            </option>
+                                        ))}
+                                    </select>
+                                </div>
+
                                 {/* Row: Live Course & Dynamic Semesters */}
                                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                     <div>
@@ -464,16 +564,16 @@ export default function UploadPYQ() {
                                             <label className="text-xs font-bold text-[#4A3E31] dark:text-[#C2B3A0]">
                                                 Course / Degree Program *
                                             </label>
-                                            {loadingCourses && (
+                                            {loadingAcademic && (
                                                 <FaSpinner className="text-[10px] text-[#C89D5C] animate-spin" />
                                             )}
                                         </div>
                                         <select
-                                            value={pyqForm.courseId || courses.find((c) => c.name === pyqForm.course)?._id || courses[0]?._id}
+                                            value={pyqForm.courseId || pyqAvailableCourses[0]?._id}
                                             onChange={(e) => handlePyqCourseChange(e.target.value)}
                                             className="w-full px-4 py-2.5 bg-white dark:bg-[#1C1916] border border-[#EAE2D8] dark:border-[#2E2822] rounded-xl text-xs text-[#0D1B2A] dark:text-[#FAF8F5] font-medium focus:outline-hidden focus:border-[#8C6239] transition"
                                         >
-                                            {courses.map((c) => (
+                                            {pyqAvailableCourses.map((c) => (
                                                 <option key={c._id} value={c._id} className="dark:bg-[#161412]">
                                                     {c.name} ({c.code || "Program"})
                                                 </option>
@@ -567,6 +667,30 @@ export default function UploadPYQ() {
                                     />
                                 </div>
 
+                                {/* University / Academic Institution for Notes */}
+                                <div>
+                                    <div className="flex items-center justify-between mb-1.5">
+                                        <label className="text-xs font-bold text-[#4A3E31] dark:text-[#C2B3A0] flex items-center gap-1.5">
+                                            <FaUniversity className="text-[#C89D5C]" />
+                                            <span>University / Academic Institution *</span>
+                                        </label>
+                                        {loadingAcademic && (
+                                            <FaSpinner className="text-[10px] text-[#C89D5C] animate-spin" />
+                                        )}
+                                    </div>
+                                    <select
+                                        value={noteForm.universityId}
+                                        onChange={(e) => handleNoteUniversityChange(e.target.value)}
+                                        className="w-full px-4 py-2.5 bg-white dark:bg-[#1C1916] border border-[#EAE2D8] dark:border-[#2E2822] rounded-xl text-xs text-[#0D1B2A] dark:text-[#FAF8F5] font-medium focus:outline-hidden focus:border-[#8C6239] transition"
+                                    >
+                                        {universities.map((u) => (
+                                            <option key={u._id} value={u._id} className="dark:bg-[#161412]">
+                                                {u.name} ({u.code}) {u.location ? `— ${u.location}` : ""}
+                                            </option>
+                                        ))}
+                                    </select>
+                                </div>
+
                                 {/* Row: Live Course & Dynamic Semesters */}
                                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                     <div>
@@ -574,16 +698,16 @@ export default function UploadPYQ() {
                                             <label className="text-xs font-bold text-[#4A3E31] dark:text-[#C2B3A0]">
                                                 Course / Degree Program *
                                             </label>
-                                            {loadingCourses && (
+                                            {loadingAcademic && (
                                                 <FaSpinner className="text-[10px] text-[#C89D5C] animate-spin" />
                                             )}
                                         </div>
                                         <select
-                                            value={noteForm.courseId || courses.find((c) => c.name === noteForm.course)?._id || courses[0]?._id}
+                                            value={noteForm.courseId || noteAvailableCourses[0]?._id}
                                             onChange={(e) => handleNoteCourseChange(e.target.value)}
                                             className="w-full px-4 py-2.5 bg-white dark:bg-[#1C1916] border border-[#EAE2D8] dark:border-[#2E2822] rounded-xl text-xs text-[#0D1B2A] dark:text-[#FAF8F5] font-medium focus:outline-hidden focus:border-[#8C6239] transition"
                                         >
-                                            {courses.map((c) => (
+                                            {noteAvailableCourses.map((c) => (
                                                 <option key={c._id} value={c._id} className="dark:bg-[#161412]">
                                                     {c.name} ({c.code || "Program"})
                                                 </option>

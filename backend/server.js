@@ -528,7 +528,7 @@ app.get("/api/universities/:id", async (req, res) => {
 });
 
 // Create University (Admin)
-app.post("/api/universities", requireAuth(), requireAdmin, async (req, res) => {
+app.post("/api/universities", requireAdmin, async (req, res) => {
   try {
     const { name, code, description, logo, website, location, state, country, status } = req.body;
 
@@ -565,7 +565,7 @@ app.post("/api/universities", requireAuth(), requireAdmin, async (req, res) => {
 });
 
 // Update University (Admin)
-app.put("/api/universities/:id", requireAuth(), requireAdmin, async (req, res) => {
+app.put("/api/universities/:id", requireAdmin, async (req, res) => {
   try {
     const { name, code, description, logo, website, location, state, country, status } = req.body;
 
@@ -611,7 +611,7 @@ app.put("/api/universities/:id", requireAuth(), requireAdmin, async (req, res) =
 });
 
 // Delete University (Admin with Cascade Safety Check)
-app.delete("/api/universities/:id", requireAuth(), requireAdmin, async (req, res) => {
+app.delete("/api/universities/:id", requireAdmin, async (req, res) => {
   try {
     const uniId = req.params.id;
     const force = req.query.force === "true" || req.body.force === true;
@@ -656,7 +656,7 @@ app.delete("/api/universities/:id", requireAuth(), requireAdmin, async (req, res
 });
 
 // Toggle University Status (Admin)
-app.patch("/api/universities/:id/status", requireAuth(), requireAdmin, async (req, res) => {
+app.patch("/api/universities/:id/status", requireAdmin, async (req, res) => {
   try {
     const { status } = req.body;
     if (!["active", "inactive"].includes(status)) {
@@ -685,7 +685,21 @@ app.get("/api/courses", async (req, res) => {
     const filter = {};
 
     if (universityId && universityId !== "all") {
-      filter.universityId = universityId;
+      if (mongoose.Types.ObjectId.isValid(universityId)) {
+        filter.universityId = universityId;
+      } else {
+        const foundUni = await University.findOne({
+          $or: [
+            { code: universityId.toUpperCase() },
+            { name: { $regex: `^${universityId}$`, $options: "i" } }
+          ]
+        });
+        if (foundUni) {
+          filter.universityId = foundUni._id;
+        } else {
+          filter.universityId = universityId;
+        }
+      }
     }
     if (status && status !== "all") {
       filter.status = status;
